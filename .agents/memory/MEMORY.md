@@ -1,0 +1,4 @@
+- [ListFlow architecture](listflow-arch.md) — master Item record → Listings per marketplace → Orders; shipping tasks auto-created on status change
+- [Orval schema naming](orval-naming.md) — body schemas must use entity-shaped names, never OperationIdBody, to avoid TS2308 collisions
+- [CSS import order](css-import-order.md) — Google Fonts @import url() must be the very first line of index.css, before @import 'tailwindcss'
+- [DB lib rebuild](db-lib-rebuild.md) — after adding tables to lib/db/src/schema/, run pnpm run typecheck:libs before building any artifact that imports from @workspace/db
