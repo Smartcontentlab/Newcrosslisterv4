@@ -1,133 +1,92 @@
-import { Link, useLocation } from "wouter";
-import { cn } from "@/lib/utils";
+import { Link, useLocation } from 'wouter';
 import { 
   LayoutDashboard, 
   Package, 
-  Tags, 
+  List, 
   ShoppingCart, 
   Truck, 
-  LineChart, 
-  BotMessageSquare,
-  Search,
-  Bell,
-  Menu
-} from "lucide-react";
-import { useState, useEffect } from "react";
+  BarChart3, 
+  Sparkles 
+} from 'lucide-react';
+import { ReactNode } from 'react';
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inventory", label: "Inventory", icon: Package },
-  { href: "/listings", label: "Listings", icon: Tags },
-  { href: "/orders", label: "Orders", icon: ShoppingCart },
-  { href: "/shipping", label: "Shipping", icon: Truck },
-  { href: "/analytics", label: "Analytics", icon: LineChart },
-  { href: "/ai-assistant", label: "AI Assistant", icon: BotMessageSquare },
+interface NavItem {
+  path: string;
+  label: string;
+  icon: ReactNode;
+}
+
+const navItems: NavItem[] = [
+  { path: '/', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+  { path: '/inventory', label: 'Inventory', icon: <Package size={20} /> },
+  { path: '/listings', label: 'Listings', icon: <List size={20} /> },
+  { path: '/orders', label: 'Orders', icon: <ShoppingCart size={20} /> },
+  { path: '/shipping', label: 'Shipping', icon: <Truck size={20} /> },
+  { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={20} /> },
+  { path: '/ai-assistant', label: 'AI Assistant', icon: <Sparkles size={20} /> },
 ];
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+interface AppLayoutProps {
+  children: ReactNode;
+}
 
-  // Set dark mode default
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
+export function AppLayout({ children }: AppLayoutProps) {
+  const [location] = useLocation();
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
-      {/* Mobile Header */}
-      <header className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
-        <div className="flex items-center gap-2 font-bold text-lg">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
-            <Package size={18} />
-          </div>
-          ListFlow
-        </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-muted-foreground">
-          <Menu size={24} />
-        </button>
-      </header>
-
+    <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className={cn(
-        "w-64 bg-sidebar border-r border-sidebar-border flex-col transition-all duration-300 z-50",
-        "fixed inset-y-0 left-0 md:relative md:flex",
-        isMobileMenuOpen ? "flex" : "hidden"
-      )}>
-        <div className="h-16 flex items-center gap-3 px-6 border-b border-sidebar-border">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
-            <Package size={18} />
-          </div>
-          <span className="font-bold text-xl tracking-tight text-sidebar-foreground">ListFlow</span>
+      <aside className="w-64 glass-card border-r border-border/50 flex flex-col fixed h-screen z-50">
+        {/* Logo */}
+        <div className="p-6 border-b border-border/50">
+          <h1 
+            className="font-pixel text-2xl text-primary text-glow-pink glitch-text" 
+            data-text="ListFlow"
+          >
+            ListFlow
+          </h1>
+          <p className="text-xs text-muted-foreground mt-2 font-sans">AI Resale Platform</p>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
-            const isActive = location === item.href;
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-2">
+          {navItems.map((item) => {
+            const isActive = location === item.path;
             return (
-              <Link key={item.href} href={item.href} onClick={() => setIsMobileMenuOpen(false)}>
-                <div
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors cursor-pointer",
-                    isActive 
-                      ? "bg-primary/10 text-primary" 
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  )}
-                >
-                  <item.icon size={18} className={cn(isActive ? "text-primary" : "text-sidebar-foreground/50")} />
-                  {item.label}
-                </div>
+              <Link
+                key={item.path}
+                href={item.path}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
+                  font-sans font-semibold text-sm
+                  ${isActive 
+                    ? 'bg-primary/20 text-primary neon-glow-pink border border-primary/50' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent'
+                  }
+                `}
+                data-testid={`nav-${item.path.slice(1) || 'dashboard'}`}
+              >
+                {isActive && <span className="text-primary animate-pulse">♥</span>}
+                {item.icon}
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-sm font-bold">
-              SJ
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Seller Jane</p>
-              <p className="text-xs text-muted-foreground truncate">Pro Reseller</p>
-            </div>
+        {/* Footer */}
+        <div className="p-4 border-t border-border/50">
+          <div className="glass-card p-3 rounded-lg">
+            <p className="text-xs font-pixel text-accent text-glow-mint">★ Pro Seller ★</p>
+            <p className="text-xs text-muted-foreground mt-1 font-sans">Level 47 Reseller</p>
           </div>
         </div>
       </aside>
 
-      {/* Mobile overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 border-b border-border bg-card/50 backdrop-blur hidden md:flex items-center justify-between px-8 sticky top-0 z-30">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <input 
-                type="text" 
-                placeholder="Search inventory, orders, listings..." 
-                className="w-full pl-9 pr-4 py-2 bg-accent/50 border-transparent focus:border-primary focus:bg-background rounded-full text-sm outline-none transition-all"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-accent">
-              <Bell size={20} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full"></span>
-            </button>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
+      {/* Main content */}
+      <main className="flex-1 ml-64 p-8">
+        <div className="max-w-7xl mx-auto">
+          {children}
         </div>
       </main>
     </div>
