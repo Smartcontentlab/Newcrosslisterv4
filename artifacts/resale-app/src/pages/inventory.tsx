@@ -1,126 +1,270 @@
-import { useListItems, getListItemsQueryKey, useCreateItem, useDeleteItem } from "@workspace/api-client-react";
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { StatusBadge } from "@/components/ui/badges";
-import { Search, Plus, Filter, MoreHorizontal, Image as ImageIcon, Tags } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState } from 'react';
+import { useListItems, useCreateItem, useDeleteItem } from '@workspace/api-client-react';
+import { Plus, Trash2, Edit, DollarSign, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import type { ItemInputCondition, ItemInputStatus } from '@workspace/api-client-react';
 
 export default function Inventory() {
-  const [search, setSearch] = useState("");
-  const queryClient = useQueryClient();
-  
-  const { data: items, isLoading } = useListItems(
-    { search: search || undefined }, 
-    { query: { queryKey: getListItemsQueryKey({ search: search || undefined }) } }
-  );
+  const [isOpen, setIsOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    brand: '',
+    category: '',
+    condition: 'good' as ItemInputCondition,
+    status: 'active' as ItemInputStatus,
+    price: '',
+    cost: '',
+  });
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
-          <p className="text-muted-foreground">Manage your physical products and stock.</p>
-        </div>
-        <Button className="shrink-0 gap-2">
-          <Plus size={16} /> Add Item
-        </Button>
-      </div>
+  const { data: items, isLoading } = useListItems();
+  const createItem = useCreateItem();
+  const deleteItem = useDeleteItem();
+  const { toast } = useToast();
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search by title, brand, or SKU..." 
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Button variant="outline" className="gap-2">
-          <Filter size={16} /> Filter
-        </Button>
-      </div>
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createItem.mutate(
+      {
+        data: {
+          ...formData,
+          price: Number(formData.price),
+          cost: Number(formData.cost),
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: '✦ Item created!', description: 'Your item has been added to inventory' });
+          setIsOpen(false);
+          setFormData({
+            title: '',
+            description: '',
+            brand: '',
+            category: '',
+            condition: 'good',
+            status: 'active',
+            price: '',
+            cost: '',
+          });
+        },
+        onError: () => {
+          toast({ title: 'Error', description: 'Failed to create item', variant: 'destructive' });
+        },
+      }
+    );
+  };
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  const handleDelete = (id: number) => {
+    if (confirm('Delete this item?')) {
+      deleteItem.mutate({ id }, {
+        onSuccess: () => {
+          toast({ title: '✦ Deleted', description: 'Item removed from inventory' });
+        },
+      });
+    }
+  };
+
+  const statusColors: Record<string, string> = {
+    draft: 'bg-muted/50 text-muted-foreground',
+    active: 'bg-accent/20 text-accent border border-accent/50',
+    sold: 'bg-primary/20 text-primary border border-primary/50',
+    archived: 'bg-secondary/20 text-secondary border border-secondary/50',
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 bg-muted/20 rounded-lg animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
-            <Card key={i} className="h-64 animate-pulse bg-muted/50" />
+            <div key={i} className="h-80 bg-muted/20 rounded-xl animate-pulse" />
           ))}
         </div>
-      ) : items?.length === 0 ? (
-        <div className="text-center py-20 bg-card rounded-xl border border-dashed">
-          <PackageIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-medium">No items found</h3>
-          <p className="text-muted-foreground max-w-sm mx-auto mt-1">Add your first item to start tracking inventory and generating listings.</p>
-          <Button className="mt-6 gap-2"><Plus size={16} /> Add Item</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-pixel text-4xl text-primary text-glow-pink glitch-text mb-2" data-text="Inventory">
+            Inventory
+          </h1>
+          <p className="text-muted-foreground font-sans">{items?.length || 0} items in stock ★</p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {items?.map(item => (
-            <Card key={item.id} className="overflow-hidden flex flex-col group hover:border-primary/50 transition-colors">
-              <div className="h-48 bg-accent/50 relative flex items-center justify-center border-b border-border">
-                {item.photos && item.photos.length > 0 ? (
-                  <img src={item.photos[0]} alt={item.title} className="w-full h-full object-cover" />
-                ) : (
-                  <ImageIcon className="h-12 w-12 text-muted-foreground/30" />
-                )}
-                <div className="absolute top-3 left-3">
-                  <StatusBadge status={item.status} />
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <Button className="neon-glow-pink font-sans font-bold" data-testid="button-add-item">
+              <Plus size={20} /> Add Item
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="glass-card-glow border-primary/50 max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-pixel text-primary text-glow-pink">New Item ★</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label className="font-sans font-bold">Title</Label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                  className="glass-card border-border/50 focus:border-primary neon-glow-pink"
+                  data-testid="input-title"
+                />
+              </div>
+              <div>
+                <Label className="font-sans font-bold">Description</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="glass-card border-border/50 focus:border-primary"
+                  data-testid="input-description"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="font-sans font-bold">Brand</Label>
+                  <Input
+                    value={formData.brand}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    className="glass-card border-border/50 focus:border-primary"
+                    data-testid="input-brand"
+                  />
                 </div>
-                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full shadow-md">
-                    <MoreHorizontal size={14} />
-                  </Button>
+                <div>
+                  <Label className="font-sans font-bold">Category</Label>
+                  <Input
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="glass-card border-border/50 focus:border-primary"
+                    data-testid="input-category"
+                  />
                 </div>
               </div>
-              <CardContent className="p-4 flex-1 flex flex-col">
-                <div className="mb-2">
-                  <div className="text-xs font-medium text-primary mb-1">{item.brand || item.category || 'Unbranded'}</div>
-                  <h3 className="font-semibold text-base line-clamp-2 leading-tight">{item.title}</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="font-sans font-bold">Condition</Label>
+                  <Select value={formData.condition} onValueChange={(v) => setFormData({ ...formData, condition: v as ItemInputCondition })}>
+                    <SelectTrigger className="glass-card border-border/50" data-testid="select-condition">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="glass-card border-primary/50">
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="like_new">Like New</SelectItem>
+                      <SelectItem value="good">Good</SelectItem>
+                      <SelectItem value="fair">Fair</SelectItem>
+                      <SelectItem value="poor">Poor</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="mt-auto pt-4 flex items-end justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-xs text-muted-foreground">Price / Cost</span>
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-mono font-bold text-lg">{formatCurrency(item.price)}</span>
-                      <span className="font-mono text-xs text-muted-foreground line-through">{formatCurrency(item.cost)}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-accent px-2 py-1 rounded-md">
-                    <Tags size={12} />
-                    {item.listingCount || 0} listings
-                  </div>
+                <div>
+                  <Label className="font-sans font-bold">Status</Label>
+                  <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as ItemInputStatus })}>
+                    <SelectTrigger className="glass-card border-border/50" data-testid="select-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="glass-card border-primary/50">
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="sold">Sold</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="font-sans font-bold">Price</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    required
+                    className="glass-card border-border/50 focus:border-primary"
+                    data-testid="input-price"
+                  />
+                </div>
+                <div>
+                  <Label className="font-sans font-bold">Cost</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.cost}
+                    onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                    required
+                    className="glass-card border-border/50 focus:border-primary"
+                    data-testid="input-cost"
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full neon-glow-pink font-sans font-bold" disabled={createItem.isPending} data-testid="button-submit">
+                {createItem.isPending ? 'Creating...' : 'Create Item ✦'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {!items || items.length === 0 ? (
+          <div className="col-span-full glass-card-glow p-12 rounded-xl text-center">
+            <p className="font-pixel text-xl text-muted-foreground mb-4">No items yet</p>
+            <p className="text-muted-foreground font-sans">Add your first item to get started ★</p>
+          </div>
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="glass-card-glow p-6 rounded-xl hover:scale-105 transition-all" data-testid={`item-${item.id}`}>
+              <div className="flex items-start justify-between mb-4">
+                <span className={`px-3 py-1 rounded-full text-xs font-bold font-sans ${statusColors[item.status]}`}>
+                  {item.status.toUpperCase()}
+                </span>
+                <div className="flex gap-2">
+                  <button className="text-secondary hover:text-secondary/80 transition-colors" data-testid={`button-edit-${item.id}`}>
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="text-destructive hover:text-destructive/80 transition-colors"
+                    data-testid={`button-delete-${item.id}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              
+              <h3 className="font-sans font-bold text-lg text-foreground mb-2">{item.title}</h3>
+              {item.brand && <p className="text-sm text-muted-foreground font-sans mb-1">by {item.brand}</p>}
+              {item.category && <p className="text-xs text-muted-foreground font-sans mb-3">{item.category}</p>}
+              
+              <div className="flex items-center justify-between pt-4 border-t border-border/30">
+                <div className="flex items-center gap-2">
+                  <DollarSign size={16} className="text-primary" />
+                  <span className="font-pixel text-lg text-primary text-glow-pink">${item.price.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={16} className="text-accent" />
+                  <span className="font-pixel text-sm text-accent text-glow-mint">${(item.price - item.cost).toFixed(2)}</span>
+                </div>
+              </div>
+              
+              {item.listingCount !== undefined && item.listingCount > 0 && (
+                <p className="text-xs text-muted-foreground font-sans mt-3">
+                  Listed on {item.listingCount} marketplace{item.listingCount !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
-}
-
-function PackageIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m7.5 4.27 9 5.15" />
-      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-      <path d="m3.3 7 8.7 5 8.7-5" />
-      <path d="M12 22V12" />
-    </svg>
-  )
 }

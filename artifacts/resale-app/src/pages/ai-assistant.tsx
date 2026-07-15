@@ -1,223 +1,362 @@
-import { useState, useRef, useEffect } from "react";
-import { useAiChat, useGenerateListing, useGetPriceEstimate } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Sparkles, Tags, DollarSign, Loader2 } from "lucide-react";
-
-type Message = { role: "user" | "assistant"; content: string };
+import { useState } from 'react';
+import { useAiChat, useGetPriceEstimate, useGenerateListing, useListItems } from '@workspace/api-client-react';
+import { Sparkles, Send, DollarSign, Wand2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import type { GenerateListingRequestMarketplace } from '@workspace/api-client-react';
 
 export default function AiAssistant() {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! I'm your ListFlow assistant. I can help you price items, write optimized listings, or analyze your sales strategy. What do you need help with today?" }
-  ]);
-  const [input, setInput] = useState("");
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; message: string }>>([]);
   
-  const chatMutation = useAiChat();
-  const generateListingMutation = useGenerateListing();
-  const priceEstimateMutation = useGetPriceEstimate();
-
-  const [activeTab, setActiveTab] = useState<"chat" | "listing" | "pricing">("chat");
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleSendChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-    
-    const userMsg = input;
-    setInput("");
-    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
-    
-    chatMutation.mutate({ data: { message: userMsg } }, {
-      onSuccess: (data) => {
-        setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
-      },
-      onError: () => {
-        setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I'm having trouble connecting right now." }]);
-      }
-    });
-  };
-
-  // Pricing Form State
-  const [priceForm, setPriceForm] = useState({ title: "", brand: "", condition: "" });
+  const [priceForm, setPriceForm] = useState({
+    title: '',
+    brand: '',
+    model: '',
+    condition: '',
+    category: '',
+  });
   const [priceResult, setPriceResult] = useState<any>(null);
+
+  const [listingForm, setListingForm] = useState({
+    itemId: '',
+    marketplace: 'ebay' as GenerateListingRequestMarketplace,
+  });
+  const [listingResult, setListingResult] = useState<any>(null);
+
+  const { data: items } = useListItems();
+  const aiChat = useAiChat();
+  const getPriceEstimate = useGetPriceEstimate();
+  const generateListing = useGenerateListing();
+  const { toast } = useToast();
+
+  const handleChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessage.trim()) return;
+
+    setChatHistory([...chatHistory, { role: 'user', message: chatMessage }]);
+    
+    aiChat.mutate(
+      { data: { message: chatMessage } },
+      {
+        onSuccess: (data) => {
+          setChatHistory(prev => [...prev, { role: 'assistant', message: data.reply }]);
+          setChatMessage('');
+        },
+        onError: () => {
+          toast({ title: 'Error', description: 'Failed to get response', variant: 'destructive' });
+        },
+      }
+    );
+  };
 
   const handlePriceEstimate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!priceForm.title) return;
-    
-    priceEstimateMutation.mutate({ data: priceForm }, {
-      onSuccess: (data) => {
-        setPriceResult(data);
+    getPriceEstimate.mutate(
+      { data: priceForm },
+      {
+        onSuccess: (data) => {
+          setPriceResult(data);
+          toast({ title: '✦ Estimate ready!', description: 'Price suggestion generated' });
+        },
+        onError: () => {
+          toast({ title: 'Error', description: 'Failed to get estimate', variant: 'destructive' });
+        },
       }
-    });
+    );
+  };
+
+  const handleGenerateListing = (e: React.FormEvent) => {
+    e.preventDefault();
+    generateListing.mutate(
+      { data: { itemId: Number(listingForm.itemId), marketplace: listingForm.marketplace } },
+      {
+        onSuccess: (data) => {
+          setListingResult(data);
+          toast({ title: '✦ Listing generated!', description: 'AI-powered listing ready' });
+        },
+        onError: () => {
+          toast({ title: 'Error', description: 'Failed to generate listing', variant: 'destructive' });
+        },
+      }
+    );
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-6">
-      {/* Sidebar Tools */}
-      <div className="w-full md:w-80 flex flex-col gap-4">
-        <h1 className="text-3xl font-bold tracking-tight mb-2 hidden md:block">AI Assistant</h1>
-        
-        <div className="flex bg-muted p-1 rounded-lg">
-          <button 
-            className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'chat' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setActiveTab('chat')}
-          >
-            Chat
-          </button>
-          <button 
-            className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'pricing' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setActiveTab('pricing')}
-          >
-            Pricer
-          </button>
-          <button 
-            className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'listing' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setActiveTab('listing')}
-          >
-            Lister
-          </button>
-        </div>
+    <div className="space-y-8 animate-fade-in">
+      <div>
+        <h1 className="font-pixel text-4xl text-primary text-glow-pink glitch-text mb-2" data-text="AI Assistant">
+          AI Assistant
+        </h1>
+        <p className="text-muted-foreground font-sans">Your resale copilot ★</p>
+      </div>
 
-        {activeTab === 'pricing' && (
-          <Card className="flex-1 overflow-auto border-primary/20 shadow-md shadow-primary/5">
-            <CardHeader className="bg-primary/5 pb-4 border-b border-primary/10">
-              <CardTitle className="text-lg flex items-center gap-2 text-primary">
-                <DollarSign size={18} /> Smart Pricer
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              <form onSubmit={handlePriceEstimate} className="space-y-3">
+      <Tabs defaultValue="chat" className="w-full">
+        <TabsList className="glass-card border border-border/50 p-1">
+          <TabsTrigger value="chat" className="font-sans font-bold data-[state=active]:bg-primary/20 data-[state=active]:text-primary" data-testid="tab-chat">
+            <Sparkles size={16} className="mr-2" /> Chat
+          </TabsTrigger>
+          <TabsTrigger value="price" className="font-sans font-bold data-[state=active]:bg-accent/20 data-[state=active]:text-accent" data-testid="tab-price">
+            <DollarSign size={16} className="mr-2" /> Price Estimator
+          </TabsTrigger>
+          <TabsTrigger value="listing" className="font-sans font-bold data-[state=active]:bg-secondary/20 data-[state=active]:text-secondary" data-testid="tab-listing">
+            <Wand2 size={16} className="mr-2" /> Listing Generator
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Chat Tab */}
+        <TabsContent value="chat" className="space-y-4">
+          <div className="glass-card-glow p-6 rounded-xl h-[500px] flex flex-col">
+            <div className="flex-1 overflow-y-auto space-y-4 mb-4" data-testid="chat-messages">
+              {chatHistory.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <Sparkles size={48} className="mx-auto mb-4 text-primary animate-glow-pulse" />
+                    <p className="font-pixel text-lg text-muted-foreground mb-2">AI Ready ★</p>
+                    <p className="text-sm text-muted-foreground font-sans">Ask me anything about reselling!</p>
+                  </div>
+                </div>
+              ) : (
+                chatHistory.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    data-testid={`message-${idx}`}
+                  >
+                    <div
+                      className={`
+                        max-w-[80%] p-4 rounded-xl font-sans
+                        ${msg.role === 'user' 
+                          ? 'glass-card border border-primary/50 neon-glow-pink text-foreground' 
+                          : 'glass-card border border-accent/50 text-foreground'
+                        }
+                      `}
+                    >
+                      {msg.message}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <form onSubmit={handleChat} className="flex gap-2">
+              <Input
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                placeholder="Ask me anything..."
+                className="glass-card border-border/50 focus:border-primary flex-1"
+                disabled={aiChat.isPending}
+                data-testid="input-chat"
+              />
+              <Button type="submit" className="neon-glow-pink font-sans font-bold" disabled={aiChat.isPending} data-testid="button-send">
+                <Send size={20} />
+              </Button>
+            </form>
+          </div>
+        </TabsContent>
+
+        {/* Price Estimator Tab */}
+        <TabsContent value="price" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="glass-card-glow p-6 rounded-xl">
+              <h2 className="font-pixel text-xl text-accent text-glow-mint mb-6">Enter Details</h2>
+              <form onSubmit={handlePriceEstimate} className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Item Title</label>
-                  <Input 
-                    placeholder="e.g. Vintage Levis 501" 
+                  <Label className="font-sans font-bold">Title</Label>
+                  <Input
                     value={priceForm.title}
-                    onChange={e => setPriceForm({...priceForm, title: e.target.value})}
+                    onChange={(e) => setPriceForm({ ...priceForm, title: e.target.value })}
+                    required
+                    className="glass-card border-border/50 focus:border-accent"
+                    data-testid="input-price-title"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Brand</label>
-                    <Input 
-                      placeholder="Levis" 
+                    <Label className="font-sans font-bold">Brand</Label>
+                    <Input
                       value={priceForm.brand}
-                      onChange={e => setPriceForm({...priceForm, brand: e.target.value})}
+                      onChange={(e) => setPriceForm({ ...priceForm, brand: e.target.value })}
+                      className="glass-card border-border/50 focus:border-accent"
+                      data-testid="input-price-brand"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Condition</label>
-                    <Input 
-                      placeholder="Good" 
-                      value={priceForm.condition}
-                      onChange={e => setPriceForm({...priceForm, condition: e.target.value})}
+                    <Label className="font-sans font-bold">Model</Label>
+                    <Input
+                      value={priceForm.model}
+                      onChange={(e) => setPriceForm({ ...priceForm, model: e.target.value })}
+                      className="glass-card border-border/50 focus:border-accent"
+                      data-testid="input-price-model"
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full gap-2 mt-2" disabled={priceEstimateMutation.isPending || !priceForm.title}>
-                  {priceEstimateMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                  Get Estimate
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="font-sans font-bold">Condition</Label>
+                    <Input
+                      value={priceForm.condition}
+                      onChange={(e) => setPriceForm({ ...priceForm, condition: e.target.value })}
+                      className="glass-card border-border/50 focus:border-accent"
+                      data-testid="input-price-condition"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-sans font-bold">Category</Label>
+                    <Input
+                      value={priceForm.category}
+                      onChange={(e) => setPriceForm({ ...priceForm, category: e.target.value })}
+                      className="glass-card border-border/50 focus:border-accent"
+                      data-testid="input-price-category"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full neon-glow-mint bg-accent hover:bg-accent/80 text-background font-sans font-bold" disabled={getPriceEstimate.isPending} data-testid="button-estimate">
+                  {getPriceEstimate.isPending ? 'Analyzing...' : 'Get Estimate ✦'}
                 </Button>
               </form>
+            </div>
 
-              {priceResult && (
-                <div className="mt-6 p-4 bg-accent/50 rounded-lg border border-border space-y-3 animate-in fade-in zoom-in duration-300">
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-1">Suggested Price</p>
-                    <p className="text-3xl font-mono font-bold text-emerald-500">${priceResult.suggestedPrice}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Range: ${priceResult.minPrice} - ${priceResult.maxPrice}</p>
+            <div className="glass-card-glow p-6 rounded-xl">
+              <h2 className="font-pixel text-xl text-primary text-glow-pink mb-6">Estimate</h2>
+              {priceResult ? (
+                <div className="space-y-6">
+                  <div className="text-center p-8 glass-card rounded-xl border border-primary/50 neon-glow-pink">
+                    <p className="text-sm text-muted-foreground font-sans mb-2">Suggested Price</p>
+                    <p className="font-pixel text-5xl text-primary text-glow-pink">${priceResult.suggestedPrice.toFixed(2)}</p>
                   </div>
-                  <div className="pt-3 border-t border-border/50">
-                    <p className="text-xs text-muted-foreground">{priceResult.reasoning}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="glass-card p-4 rounded-lg">
+                      <p className="text-xs text-muted-foreground font-sans mb-1">Min Price</p>
+                      <p className="font-pixel text-accent text-glow-mint">${priceResult.minPrice.toFixed(2)}</p>
+                    </div>
+                    <div className="glass-card p-4 rounded-lg">
+                      <p className="text-xs text-muted-foreground font-sans mb-1">Max Price</p>
+                      <p className="font-pixel text-accent text-glow-mint">${priceResult.maxPrice.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <div className="glass-card p-4 rounded-lg">
+                    <p className="text-xs text-muted-foreground font-sans mb-2">Confidence</p>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold font-sans ${
+                      priceResult.confidence === 'high' ? 'bg-accent/20 text-accent border border-accent/50' :
+                      priceResult.confidence === 'medium' ? 'bg-secondary/20 text-secondary border border-secondary/50' :
+                      'bg-muted/50 text-muted-foreground'
+                    }`}>
+                      {priceResult.confidence.toUpperCase()}
+                    </span>
+                  </div>
+                  {priceResult.reasoning && (
+                    <div className="glass-card p-4 rounded-lg">
+                      <p className="text-xs text-muted-foreground font-sans mb-2">Reasoning</p>
+                      <p className="text-sm font-sans text-foreground">{priceResult.reasoning}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <DollarSign size={48} className="mx-auto mb-4 text-accent opacity-30" />
+                    <p className="font-sans text-muted-foreground">Fill the form to get an estimate</p>
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {activeTab === 'listing' && (
-          <Card className="flex-1 overflow-auto border-blue-500/20 shadow-md shadow-blue-500/5">
-            <CardHeader className="bg-blue-500/5 pb-4 border-b border-blue-500/10">
-              <CardTitle className="text-lg flex items-center gap-2 text-blue-500">
-                <Tags size={18} /> Auto-Lister
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground mb-4">Select an item from your inventory to instantly generate an SEO-optimized listing for any marketplace.</p>
-              <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white gap-2">
-                Select Item from Inventory
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {activeTab === 'chat' && (
-          <div className="flex-1 flex flex-col justify-center text-center p-6 border rounded-xl border-dashed">
-            <Bot className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="font-medium mb-2">How to use Chat</h3>
-            <p className="text-sm text-muted-foreground">Ask ListFlow to analyze your sales, find stale inventory, or write a polite response to a buyer.</p>
+            </div>
           </div>
-        )}
-      </div>
+        </TabsContent>
 
-      {/* Main Chat Area */}
-      <Card className="flex-1 flex flex-col overflow-hidden border shadow-sm">
-        <CardHeader className="py-3 border-b border-border/50 bg-card/50 backdrop-blur shrink-0">
-          <CardTitle className="text-base flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-              <Bot size={18} />
-            </div>
-            Business Co-Pilot
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div 
-                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                  msg.role === 'user' 
-                    ? 'bg-primary text-primary-foreground rounded-tr-sm' 
-                    : 'bg-accent/50 text-foreground border border-border rounded-tl-sm'
-                }`}
-              >
-                {msg.content}
-              </div>
-            </div>
-          ))}
-          {chatMutation.isPending && (
-            <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-2xl rounded-tl-sm px-4 py-3 bg-accent/50 border border-border text-foreground">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" />
-                  <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:0.2s]" />
-                  <div className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:0.4s]" />
+        {/* Listing Generator Tab */}
+        <TabsContent value="listing" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="glass-card-glow p-6 rounded-xl">
+              <h2 className="font-pixel text-xl text-secondary text-glow-purple mb-6">Generate Listing</h2>
+              <form onSubmit={handleGenerateListing} className="space-y-4">
+                <div>
+                  <Label className="font-sans font-bold">Select Item</Label>
+                  <Select value={listingForm.itemId} onValueChange={(v) => setListingForm({ ...listingForm, itemId: v })}>
+                    <SelectTrigger className="glass-card border-border/50" data-testid="select-item">
+                      <SelectValue placeholder="Choose an item..." />
+                    </SelectTrigger>
+                    <SelectContent className="glass-card border-secondary/50">
+                      {items?.map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {item.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
+                <div>
+                  <Label className="font-sans font-bold">Target Marketplace</Label>
+                  <Select value={listingForm.marketplace} onValueChange={(v) => setListingForm({ ...listingForm, marketplace: v as GenerateListingRequestMarketplace })}>
+                    <SelectTrigger className="glass-card border-border/50" data-testid="select-marketplace">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="glass-card border-secondary/50">
+                      <SelectItem value="ebay">eBay</SelectItem>
+                      <SelectItem value="poshmark">Poshmark</SelectItem>
+                      <SelectItem value="depop">Depop</SelectItem>
+                      <SelectItem value="mercari">Mercari</SelectItem>
+                      <SelectItem value="grailed">Grailed</SelectItem>
+                      <SelectItem value="facebook">Facebook</SelectItem>
+                      <SelectItem value="etsy">Etsy</SelectItem>
+                      <SelectItem value="whatnot">Whatnot</SelectItem>
+                      <SelectItem value="shopify">Shopify</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" className="w-full neon-glow-purple bg-secondary hover:bg-secondary/80 font-sans font-bold" disabled={generateListing.isPending} data-testid="button-generate">
+                  {generateListing.isPending ? 'Generating...' : 'Generate Listing ✦'}
+                </Button>
+              </form>
             </div>
-          )}
-          <div ref={chatEndRef} />
-        </CardContent>
-        <div className="p-4 bg-card border-t border-border shrink-0">
-          <form onSubmit={handleSendChat} className="flex gap-2">
-            <Input 
-              placeholder="Ask me anything..." 
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              className="rounded-full bg-accent/50 border-transparent focus-visible:bg-background focus-visible:border-primary"
-            />
-            <Button type="submit" size="icon" className="rounded-full shrink-0" disabled={!input.trim() || chatMutation.isPending}>
-              <Send size={16} />
-            </Button>
-          </form>
-        </div>
-      </Card>
+
+            <div className="glass-card-glow p-6 rounded-xl">
+              <h2 className="font-pixel text-xl text-secondary text-glow-purple mb-6">Result</h2>
+              {listingResult ? (
+                <div className="space-y-4">
+                  <div className="glass-card p-4 rounded-lg">
+                    <p className="text-xs text-muted-foreground font-sans mb-2">Title</p>
+                    <p className="font-sans font-bold text-foreground">{listingResult.title}</p>
+                  </div>
+                  <div className="glass-card p-4 rounded-lg">
+                    <p className="text-xs text-muted-foreground font-sans mb-2">Description</p>
+                    <p className="font-sans text-sm text-foreground">{listingResult.description}</p>
+                  </div>
+                  {listingResult.suggestedPrice && (
+                    <div className="glass-card p-4 rounded-lg">
+                      <p className="text-xs text-muted-foreground font-sans mb-2">Suggested Price</p>
+                      <p className="font-pixel text-2xl text-primary text-glow-pink">${listingResult.suggestedPrice.toFixed(2)}</p>
+                    </div>
+                  )}
+                  {listingResult.tags && listingResult.tags.length > 0 && (
+                    <div className="glass-card p-4 rounded-lg">
+                      <p className="text-xs text-muted-foreground font-sans mb-2">Tags</p>
+                      <div className="flex flex-wrap gap-2">
+                        {listingResult.tags.map((tag: string, idx: number) => (
+                          <span key={idx} className="px-3 py-1 rounded-full text-xs font-bold font-sans bg-accent/20 text-accent border border-accent/50">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <Wand2 size={48} className="mx-auto mb-4 text-secondary opacity-30" />
+                    <p className="font-sans text-muted-foreground">Select an item to generate listing</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -1,116 +1,120 @@
-import { useListShippingTasks, getListShippingTasksQueryKey, useUpdateShippingTask } from "@workspace/api-client-react";
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { MarketplaceBadge } from "@/components/ui/badges";
-import { Truck, Printer, Package as PackageIcon, CheckCircle2 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useListShippingTasks, useUpdateShippingTask } from '@workspace/api-client-react';
+import { CheckCircle, Circle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Shipping() {
-  const queryClient = useQueryClient();
-  const { data: tasks, isLoading } = useListShippingTasks({
-    query: { queryKey: getListShippingTasksQueryKey() }
-  });
+  const { data: tasks, isLoading } = useListShippingTasks();
   const updateTask = useUpdateShippingTask();
+  const { toast } = useToast();
 
-  const handleStepToggle = (taskId: number, stepKey: string, currentCompleted: boolean) => {
-    updateTask.mutate({ 
-      id: taskId, 
-      data: { steps: [{ key: stepKey, completed: !currentCompleted }] } 
-    }, {
-      onSuccess: () => {
-        // In reality, invalidate or update cache locally. We'll invalidate to keep it simple.
-        queryClient.invalidateQueries({ queryKey: getListShippingTasksQueryKey() });
+  const handleStepToggle = (taskId: number, stepKey: string, completed: boolean) => {
+    const task = tasks?.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updatedSteps = task.steps.map(step => 
+      step.key === stepKey ? { key: step.key, completed } : { key: step.key, completed: step.completed }
+    );
+
+    updateTask.mutate(
+      { id: taskId, data: { steps: updatedSteps } },
+      {
+        onSuccess: () => {
+          toast({ title: '✦ Step updated!', description: completed ? 'Step marked complete' : 'Step marked incomplete' });
+        },
       }
-    });
+    );
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Shipping Queue</h1>
-          <p className="text-muted-foreground">Process orders efficiently. Don't skip steps.</p>
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 bg-muted/20 rounded-lg animate-pulse" />
+        <div className="space-y-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-48 bg-muted/20 rounded-xl animate-pulse" />
+          ))}
         </div>
-        <Button className="gap-2">
-          <Printer size={16} /> Print All Labels
-        </Button>
+      </div>
+    );
+  }
+
+  const completedCount = tasks?.filter(t => t.steps.every(s => s.completed)).length || 0;
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <div>
+        <h1 className="font-pixel text-4xl text-accent text-glow-mint glitch-text mb-2" data-text="Shipping">
+          Shipping
+        </h1>
+        <p className="text-muted-foreground font-sans">
+          {completedCount} of {tasks?.length || 0} tasks complete ★
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {isLoading ? (
-          [...Array(4)].map((_, i) => <Card key={i} className="h-64 animate-pulse bg-muted/50" />)
-        ) : tasks?.length === 0 ? (
-          <div className="lg:col-span-2 text-center py-20 bg-card rounded-xl border border-dashed">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500 mb-4" />
-            <h3 className="text-lg font-medium">All caught up!</h3>
-            <p className="text-muted-foreground mt-1">There are no orders awaiting shipment right now.</p>
+      <div className="space-y-4">
+        {!tasks || tasks.length === 0 ? (
+          <div className="glass-card-glow p-12 rounded-xl text-center">
+            <p className="font-pixel text-xl text-muted-foreground mb-4">No shipping tasks</p>
+            <p className="text-muted-foreground font-sans">Tasks will appear when orders need shipping ★</p>
           </div>
         ) : (
-          tasks?.map(task => {
-            const allCompleted = task.steps.every(s => s.completed);
-            const progress = (task.steps.filter(s => s.completed).length / task.steps.length) * 100;
-            
+          tasks.map((task) => {
+            const allComplete = task.steps.every(s => s.completed);
             return (
-              <Card key={task.id} className={`overflow-hidden transition-all duration-300 ${allCompleted ? 'border-emerald-500 bg-emerald-500/5' : ''}`}>
-                <div className="h-1 w-full bg-accent">
-                  <div className={`h-full transition-all duration-500 ${allCompleted ? 'bg-emerald-500' : 'bg-primary'}`} style={{ width: `${progress}%` }} />
-                </div>
-                <CardHeader className="pb-4 border-b border-border/50">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg font-bold leading-tight mb-2">{task.itemTitle}</CardTitle>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>Order #{task.orderId}</span>
-                        <span>•</span>
-                        <span>{task.orderBuyerName}</span>
-                        {task.orderMarketplace && (
-                          <>
-                            <span>•</span>
-                            <MarketplaceBadge marketplace={task.orderMarketplace} />
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {allCompleted && (
-                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-sm shrink-0">
-                        <CheckCircle2 size={18} />
-                      </div>
+              <div key={task.id} className={`glass-card-glow p-6 rounded-xl ${allComplete ? 'opacity-60' : ''}`} data-testid={`task-${task.id}`}>
+                <div className="mb-4">
+                  <h3 className="font-sans font-bold text-lg text-foreground mb-2">
+                    {task.itemTitle || 'Untitled Item'}
+                  </h3>
+                  <div className="flex flex-wrap gap-4 text-sm font-sans text-muted-foreground">
+                    {task.orderMarketplace && (
+                      <span>Marketplace: <span className="text-primary font-bold">{task.orderMarketplace.toUpperCase()}</span></span>
+                    )}
+                    {task.orderBuyerName && (
+                      <span>Buyer: <span className="text-foreground font-bold">{task.orderBuyerName}</span></span>
+                    )}
+                    {task.trackingNumber && (
+                      <span>Tracking: <span className="text-accent font-mono text-xs">{task.trackingNumber}</span></span>
                     )}
                   </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-border/50">
-                    {task.steps.map(step => (
-                      <label 
-                        key={step.key} 
-                        className={`flex items-center gap-4 p-4 cursor-pointer hover:bg-accent/30 transition-colors ${step.completed ? 'text-muted-foreground' : 'text-foreground font-medium'}`}
-                      >
-                        <div className={`flex items-center justify-center w-6 h-6 rounded-md border ${step.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-input bg-background'}`}>
-                          {step.completed && <CheckCircle2 size={16} />}
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          className="hidden" 
-                          checked={step.completed}
-                          onChange={() => handleStepToggle(task.id, step.key, step.completed)}
-                        />
-                        <span className={`flex-1 ${step.completed ? 'line-through' : ''}`}>{step.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="p-4 bg-accent/30 border-t border-border/50 flex justify-between items-center">
-                    <div className="text-xs font-mono text-muted-foreground">
-                      Tracking: {task.trackingNumber ? <span className="text-foreground">{task.trackingNumber}</span> : 'Pending...'}
-                    </div>
-                    <Button variant="secondary" size="sm" className="gap-2 text-xs">
-                      <Truck size={14} /> Tracking Info
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+
+                <div className="space-y-3">
+                  {task.steps.map((step, idx) => (
+                    <button
+                      key={step.key}
+                      onClick={() => handleStepToggle(task.id, step.key, !step.completed)}
+                      className={`
+                        w-full flex items-center gap-4 p-4 rounded-lg transition-all
+                        ${step.completed 
+                          ? 'glass-card border border-accent/50 neon-glow-mint' 
+                          : 'glass-card border border-border/30 hover:border-primary/50'
+                        }
+                      `}
+                      data-testid={`step-${task.id}-${step.key}`}
+                    >
+                      {step.completed ? (
+                        <CheckCircle className="text-accent animate-glow-pulse-mint" size={24} />
+                      ) : (
+                        <Circle className="text-muted-foreground" size={24} />
+                      )}
+                      <div className="flex-1 text-left">
+                        <p className={`font-sans font-bold ${step.completed ? 'text-accent line-through' : 'text-foreground'}`}>
+                          {step.label}
+                        </p>
+                        {step.completedAt && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Completed: {new Date(step.completedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      <span className="font-pixel text-xs text-muted-foreground">
+                        {idx + 1}/{task.steps.length}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             );
           })
         )}

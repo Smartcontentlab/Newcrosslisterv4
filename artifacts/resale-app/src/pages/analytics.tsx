@@ -1,111 +1,175 @@
-import { useGetMonthlyRevenue, getGetMonthlyRevenueQueryKey, useGetTopCategories, getGetTopCategoriesQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
+import { useGetMonthlyRevenue, useGetTopCategories } from '@workspace/api-client-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from 'recharts';
 
 export default function Analytics() {
-  const { data: monthlyData } = useGetMonthlyRevenue({
-    query: { queryKey: getGetMonthlyRevenueQueryKey() }
-  });
+  const { data: monthlyRevenue, isLoading: revenueLoading } = useGetMonthlyRevenue();
+  const { data: topCategories, isLoading: categoriesLoading } = useGetTopCategories();
 
-  const { data: topCategories } = useGetTopCategories({
-    query: { queryKey: getGetTopCategoriesQueryKey() }
-  });
+  if (revenueLoading || categoriesLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 bg-muted/20 rounded-lg animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-96 bg-muted/20 rounded-xl animate-pulse" />
+          <div className="h-96 bg-muted/20 rounded-xl animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="glass-card-glow p-4 rounded-lg border-primary/50">
+          <p className="font-pixel text-xs text-primary mb-2">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} className="font-sans text-sm font-bold" style={{ color: entry.color }}>
+              {entry.name}: ${entry.value.toFixed(0)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-muted-foreground">Dive deep into your business metrics.</p>
+        <h1 className="font-pixel text-4xl text-secondary text-glow-purple glitch-text mb-2" data-text="Analytics">
+          Analytics
+        </h1>
+        <p className="text-muted-foreground font-sans">Metrics for your empire ★</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue vs Profit Chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Revenue & Profit Trend</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[400px] w-full">
-            {monthlyData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    itemStyle={{ fontWeight: 'bold' }}
-                  />
-                  <Legend iconType="circle" />
-                  <Line type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--chart-1))" strokeWidth={3} activeDot={{ r: 8 }} />
-                  <Line type="monotone" dataKey="profit" name="Profit" stroke="hsl(var(--chart-3))" strokeWidth={3} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full w-full bg-muted/20 animate-pulse rounded-md" />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Top Categories */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Categories by Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {topCategories ? (
-              <div className="space-y-6">
-                {topCategories.map((cat, i) => {
-                  const maxSales = Math.max(...topCategories.map(c => c.totalSales));
-                  const width = `${(cat.totalSales / maxSales) * 100}%`;
-                  return (
-                    <div key={cat.category} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">{cat.category}</span>
-                        <span className="text-muted-foreground">{formatCurrency(cat.totalRevenue)} ({cat.totalSales} items)</span>
-                      </div>
-                      <div className="h-2 w-full bg-accent rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full" style={{ width }} />
-                      </div>
-                    </div>
-                  );
-                })}
+        {/* Revenue Chart */}
+        <div className="glass-card-glow p-6 rounded-xl">
+          <h2 className="font-pixel text-xl text-primary text-glow-pink mb-6 flex items-center gap-2">
+            <span>★</span> Revenue vs Profit
+          </h2>
+          <div className="h-80 w-full" data-testid="chart-revenue">
+            {!monthlyRevenue || monthlyRevenue.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-muted-foreground font-sans">
+                No revenue data available
               </div>
             ) : (
-              <div className="h-[200px] w-full bg-muted/20 animate-pulse rounded-md" />
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyRevenue} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis 
+                    dataKey="month" 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12} 
+                    fontFamily="Nunito" 
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12} 
+                    fontFamily="Nunito"
+                    tickFormatter={(value) => `$${value}`}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    name="Revenue" 
+                    stroke="hsl(var(--neon-pink))" 
+                    strokeWidth={3} 
+                    dot={{ fill: "hsl(var(--background))", stroke: "hsl(var(--neon-pink))", strokeWidth: 2, r: 4 }} 
+                    activeDot={{ r: 6, fill: "hsl(var(--neon-pink))" }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="profit" 
+                    name="Profit" 
+                    stroke="hsl(var(--neon-mint))" 
+                    strokeWidth={3} 
+                    dot={{ fill: "hsl(var(--background))", stroke: "hsl(var(--neon-mint))", strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, fill: "hsl(var(--neon-mint))" }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Actionable Insights Placeholder */}
-        <Card className="bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary">
-              <SparklesIcon /> Actionable Insights
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 bg-background/50 backdrop-blur rounded-lg border border-border shadow-sm">
-              <h4 className="font-bold mb-1">Sell-through rate is down 4%</h4>
-              <p className="text-sm text-muted-foreground mb-3">You have 12 stale items that haven't sold in 30+ days. Consider running a 15% markdown sale.</p>
-              <button className="text-sm text-primary font-bold hover:underline">Review Stale Inventory →</button>
+        {/* Categories Chart */}
+        <div className="glass-card-glow p-6 rounded-xl">
+          <h2 className="font-pixel text-xl text-accent text-glow-mint mb-6 flex items-center gap-2">
+            <span>★</span> Top Categories
+          </h2>
+          <div className="h-80 w-full" data-testid="chart-categories">
+            {!topCategories || topCategories.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-muted-foreground font-sans">
+                No category data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topCategories} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis 
+                    type="number" 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12} 
+                    fontFamily="Nunito"
+                    tickFormatter={(value) => `$${value}`}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    dataKey="category" 
+                    type="category" 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12} 
+                    fontFamily="Nunito"
+                    width={100}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar 
+                    dataKey="totalRevenue" 
+                    name="Revenue" 
+                    fill="hsl(var(--neon-purple))" 
+                    radius={[0, 4, 4, 0]} 
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {/* Metrics Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {topCategories?.slice(0, 3).map((category, idx) => (
+          <div key={category.category} className="glass-card p-6 rounded-xl border border-border/30">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="font-pixel text-2xl text-primary text-glow-pink opacity-50">#{idx + 1}</span>
+              <h3 className="font-sans font-bold text-lg text-foreground">{category.category}</h3>
             </div>
-            <div className="p-4 bg-background/50 backdrop-blur rounded-lg border border-border shadow-sm">
-              <h4 className="font-bold mb-1">Sneakers are trending</h4>
-              <p className="text-sm text-muted-foreground mb-3">Your 'Footwear' category yields the highest profit margin (42%). Focus sourcing efforts here this week.</p>
+            <div className="space-y-2 text-sm font-sans">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Revenue</span>
+                <span className="font-bold text-accent text-glow-mint">${category.totalRevenue.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Sales</span>
+                <span className="font-bold">{category.totalSales} items</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Avg Price</span>
+                <span className="font-bold">${category.avgPrice.toFixed(2)}</span>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        ))}
       </div>
     </div>
   );
-}
-
-function SparklesIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-      <path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>
-    </svg>
-  )
 }
