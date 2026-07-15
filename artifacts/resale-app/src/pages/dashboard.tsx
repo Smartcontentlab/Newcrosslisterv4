@@ -1,5 +1,6 @@
 import { useGetDashboardSummary, useListRecentOrders, useGetMarketplaceBreakdown } from '@workspace/api-client-react';
 import { TrendingUp, Package, List, DollarSign, Clock, Truck, ShoppingBag, Zap } from 'lucide-react';
+import QuickAddItem from '@/components/QuickAddItem';
 
 function StatCard({ title, value, icon, trend, glowColor }: { title: string; value: string | number; icon: React.ReactNode; trend?: string; glowColor?: string }) {
   const glowClass = glowColor === 'pink' ? 'neon-glow-pink' : glowColor === 'purple' ? 'neon-glow-purple' : glowColor === 'mint' ? 'neon-glow-mint' : '';
@@ -71,6 +72,9 @@ export default function Dashboard() {
         </h1>
         <p className="text-muted-foreground font-sans">Your resale empire at a glance ✦</p>
       </div>
+
+      {/* Quick Add Item — photo drop zone */}
+      <QuickAddItem />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
