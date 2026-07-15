@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useListItems, useCreateItem, useDeleteItem } from '@workspace/api-client-react';
-import { Plus, Trash2, Edit, DollarSign, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, DollarSign, TrendingUp, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { ItemInputCondition, ItemInputStatus } from '@workspace/api-client-react';
+import PostToMarketplace from '@/components/PostToMarketplace';
 
 export default function Inventory() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [postItem, setPostItem] = useState<{ id: number; title: string; brand?: string | null; price: number; condition: string; category?: string | null } | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -41,17 +43,8 @@ export default function Inventory() {
       {
         onSuccess: () => {
           toast({ title: '✦ Item created!', description: 'Your item has been added to inventory' });
-          setIsOpen(false);
-          setFormData({
-            title: '',
-            description: '',
-            brand: '',
-            category: '',
-            condition: 'good',
-            status: 'active',
-            price: '',
-            cost: '',
-          });
+          setIsAddOpen(false);
+          setFormData({ title: '', description: '', brand: '', category: '', condition: 'good', status: 'active', price: '', cost: '' });
         },
         onError: () => {
           toast({ title: 'Error', description: 'Failed to create item', variant: 'destructive' });
@@ -99,7 +92,8 @@ export default function Inventory() {
           </h1>
           <p className="text-muted-foreground font-sans">{items?.length || 0} items in stock ★</p>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button className="neon-glow-pink font-sans font-bold" data-testid="button-add-item">
               <Plus size={20} /> Add Item
@@ -112,50 +106,27 @@ export default function Inventory() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label className="font-sans font-bold">Title</Label>
-                <Input
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
-                  className="glass-card border-border/50 focus:border-primary neon-glow-pink"
-                  data-testid="input-title"
-                />
+                <Input value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required className="glass-card border-border/50 focus:border-primary neon-glow-pink" data-testid="input-title" />
               </div>
               <div>
                 <Label className="font-sans font-bold">Description</Label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="glass-card border-border/50 focus:border-primary"
-                  data-testid="input-description"
-                />
+                <Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="glass-card border-border/50 focus:border-primary" data-testid="input-description" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="font-sans font-bold">Brand</Label>
-                  <Input
-                    value={formData.brand}
-                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                    className="glass-card border-border/50 focus:border-primary"
-                    data-testid="input-brand"
-                  />
+                  <Input value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })} className="glass-card border-border/50 focus:border-primary" data-testid="input-brand" />
                 </div>
                 <div>
                   <Label className="font-sans font-bold">Category</Label>
-                  <Input
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="glass-card border-border/50 focus:border-primary"
-                    data-testid="input-category"
-                  />
+                  <Input value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="glass-card border-border/50 focus:border-primary" data-testid="input-category" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="font-sans font-bold">Condition</Label>
                   <Select value={formData.condition} onValueChange={(v) => setFormData({ ...formData, condition: v as ItemInputCondition })}>
-                    <SelectTrigger className="glass-card border-border/50" data-testid="select-condition">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="glass-card border-border/50" data-testid="select-condition"><SelectValue /></SelectTrigger>
                     <SelectContent className="glass-card border-primary/50">
                       <SelectItem value="new">New</SelectItem>
                       <SelectItem value="like_new">Like New</SelectItem>
@@ -168,9 +139,7 @@ export default function Inventory() {
                 <div>
                   <Label className="font-sans font-bold">Status</Label>
                   <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as ItemInputStatus })}>
-                    <SelectTrigger className="glass-card border-border/50" data-testid="select-status">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="glass-card border-border/50" data-testid="select-status"><SelectValue /></SelectTrigger>
                     <SelectContent className="glass-card border-primary/50">
                       <SelectItem value="draft">Draft</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
@@ -183,27 +152,11 @@ export default function Inventory() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="font-sans font-bold">Price</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    required
-                    className="glass-card border-border/50 focus:border-primary"
-                    data-testid="input-price"
-                  />
+                  <Input type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} required className="glass-card border-border/50 focus:border-primary" data-testid="input-price" />
                 </div>
                 <div>
                   <Label className="font-sans font-bold">Cost</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.cost}
-                    onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-                    required
-                    className="glass-card border-border/50 focus:border-primary"
-                    data-testid="input-cost"
-                  />
+                  <Input type="number" step="0.01" value={formData.cost} onChange={(e) => setFormData({ ...formData, cost: e.target.value })} required className="glass-card border-border/50 focus:border-primary" data-testid="input-cost" />
                 </div>
               </div>
               <Button type="submit" className="w-full neon-glow-pink font-sans font-bold" disabled={createItem.isPending} data-testid="button-submit">
@@ -222,49 +175,83 @@ export default function Inventory() {
           </div>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="glass-card-glow p-6 rounded-xl hover:scale-105 transition-all" data-testid={`item-${item.id}`}>
-              <div className="flex items-start justify-between mb-4">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold font-sans ${statusColors[item.status]}`}>
-                  {item.status.toUpperCase()}
-                </span>
-                <div className="flex gap-2">
-                  <button className="text-secondary hover:text-secondary/80 transition-colors" data-testid={`button-edit-${item.id}`}>
-                    <Edit size={16} />
-                  </button>
+            <div key={item.id} className="glass-card-glow rounded-xl overflow-hidden hover:scale-[1.02] transition-all" data-testid={`item-${item.id}`}>
+              {/* Photo */}
+              {item.photos?.[0] && (
+                <div className="w-full h-44 overflow-hidden">
+                  <img
+                    src={item.photos[0]}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </div>
+              )}
+
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold font-sans ${statusColors[item.status]}`}>
+                    {item.status.toUpperCase()}
+                  </span>
                   <button
                     onClick={() => handleDelete(item.id)}
-                    className="text-destructive hover:text-destructive/80 transition-colors"
+                    className="text-muted-foreground hover:text-destructive transition-colors"
                     data-testid={`button-delete-${item.id}`}
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                   </button>
                 </div>
-              </div>
-              
-              <h3 className="font-sans font-bold text-lg text-foreground mb-2">{item.title}</h3>
-              {item.brand && <p className="text-sm text-muted-foreground font-sans mb-1">by {item.brand}</p>}
-              {item.category && <p className="text-xs text-muted-foreground font-sans mb-3">{item.category}</p>}
-              
-              <div className="flex items-center justify-between pt-4 border-t border-border/30">
-                <div className="flex items-center gap-2">
-                  <DollarSign size={16} className="text-primary" />
-                  <span className="font-pixel text-lg text-primary text-glow-pink">${item.price.toFixed(2)}</span>
+
+                <h3 className="font-sans font-bold text-base text-foreground mb-1 line-clamp-2">{item.title}</h3>
+                {item.brand && <p className="text-xs text-muted-foreground font-sans mb-0.5">by {item.brand}</p>}
+                {item.category && <p className="text-xs text-muted-foreground font-sans mb-3">{item.category}</p>}
+
+                <div className="flex items-center justify-between py-3 border-t border-border/20">
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign size={14} className="text-primary" />
+                    <span className="font-pixel text-base text-primary text-glow-pink">${item.price.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp size={14} className="text-accent" />
+                    <span className="font-pixel text-sm text-accent text-glow-mint">+${(item.price - item.cost).toFixed(2)}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <TrendingUp size={16} className="text-accent" />
-                  <span className="font-pixel text-sm text-accent text-glow-mint">${(item.price - item.cost).toFixed(2)}</span>
-                </div>
+
+                {item.listingCount !== undefined && item.listingCount > 0 && (
+                  <p className="text-xs text-muted-foreground font-sans mb-3">
+                    Listed on {item.listingCount} marketplace{item.listingCount !== 1 ? 's' : ''}
+                  </p>
+                )}
+
+                {/* Post button */}
+                <button
+                  onClick={() => setPostItem({ id: item.id, title: item.title, brand: item.brand, price: item.price, condition: item.condition, category: item.category })}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-pixel text-xs mt-1 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    background: 'rgba(255,45,120,0.1)',
+                    border: '1px solid rgba(255,45,120,0.45)',
+                    color: '#FF2D78',
+                    boxShadow: '0 0 12px rgba(255,45,120,0.12)',
+                  }}
+                  data-testid={`button-post-${item.id}`}
+                >
+                  <Send size={13} />
+                  Post to Platforms
+                </button>
               </div>
-              
-              {item.listingCount !== undefined && item.listingCount > 0 && (
-                <p className="text-xs text-muted-foreground font-sans mt-3">
-                  Listed on {item.listingCount} marketplace{item.listingCount !== 1 ? 's' : ''}
-                </p>
-              )}
             </div>
           ))
         )}
       </div>
+
+      {/* Post to Marketplace modal */}
+      {postItem && (
+        <PostToMarketplace
+          item={postItem}
+          open={!!postItem}
+          onClose={() => setPostItem(null)}
+        />
+      )}
     </div>
   );
 }
