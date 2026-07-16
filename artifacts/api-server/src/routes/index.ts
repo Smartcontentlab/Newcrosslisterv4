@@ -6,6 +6,7 @@ import ordersRouter from "./orders";
 import shippingRouter from "./shipping";
 import analyticsRouter from "./analytics";
 import aiRouter from "./ai";
+import agentRouter from "./agent";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(ordersRouter);
 router.use(shippingRouter);
 router.use(analyticsRouter);
 router.use(aiRouter);
+router.use(agentRouter);
 
 export default router;

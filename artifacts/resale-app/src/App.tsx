@@ -9,6 +9,7 @@ import Orders from '@/pages/orders';
 import Shipping from '@/pages/shipping';
 import Analytics from '@/pages/analytics';
 import AiAssistant from '@/pages/ai-assistant';
+import AgentHub from '@/pages/agent';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient({
@@ -43,6 +44,9 @@ function Router() {
       </Route>
       <Route path="/ai-assistant">
         <AppLayout><AiAssistant /></AppLayout>
+      </Route>
+      <Route path="/agent">
+        <AppLayout><AgentHub /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

@@ -6,7 +6,8 @@ import {
   ShoppingCart, 
   Truck, 
   BarChart3, 
-  Sparkles 
+  Sparkles,
+  Bot
 } from 'lucide-react';
 import { ReactNode } from 'react';
 
@@ -24,6 +25,7 @@ const navItems: NavItem[] = [
   { path: '/shipping', label: 'Shipping', icon: <Truck size={20} /> },
   { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={20} /> },
   { path: '/ai-assistant', label: 'AI Assistant', icon: <Sparkles size={20} /> },
+  { path: '/agent', label: 'Agent Hub', icon: <Bot size={20} /> },
 ];
 
 interface AppLayoutProps {
