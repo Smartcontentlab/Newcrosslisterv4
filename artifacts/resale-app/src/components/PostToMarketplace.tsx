@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useGenerateListing, useCreateListing, getListListingsQueryKey, getListItemsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Check, ExternalLink, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { Copy, Check, ExternalLink, Sparkles, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import type { GenerateListingRequestMarketplace } from '@workspace/api-client-react';
 
 interface Item {
@@ -11,7 +11,7 @@ interface Item {
   title: string;
   brand?: string | null;
   price: number;
-  condition: string;
+  condition?: string;
   category?: string | null;
 }
 
@@ -19,7 +19,6 @@ interface Platform {
   id: GenerateListingRequestMarketplace;
   label: string;
   color: string;
-  borderColor: string;
   glowColor: string;
   url: string;
   icon: string;
@@ -31,61 +30,55 @@ const PLATFORMS: Platform[] = [
     id: 'poshmark',
     label: 'Poshmark',
     color: 'text-pink-400',
-    borderColor: 'border-pink-400/60',
     glowColor: '255,45,120',
     url: 'https://poshmark.com/create-listing',
     icon: '♥',
-    tips: ['Share your closet after posting for visibility', 'Send offers to likers within 24hrs', 'Accept bundle offers — bundles ship free for buyers'],
+    tips: ['Share your closet after posting', 'Accept bundles for free shipping'],
   },
   {
     id: 'depop',
     label: 'Depop',
     color: 'text-red-400',
-    borderColor: 'border-red-400/60',
     glowColor: '248,113,113',
     url: 'https://www.depop.com/sell/',
     icon: '★',
-    tips: ['Use all 5 photo slots', 'Hashtags in bio rank better than in description', 'Price slightly lower than eBay — buyers expect deals'],
+    tips: ['Use all 5 photo slots', 'Hashtags in bio rank better'],
   },
   {
     id: 'mercari',
     label: 'Mercari',
     color: 'text-blue-400',
-    borderColor: 'border-blue-400/60',
     glowColor: '96,165,250',
     url: 'https://www.mercari.com/sell/',
     icon: '✦',
-    tips: ['Enable Smart Offers — auto-accepts offers within your range', 'Promote listing after 24hrs for free boost', 'Ship within 3 days to keep your rating high'],
+    tips: ['Enable Smart Offers', 'Promote listing after 24hrs'],
   },
   {
     id: 'ebay',
     label: 'eBay',
     color: 'text-yellow-400',
-    borderColor: 'border-yellow-400/60',
     glowColor: '250,204,21',
     url: 'https://www.ebay.com/sell',
     icon: '◆',
-    tips: ['Fill all item specifics — eBay buries listings that skip them', 'Free shipping converts better for items under $50', '80-char titles with keywords first'],
+    tips: ['Fill all item specifics', '80-char titles with keywords first'],
   },
   {
     id: 'grailed',
     label: 'Grailed',
     color: 'text-purple-400',
-    borderColor: 'border-purple-400/60',
     glowColor: '192,132,252',
     url: 'https://www.grailed.com/sell',
     icon: '✧',
-    tips: ['Grailed buyers are detail-oriented — measurements matter', 'Tag the designer and era (e.g. AW22)', 'Price firm — lowballers are common, hold your value'],
+    tips: ['Include measurements', 'Tag designer and era'],
   },
   {
     id: 'etsy',
     label: 'Etsy',
     color: 'text-orange-400',
-    borderColor: 'border-orange-400/60',
     glowColor: '251,146,60',
     url: 'https://www.etsy.com/sell',
     icon: '◇',
-    tips: ['Focus on vintage and handmade language', 'Use all 13 tag slots with specific search terms', 'Add decade/era to title for vintage items'],
+    tips: ['Focus on vintage language', 'Use all 13 tag slots'],
   },
 ];
 
@@ -99,27 +92,22 @@ function CopyField({ label, value, mono = false }: { label: string; value: strin
   }, [value]);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 group">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-pixel text-muted-foreground uppercase tracking-wider">{label}</span>
+        <span className="text-[10px] font-pixel text-muted-foreground uppercase tracking-widest">{label}</span>
         <button
           onClick={copy}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-sans border transition-all"
-          style={
-            copied
-              ? { borderColor: 'rgba(0,255,209,0.6)', color: '#00FFD1', boxShadow: '0 0 8px rgba(0,255,209,0.3)' }
-              : { borderColor: 'rgba(255,255,255,0.2)', color: '#aaa' }
-          }
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-sans font-bold transition-all border border-transparent hover:bg-white/10 opacity-0 group-hover:opacity-100"
+          style={copied ? { color: '#00FFD1', opacity: 1 } : { color: '#aaa' }}
         >
-          {copied ? <Check size={11} /> : <Copy size={11} />}
-          {copied ? 'Copied!' : 'Copy'}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
       <div
-        className="w-full rounded-lg px-3 py-2.5 text-sm font-sans text-foreground cursor-text select-all"
+        className="w-full rounded-lg px-4 py-3 text-sm font-sans text-foreground cursor-text select-all transition-all hover:bg-white/5 border border-white/5"
         style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(0,0,0,0.2)',
           fontFamily: mono ? '"Spline Sans Mono", monospace' : undefined,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
@@ -136,12 +124,14 @@ interface PostToMarketplaceProps {
   item: Item;
   open: boolean;
   onClose: () => void;
+  // Pre-filled posted set if coming from Inventory
+  initialPosted?: Set<string>;
 }
 
-export default function PostToMarketplace({ item, open, onClose }: PostToMarketplaceProps) {
+export default function PostToMarketplace({ item, open, onClose, initialPosted }: PostToMarketplaceProps) {
   const [activePlatform, setActivePlatform] = useState<Platform>(PLATFORMS[0]);
   const [generated, setGenerated] = useState<Record<string, any>>({});
-  const [posted, setPosted] = useState<Set<string>>(new Set());
+  const [posted, setPosted] = useState<Set<string>>(initialPosted || new Set());
   const [openedUrl, setOpenedUrl] = useState(false);
 
   const generateListing = useGenerateListing();
@@ -153,40 +143,42 @@ export default function PostToMarketplace({ item, open, onClose }: PostToMarketp
   const isGenerating = generateListing.isPending;
   const isPosted = posted.has(activePlatform.id);
 
+  // Sync initialPosted if it changes while open
+  useEffect(() => {
+    if (initialPosted) setPosted(initialPosted);
+  }, [initialPosted]);
+
   const switchPlatform = useCallback(
     (platform: Platform) => {
       setActivePlatform(platform);
       setOpenedUrl(false);
-      // Auto-generate if not already done
-      if (!generated[platform.id]) {
+      if (!generated[platform.id] && !posted.has(platform.id)) {
         generateListing.mutate(
           { data: { itemId: item.id, marketplace: platform.id } },
           {
             onSuccess: (data) => {
               setGenerated((prev) => ({ ...prev, [platform.id]: data }));
             },
-            onError: () => {
-              toast({ title: 'Generation failed', description: 'Could not generate listing', variant: 'destructive' });
-            },
           }
         );
       }
     },
-    [generated, generateListing, item.id, toast]
+    [generated, posted, generateListing, item.id]
   );
 
-  // Auto-generate for first platform when modal opens
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
-      if (isOpen && !generated[PLATFORMS[0].id]) {
-        switchPlatform(PLATFORMS[0]);
+      if (isOpen) {
+        // Find first unposted platform
+        const startPlatform = PLATFORMS.find(p => !(initialPosted || posted).has(p.id)) || PLATFORMS[0];
+        switchPlatform(startPlatform);
       }
       if (!isOpen) {
         onClose();
         setOpenedUrl(false);
       }
     },
-    [generated, switchPlatform, onClose]
+    [initialPosted, posted, switchPlatform, onClose]
   );
 
   const openPlatform = () => {
@@ -209,13 +201,21 @@ export default function PostToMarketplace({ item, open, onClose }: PostToMarketp
       },
       {
         onSuccess: () => {
-          setPosted((prev) => new Set([...prev, activePlatform.id]));
+          const newPosted = new Set([...posted, activePlatform.id]);
+          setPosted(newPosted);
           queryClient.invalidateQueries({ queryKey: getListListingsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+          
           toast({
-            title: `${activePlatform.icon} Posted to ${activePlatform.label}!`,
-            description: `${item.title} is now tracked as listed`,
+            title: `${activePlatform.icon} Listed on ${activePlatform.label}!`,
+            description: 'Moving to next platform...',
           });
+
+          // Auto-advance
+          const nextPlatform = PLATFORMS.find(p => !newPosted.has(p.id));
+          if (nextPlatform) {
+            setTimeout(() => switchPlatform(nextPlatform), 1000);
+          }
         },
         onError: () => {
           toast({ title: 'Error', description: 'Could not save listing record', variant: 'destructive' });
@@ -224,180 +224,179 @@ export default function PostToMarketplace({ item, open, onClose }: PostToMarketp
     );
   };
 
-  const postedCount = posted.size;
+  const allDone = PLATFORMS.every(p => posted.has(p.id));
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0"
-        style={{
-          background: 'rgba(10,0,16,0.97)',
-          border: '1px solid rgba(255,45,120,0.4)',
-          boxShadow: '0 0 40px rgba(255,45,120,0.15), 0 0 80px rgba(191,95,255,0.08)',
-        }}
+        className="max-w-4xl h-[85vh] p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl flex flex-col sm:flex-row"
       >
-        {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/5">
-          <DialogTitle className="font-pixel text-primary text-glow-pink text-lg flex items-center gap-3">
-            <Sparkles size={18} />
-            Post to Marketplaces
-          </DialogTitle>
-          <p className="font-sans text-sm text-muted-foreground mt-1">
-            {item.title}
-            {postedCount > 0 && (
-              <span className="ml-2 text-accent text-glow-mint">
-                — {postedCount} platform{postedCount !== 1 ? 's' : ''} posted ♥
-              </span>
-            )}
-          </p>
-        </DialogHeader>
-
-        <div className="flex flex-1 overflow-hidden">
-          {/* Platform sidebar */}
-          <div className="w-36 border-r border-white/5 flex flex-col py-3 gap-1 shrink-0">
+        {/* Sidebar */}
+        <div className="w-full sm:w-56 border-b sm:border-b-0 sm:border-r border-border bg-black/20 flex flex-col shrink-0">
+          <div className="p-4 border-b border-border/50">
+            <h2 className="font-pixel text-xs text-muted-foreground uppercase tracking-widest mb-2">Posting Flow</h2>
+            <p className="font-sans font-bold text-sm text-foreground truncate" title={item.title}>{item.title}</p>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {PLATFORMS.map((platform) => {
               const isActive = activePlatform.id === platform.id;
               const isDone = posted.has(platform.id);
+              
               return (
                 <button
                   key={platform.id}
                   onClick={() => switchPlatform(platform)}
-                  className="flex items-center gap-2 px-3 py-2.5 mx-2 rounded-lg text-left transition-all font-sans text-sm"
-                  style={
-                    isActive
-                      ? {
-                          background: `rgba(${activePlatform.glowColor},0.12)`,
-                          border: `1px solid rgba(${activePlatform.glowColor},0.4)`,
-                          boxShadow: `0 0 12px rgba(${activePlatform.glowColor},0.15)`,
-                          color: 'white',
-                        }
-                      : { border: '1px solid transparent', color: '#888' }
-                  }
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md text-left transition-all ${
+                    isActive 
+                      ? 'bg-white/10 text-foreground font-bold shadow-sm' 
+                      : 'hover:bg-white/5 text-muted-foreground font-medium'
+                  }`}
                 >
-                  <span className={`text-xs ${isDone ? 'text-accent' : platform.color}`}>
-                    {isDone ? '♥' : platform.icon}
-                  </span>
-                  <span className="truncate font-sans font-medium">{platform.label}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs ${isDone ? 'text-accent' : platform.color}`}>
+                      {isDone ? '♥' : platform.icon}
+                    </span>
+                    <span className="text-sm font-sans">{platform.label}</span>
+                  </div>
+                  {isActive && !isDone && <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
                 </button>
               );
             })}
           </div>
 
-          {/* Content area */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            {isGenerating && !currentData ? (
-              <div className="flex flex-col items-center justify-center h-64 gap-4">
-                <Loader2
-                  className="animate-spin text-primary"
-                  size={32}
-                  style={{ filter: 'drop-shadow(0 0 8px rgba(255,45,120,0.6))' }}
-                />
-                <p className="font-pixel text-sm text-primary text-glow-pink">
-                  Writing your {activePlatform.label} listing...
-                </p>
-                <p className="font-sans text-xs text-muted-foreground">Optimizing for {activePlatform.label}'s algorithm</p>
+          <div className="p-4 border-t border-border/50 bg-black/30">
+            <div className="flex items-center justify-between text-xs font-sans font-bold">
+              <span className="text-muted-foreground">Progress</span>
+              <span className="text-accent">{posted.size} / {PLATFORMS.length}</span>
+            </div>
+            <div className="h-1.5 bg-black rounded-full mt-2 overflow-hidden">
+              <div 
+                className="h-full bg-accent transition-all duration-500" 
+                style={{ width: `${(posted.size / PLATFORMS.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {allDone ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 animate-in zoom-in-95 duration-500">
+              <div className="w-24 h-24 rounded-full bg-accent/10 flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(0,255,209,0.2)]">
+                <CheckCircle2 size={48} className="text-accent" />
               </div>
-            ) : isPosted ? (
-              <div className="flex flex-col items-center justify-center h-64 gap-4">
-                <CheckCircle2
-                  size={48}
-                  className="text-accent"
-                  style={{ filter: 'drop-shadow(0 0 12px rgba(0,255,209,0.6))' }}
-                />
-                <p className="font-pixel text-accent text-glow-mint text-lg">Posted!</p>
-                <p className="font-sans text-sm text-muted-foreground">Listing tracked in your database</p>
+              <h2 className="font-pixel text-xl text-accent text-glow-mint mb-2">Omnipresent</h2>
+              <p className="font-sans text-muted-foreground text-center mb-8">
+                This item is live across all platforms. Wait for the offers to roll in.
+              </p>
+              <button
+                onClick={() => onClose()}
+                className="px-6 py-2.5 rounded-lg bg-white/5 border border-white/10 font-sans font-bold hover:bg-white/10 transition-colors"
+              >
+                Close Flow
+              </button>
+            </div>
+          ) : isGenerating && !currentData ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8">
+              <Loader2 className="animate-spin text-primary mb-4" size={32} />
+              <p className="font-pixel text-xs text-primary animate-pulse">
+                Optimizing for {activePlatform.label}...
+              </p>
+            </div>
+          ) : isPosted ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/5">
+              <CheckCircle2 size={40} className="text-accent mb-4" />
+              <p className="font-sans font-bold text-lg mb-2">Live on {activePlatform.label}</p>
+              <button
+                onClick={() => {
+                  const nextPlatform = PLATFORMS.find(p => !posted.has(p.id));
+                  if (nextPlatform) switchPlatform(nextPlatform);
+                }}
+                className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground font-sans font-bold hover:bg-accent/90 transition-colors"
+              >
+                Next Platform <ArrowRight size={16} />
+              </button>
+            </div>
+          ) : currentData ? (
+            <>
+              {/* Header inside content */}
+              <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between shrink-0 bg-background/95 backdrop-blur z-10">
+                <h3 className="font-sans font-bold text-lg flex items-center gap-2" style={{ color: `rgb(${activePlatform.glowColor})` }}>
+                  {activePlatform.icon} {activePlatform.label} Listing
+                </h3>
                 <button
-                  onClick={() => switchPlatform(PLATFORMS.find(p => !posted.has(p.id)) ?? PLATFORMS[0])}
-                  className="mt-2 px-4 py-2 rounded-full font-sans text-sm border border-primary/40 text-primary hover:bg-primary/10 transition-all"
-                >
-                  Post to another platform
-                </button>
-              </div>
-            ) : currentData ? (
-              <>
-                {/* Generated content */}
-                <CopyField label="Title" value={currentData.title} />
-                <CopyField label="Description" value={currentData.description} />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <CopyField
-                    label="Price"
-                    value={`$${(currentData.suggestedPrice ?? item.price).toFixed(2)}`}
-                    mono
-                  />
-                  <CopyField label="Condition" value={currentData.condition ?? item.condition} />
-                </div>
-
-                {currentData.tags?.length > 0 && (
-                  <CopyField label="Tags / Keywords" value={currentData.tags.join(', ')} />
-                )}
-
-                {/* Platform tips */}
-                <div
-                  className="rounded-lg p-4 space-y-2"
+                  onClick={openPlatform}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-sans font-bold transition-all shadow-sm"
                   style={{
-                    background: `rgba(${activePlatform.glowColor},0.06)`,
-                    border: `1px solid rgba(${activePlatform.glowColor},0.2)`,
+                    background: `rgba(${activePlatform.glowColor},0.15)`,
+                    color: `rgb(${activePlatform.glowColor})`,
+                    border: `1px solid rgba(${activePlatform.glowColor},0.4)`
                   }}
                 >
-                  <p className="font-pixel text-xs text-muted-foreground mb-3">
-                    {activePlatform.icon} {activePlatform.label} tips
-                  </p>
-                  {activePlatform.tips.map((tip, i) => (
-                    <p key={i} className="font-sans text-xs text-muted-foreground flex items-start gap-2">
-                      <span className={`mt-0.5 ${activePlatform.color}`}>▸</span>
-                      {tip}
-                    </p>
-                  ))}
-                </div>
-
-                {/* Action row */}
-                <div className="flex items-center gap-3 pt-2 pb-1">
-                  <button
-                    onClick={openPlatform}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-sans font-bold text-sm border transition-all hover:scale-[1.02]"
-                    style={{
-                      background: `rgba(${activePlatform.glowColor},0.1)`,
-                      borderColor: `rgba(${activePlatform.glowColor},0.5)`,
-                      color: 'white',
-                      boxShadow: `0 0 16px rgba(${activePlatform.glowColor},0.15)`,
-                    }}
-                  >
-                    <ExternalLink size={16} />
-                    Open {activePlatform.label}
-                  </button>
-
-                  <button
-                    onClick={markAsPosted}
-                    disabled={!openedUrl || createListing.isPending}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-pixel text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02]"
-                    style={{
-                      background: openedUrl ? 'rgba(255,45,120,0.15)' : 'rgba(255,45,120,0.05)',
-                      border: '1px solid rgba(255,45,120,0.5)',
-                      color: '#FF2D78',
-                      boxShadow: openedUrl ? '0 0 16px rgba(255,45,120,0.25)' : undefined,
-                    }}
-                    title={!openedUrl ? 'Open the platform first, then mark as posted' : undefined}
-                  >
-                    {createListing.isPending ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Check size={14} />
-                    )}
-                    {openedUrl ? "Mark as Posted ♥" : "Open Platform First"}
-                  </button>
-                </div>
-
-                <p className="font-sans text-xs text-muted-foreground text-center pb-2">
-                  Copy each field above, paste into {activePlatform.label}, then click Mark as Posted to track it here.
-                </p>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-64 gap-4">
-                <p className="font-sans text-muted-foreground text-sm">Select a platform to generate your listing</p>
+                  <ExternalLink size={14} /> Open Form
+                </button>
               </div>
-            )}
-          </div>
+
+              {/* Scrollable Form Data */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <CopyField label="Optimized Title" value={currentData.title} />
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <CopyField label="Description" value={currentData.description} />
+                  </div>
+
+                  <CopyField 
+                    label="Price" 
+                    value={`$${(currentData.suggestedPrice ?? item.price).toFixed(2)}`} 
+                    mono 
+                  />
+                  <CopyField label="Condition" value={currentData.condition ?? item.condition ?? ''} />
+
+                  {currentData.tags?.length > 0 && (
+                    <div className="md:col-span-2">
+                      <CopyField label="Tags / Keywords" value={currentData.tags.join(', ')} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg p-4 bg-white/5 border border-white/10 mt-8">
+                  <p className="font-sans font-bold text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                    {activePlatform.label} Algorithm Tips
+                  </p>
+                  <ul className="space-y-1.5">
+                    {activePlatform.tips.map((tip, i) => (
+                      <li key={i} className="text-sm font-sans text-foreground flex items-start gap-2">
+                        <span className="text-primary opacity-70">▸</span> {tip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Action Footer */}
+              <div className="p-4 border-t border-border/50 bg-black/20 shrink-0 flex items-center justify-between">
+                <p className="text-xs font-sans text-muted-foreground max-w-[200px] sm:max-w-none">
+                  Paste the fields into {activePlatform.label}, then verify.
+                </p>
+                <button
+                  onClick={markAsPosted}
+                  disabled={!openedUrl || createListing.isPending}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-sans font-bold transition-all disabled:opacity-50 hover:-translate-y-0.5"
+                  style={{
+                    background: openedUrl ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.05)',
+                    color: openedUrl ? 'hsl(var(--primary-foreground))' : '#888',
+                  }}
+                >
+                  {createListing.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  {openedUrl ? "Mark as Posted" : "Open Link First"}
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

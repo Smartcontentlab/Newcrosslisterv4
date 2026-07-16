@@ -2,3 +2,4 @@
 - [Orval schema naming](orval-naming.md) — body schemas must use entity-shaped names, never OperationIdBody, to avoid TS2308 collisions
 - [CSS import order](css-import-order.md) — Google Fonts @import url() must be the very first line of index.css, before @import 'tailwindcss'
 - [DB lib rebuild](db-lib-rebuild.md) — after adding tables to lib/db/src/schema/, run pnpm run typecheck:libs before building any artifact that imports from @workspace/db
+- [Redesign verification](redesign-verification.md) — design-subagent passes can silently drop exports or whole features; always tsc → architect review → e2e; check API logs before trusting "didn't persist" reports

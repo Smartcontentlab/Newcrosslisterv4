@@ -1,122 +1,116 @@
-import { useListShippingTasks, useUpdateShippingTask } from '@workspace/api-client-react';
-import { CheckCircle, Circle } from 'lucide-react';
+import { useListShippingTasks, useUpdateShippingTask, getListShippingTasksQueryKey, getListOrdersQueryKey, getGetDashboardSummaryQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Check, Circle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Shipping() {
   const { data: tasks, isLoading } = useListShippingTasks();
   const updateTask = useUpdateShippingTask();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const handleStepToggle = (taskId: number, stepKey: string, completed: boolean) => {
     const task = tasks?.find(t => t.id === taskId);
     if (!task) return;
 
     const updatedSteps = task.steps.map(step => 
-      step.key === stepKey ? { key: step.key, completed } : { key: step.key, completed: step.completed }
+      step.key === stepKey ? { ...step, completed } : step
     );
 
     updateTask.mutate(
       { id: taskId, data: { steps: updatedSteps } },
       {
         onSuccess: () => {
-          toast({ title: '✦ Step updated!', description: completed ? 'Step marked complete' : 'Step marked incomplete' });
+          toast({ title: 'Saved' });
+          queryClient.invalidateQueries({ queryKey: getListShippingTasksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         },
       }
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="h-12 bg-muted/20 rounded-lg animate-pulse" />
-        <div className="space-y-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-48 bg-muted/20 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="h-32 bg-white/5 rounded-xl animate-pulse" />;
 
-  const completedCount = tasks?.filter(t => t.steps.every(s => s.completed)).length || 0;
+  const activeTasks = tasks?.filter(t => !t.steps.every(s => s.completed)) || [];
+  const doneTasks = tasks?.filter(t => t.steps.every(s => s.completed)) || [];
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div>
-        <h1 className="font-pixel text-4xl text-accent text-glow-mint glitch-text mb-2" data-text="Shipping">
-          Shipping
-        </h1>
-        <p className="text-muted-foreground font-sans">
-          {completedCount} of {tasks?.length || 0} tasks complete ★
-        </p>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex items-end justify-between border-b border-border/50 pb-4">
+        <div>
+          <h1 className="font-pixel text-xl tracking-wide uppercase text-foreground mb-2">Fulfillment</h1>
+          <p className="text-xs font-sans text-muted-foreground uppercase tracking-widest">{activeTasks.length} PENDING TASKS</p>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        {!tasks || tasks.length === 0 ? (
-          <div className="glass-card-glow p-12 rounded-xl text-center">
-            <p className="font-pixel text-xl text-muted-foreground mb-4">No shipping tasks</p>
-            <p className="text-muted-foreground font-sans">Tasks will appear when orders need shipping ★</p>
+      <div className="space-y-6">
+        {!tasks?.length ? (
+          <div className="glass-card p-12 rounded-xl text-center border-dashed border-border/50">
+            <p className="font-sans font-bold text-muted-foreground">No fulfillment tasks</p>
           </div>
         ) : (
-          tasks.map((task) => {
-            const allComplete = task.steps.every(s => s.completed);
-            return (
-              <div key={task.id} className={`glass-card-glow p-6 rounded-xl ${allComplete ? 'opacity-60' : ''}`} data-testid={`task-${task.id}`}>
-                <div className="mb-4">
-                  <h3 className="font-sans font-bold text-lg text-foreground mb-2">
-                    {task.itemTitle || 'Untitled Item'}
-                  </h3>
-                  <div className="flex flex-wrap gap-4 text-sm font-sans text-muted-foreground">
-                    {task.orderMarketplace && (
-                      <span>Marketplace: <span className="text-primary font-bold">{task.orderMarketplace.toUpperCase()}</span></span>
-                    )}
-                    {task.orderBuyerName && (
-                      <span>Buyer: <span className="text-foreground font-bold">{task.orderBuyerName}</span></span>
-                    )}
-                    {task.trackingNumber && (
-                      <span>Tracking: <span className="text-accent font-mono text-xs">{task.trackingNumber}</span></span>
-                    )}
+          <>
+            {activeTasks.map(task => (
+              <div key={task.id} className="glass-card-glow rounded-xl overflow-hidden border border-accent/30 bg-accent/5">
+                <div className="p-5 border-b border-white/5 flex items-start justify-between bg-black/20">
+                  <div>
+                    <h3 className="font-sans font-bold text-lg text-foreground">{task.itemTitle || 'Untitled Order'}</h3>
+                    <p className="text-xs font-pixel text-accent mt-1 uppercase">{task.orderMarketplace}</p>
+                  </div>
+                  <div className="text-right text-xs font-sans text-muted-foreground space-y-2">
+                    <p>Buyer: <span className="font-bold text-foreground">{task.orderBuyerName}</span></p>
+                    <div className="flex items-center gap-2 justify-end" data-testid={`progress-task-${task.id}`}>
+                      <div className="w-24 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-accent transition-all duration-300"
+                          style={{ width: `${(task.steps.filter(s => s.completed).length / task.steps.length) * 100}%` }}
+                        />
+                      </div>
+                      <span className="font-pixel text-[10px] text-accent">
+                        {task.steps.filter(s => s.completed).length}/{task.steps.length}
+                      </span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-3">
+                
+                <div className="p-2 space-y-1">
                   {task.steps.map((step, idx) => (
                     <button
                       key={step.key}
                       onClick={() => handleStepToggle(task.id, step.key, !step.completed)}
-                      className={`
-                        w-full flex items-center gap-4 p-4 rounded-lg transition-all
-                        ${step.completed 
-                          ? 'glass-card border border-accent/50 neon-glow-mint' 
-                          : 'glass-card border border-border/30 hover:border-primary/50'
-                        }
-                      `}
-                      data-testid={`step-${task.id}-${step.key}`}
+                      className="w-full flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors group text-left"
                     >
-                      {step.completed ? (
-                        <CheckCircle className="text-accent animate-glow-pulse-mint" size={24} />
-                      ) : (
-                        <Circle className="text-muted-foreground" size={24} />
-                      )}
-                      <div className="flex-1 text-left">
-                        <p className={`font-sans font-bold ${step.completed ? 'text-accent line-through' : 'text-foreground'}`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
+                        step.completed ? 'bg-accent border-accent text-background' : 'border-muted-foreground/50 group-hover:border-accent/50'
+                      }`}>
+                        {step.completed && <Check size={12} strokeWidth={3} />}
+                      </div>
+                      <div className="flex-1">
+                        <p className={`font-sans text-sm font-semibold transition-colors ${step.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
                           {step.label}
                         </p>
-                        {step.completedAt && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Completed: {new Date(step.completedAt).toLocaleString()}
-                          </p>
-                        )}
                       </div>
-                      <span className="font-pixel text-xs text-muted-foreground">
-                        {idx + 1}/{task.steps.length}
-                      </span>
                     </button>
                   ))}
                 </div>
               </div>
-            );
-          })
+            ))}
+
+            {doneTasks.length > 0 && (
+              <div className="pt-8">
+                <h3 className="text-xs font-sans font-bold text-muted-foreground uppercase tracking-widest mb-4">Completed ({doneTasks.length})</h3>
+                <div className="space-y-2">
+                  {doneTasks.map(task => (
+                    <div key={task.id} className="px-4 py-3 rounded-lg border border-white/5 bg-white/5 flex items-center justify-between opacity-50">
+                      <span className="font-sans text-sm line-through text-muted-foreground">{task.itemTitle}</span>
+                      <Check size={14} className="text-muted-foreground" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

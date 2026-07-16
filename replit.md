@@ -21,7 +21,7 @@ An AI-powered resale automation platform that helps sellers source, list, manage
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
-- Design: Dark mode default, amber primary accent, Plus Jakarta Sans + Spline Sans Mono fonts
+- Design: dark "deep cyber-grunge" system — near-black base, neon pink `#FF2D78` accent (glow reserved for hover/key moments), Press Start 2P for pixel headings + Nunito for body; utilities like `glass-card`, `neon-glow-pink`, `font-pixel` live in `index.css`
 
 ## Where things live
 
@@ -40,13 +40,14 @@ An AI-powered resale automation platform that helps sellers source, list, manage
 
 ## Product
 
-- **Dashboard** — KPI cards (revenue, profit, listings, orders), recent activity feed, marketplace breakdown
-- **Inventory** — Item grid with photos, status, cost vs price, listing count; add/edit items
-- **Listings** — Cross-listing table by marketplace with status filters
-- **Orders** — Order management with status workflow (pending → awaiting_shipment → shipped → delivered)
-- **Shipping** — Interactive checklist queue for each order awaiting fulfillment
+- **Dashboard** — Action Center ("Drafts Ready" → posting flow, "Shipments Due" → fulfillment), quick-add drop zone that auto-opens the posting flow on save, KPI cards, recent activity
+- **Inventory** — Item grid with photos (shared `ItemImage` fallback for dead URLs), per-item 6-platform lit/dimmed badge cluster, "OMNIPRESENT" when fully posted
+- **Listings** — Cross-listing table by marketplace; "Link Listing" modal uses a visual item picker (search + thumbnail select)
+- **Orders** — Status workflow (pending → awaiting_shipment → shipped → delivered) with one-click transitions
+- **Fulfillment** (route `/shipping`) — Checklist queue per order awaiting shipment, per-task progress bar; completing all steps auto-advances the order to shipped
 - **Analytics** — Monthly revenue chart, marketplace breakdown, top categories, stale inventory
-- **AI Assistant** — Chat assistant + AI listing generator + price estimator
+- **AI Assistant** — Chat + Price Estimator + Listing Generator tabs
+- **Agent Hub** — Setup console for external AI agents: base endpoint, live posting queue, Claude tool schemas/system prompt, OpenAI-compatible Python snippet, raw API reference (all copy-ready)
 
 ## User preferences
 
@@ -59,6 +60,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 - `listingsTable.status` enum: `draft | active | ended | sold`
 - `ordersTable.status` enum: `pending | awaiting_shipment | shipped | delivered | returned | refunded`
 - Body schemas in OpenAPI must use entity-shaped names (e.g. `ItemInput`, not `CreateItemBody`) to avoid Orval TS2308 collision
+- `GET /api/shipping` only returns tasks for orders currently in `awaiting_shipment` — an empty Fulfillment page usually means no orders need shipping, not a bug
+- Every mutation `onSuccess` must invalidate related queries via orval `get*QueryKey()` helpers, including cross-entity keys (orders ↔ shipping tasks ↔ dashboard summary)
 
 ## Pointers
 

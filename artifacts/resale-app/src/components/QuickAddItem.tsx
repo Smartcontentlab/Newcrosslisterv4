@@ -1,14 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
-import { useCreateItem } from '@workspace/api-client-react';
+import { useCreateItem, getListItemsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListItemsQueryKey } from '@workspace/api-client-react';
-import { Upload, X, Camera, Plus, CheckCircle } from 'lucide-react';
+import { Upload, X, Camera, Plus, CheckCircle, PackagePlus, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import type { ItemInputCondition } from '@workspace/api-client-react';
+import type { ItemInputCondition, Item } from '@workspace/api-client-react';
 
 const CONDITIONS: { value: ItemInputCondition; label: string }[] = [
   { value: 'new', label: 'Brand New' },
@@ -29,11 +28,14 @@ interface PhotoPreview {
   name: string;
 }
 
-export default function QuickAddItem() {
+interface QuickAddItemProps {
+  onItemCreated?: (item: Item) => void;
+}
+
+export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
   const [photos, setPhotos] = useState<PhotoPreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -102,7 +104,6 @@ export default function QuickAddItem() {
     photos.forEach((p) => URL.revokeObjectURL(p.url));
     setPhotos([]);
     setExpanded(false);
-    setSubmitted(false);
     setForm({
       title: '', description: '', brand: '', category: '',
       condition: 'good', price: '', cost: '', tags: '',
@@ -129,14 +130,16 @@ export default function QuickAddItem() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
           queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
-          setSubmitted(true);
           toast({
             title: '♥ Item added!',
             description: `${form.title} is now in your inventory`,
           });
-          setTimeout(reset, 2000);
+          reset();
+          if (onItemCreated) {
+            onItemCreated(data);
+          }
         },
         onError: () => {
           toast({ title: 'Error', description: 'Could not save item', variant: 'destructive' });
@@ -145,25 +148,15 @@ export default function QuickAddItem() {
     );
   };
 
-  if (submitted) {
-    return (
-      <div className="glass-card-glow rounded-xl p-8 flex flex-col items-center justify-center gap-3 border border-accent/50 neon-glow-mint animate-fade-in">
-        <CheckCircle className="text-accent" size={40} />
-        <p className="font-pixel text-accent text-glow-mint text-lg">Item saved!</p>
-        <p className="font-sans text-muted-foreground text-sm">Adding to inventory...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className={`glass-card-glow rounded-xl border transition-all duration-300 ${isDragging ? 'border-primary neon-glow-pink scale-[1.01]' : 'border-primary/40'}`}>
-      {/* Drop zone header — always visible */}
+    <div className={`glass-card rounded-xl border transition-all duration-300 ${isDragging ? 'border-primary/80 bg-primary/5 shadow-[0_0_30px_rgba(255,45,120,0.15)] scale-[1.01]' : 'border-border'}`}>
+      {/* Drop zone header */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onClick={() => !expanded && fileInputRef.current?.click()}
-        className={`relative p-6 rounded-t-xl cursor-pointer transition-all ${expanded ? 'rounded-t-xl border-b border-border/30' : 'rounded-xl'} ${!expanded ? 'hover:bg-primary/5' : ''}`}
+        className={`relative p-6 cursor-pointer transition-all ${expanded ? 'border-b border-border/50 bg-white/5 rounded-t-xl' : 'rounded-xl hover:bg-white/5 hover:border-primary/30'}`}
       >
         <input
           ref={fileInputRef}
@@ -175,42 +168,42 @@ export default function QuickAddItem() {
         />
 
         {photos.length === 0 ? (
-          /* Empty drop zone */
-          <div className="flex flex-col items-center justify-center gap-3 py-4 select-none">
-            <div className="p-4 rounded-full bg-primary/10 border border-primary/30 neon-glow-pink animate-glow-pulse">
-              <Camera className="text-primary" size={32} />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:bg-primary/20 group-hover:scale-110 transition-all">
+                <PackagePlus size={24} />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-lg text-foreground flex items-center gap-2">
+                  Drop photos to add inventory <Zap size={14} className="text-accent" />
+                </h3>
+                <p className="font-sans text-sm text-muted-foreground">or click to browse. Max 8 images.</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="font-pixel text-primary text-glow-pink text-sm mb-1">Drop photos here</p>
-              <p className="font-sans text-muted-foreground text-xs">or click to upload — up to 8 images, any format</p>
-            </div>
-            <div className="flex items-center gap-3 mt-1">
-              <div className="h-px bg-border/40 w-16" />
-              <span className="text-muted-foreground text-xs font-sans">New Inventory Item</span>
-              <div className="h-px bg-border/40 w-16" />
+            <div className="hidden md:flex items-center gap-2 text-xs font-pixel text-muted-foreground">
+              <span className="px-2 py-1 bg-black/40 rounded border border-white/5">JPG</span>
+              <span className="px-2 py-1 bg-black/40 rounded border border-white/5">PNG</span>
             </div>
           </div>
         ) : (
-          /* Photo strip */
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <div className="flex gap-2 flex-wrap flex-1">
               {photos.map((photo, i) => (
                 <div key={i} className="relative group">
                   <img
                     src={photo.url}
                     alt={`photo ${i + 1}`}
-                    className="w-20 h-20 object-cover rounded-lg border border-primary/40"
-                    style={{ boxShadow: '0 0 10px rgba(255,45,120,0.3)' }}
+                    className="w-16 h-16 object-cover rounded-md border border-white/10"
                   />
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); removePhoto(i); }}
-                    className="absolute -top-2 -right-2 bg-background border border-primary/50 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-2 -right-2 bg-background border border-border rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:border-destructive hover:text-destructive"
                   >
-                    <X size={12} className="text-primary" />
+                    <X size={12} />
                   </button>
                   {i === 0 && (
-                    <span className="absolute bottom-1 left-1 text-[8px] font-pixel text-primary bg-background/80 px-1 rounded">
+                    <span className="absolute bottom-1 left-1 text-[8px] font-pixel text-primary bg-background/90 px-1 rounded shadow-sm">
                       MAIN
                     </span>
                   )}
@@ -220,14 +213,14 @@ export default function QuickAddItem() {
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                  className="w-20 h-20 rounded-lg border border-dashed border-primary/40 flex items-center justify-center hover:border-primary hover:bg-primary/5 transition-all"
+                  className="w-16 h-16 rounded-md border border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary hover:bg-primary/5 hover:text-primary transition-all text-muted-foreground"
                 >
-                  <Plus size={20} className="text-muted-foreground" />
+                  <Plus size={20} />
                 </button>
               )}
             </div>
-            <p className="font-pixel text-xs text-primary text-glow-pink whitespace-nowrap">
-              {photos.length} photo{photos.length !== 1 ? 's' : ''}
+            <p className="font-pixel text-[10px] text-muted-foreground whitespace-nowrap hidden sm:block">
+              {photos.length}/8
             </p>
           </div>
         )}
@@ -235,19 +228,19 @@ export default function QuickAddItem() {
 
       {/* Expanded form */}
       {expanded && (
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 animate-fade-in">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
               <Label className="font-sans font-bold text-foreground mb-1.5 block">
-                Item Title <span className="text-primary">★</span>
+                Item Title <span className="text-primary">*</span>
               </Label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="e.g. Nike Air Jordan 1 Chicago Size 10"
+                placeholder="e.g. Vintage 90s Carhartt Leather Jacket"
                 required
-                className="glass-card border-border/50 focus:border-primary font-sans"
-                style={{ boxShadow: form.title ? '0 0 8px rgba(255,45,120,0.2)' : undefined }}
+                className="bg-black/20 border-border/50 focus:border-primary font-sans text-base py-5"
+                autoFocus
               />
             </div>
 
@@ -256,18 +249,18 @@ export default function QuickAddItem() {
               <Input
                 value={form.brand}
                 onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                placeholder="Nike, Supreme, Coach..."
-                className="glass-card border-border/50 focus:border-primary font-sans"
+                placeholder="Nike, Supreme..."
+                className="bg-black/20 border-border/50 focus:border-primary font-sans"
               />
             </div>
 
             <div>
               <Label className="font-sans font-bold text-foreground mb-1.5 block">Category</Label>
               <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                <SelectTrigger className="glass-card border-border/50 focus:border-primary font-sans">
+                <SelectTrigger className="bg-black/20 border-border/50 focus:border-primary font-sans">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
-                <SelectContent className="glass-card-glow border-primary/30">
+                <SelectContent className="glass-card border-border">
                   {CATEGORIES.map((c) => (
                     <SelectItem key={c} value={c} className="font-sans">{c}</SelectItem>
                   ))}
@@ -278,10 +271,10 @@ export default function QuickAddItem() {
             <div>
               <Label className="font-sans font-bold text-foreground mb-1.5 block">Condition</Label>
               <Select value={form.condition} onValueChange={(v) => setForm({ ...form, condition: v as ItemInputCondition })}>
-                <SelectTrigger className="glass-card border-border/50 focus:border-primary font-sans">
+                <SelectTrigger className="bg-black/20 border-border/50 focus:border-primary font-sans">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="glass-card-glow border-primary/30">
+                <SelectContent className="glass-card border-border">
                   {CONDITIONS.map((c) => (
                     <SelectItem key={c.value} value={c.value} className="font-sans">{c.label}</SelectItem>
                   ))}
@@ -294,14 +287,14 @@ export default function QuickAddItem() {
               <Input
                 value={form.tags}
                 onChange={(e) => setForm({ ...form, tags: e.target.value })}
-                placeholder="jordan, sneakers, og (comma-separated)"
-                className="glass-card border-border/50 focus:border-primary font-sans"
+                placeholder="vintage, y2k (comma separated)"
+                className="bg-black/20 border-border/50 focus:border-primary font-sans"
               />
             </div>
 
             <div>
               <Label className="font-sans font-bold text-foreground mb-1.5 block">
-                Listing Price <span className="text-accent">$</span>
+                Target Price <span className="text-accent ml-1 text-xs">$</span>
               </Label>
               <Input
                 type="number"
@@ -311,14 +304,13 @@ export default function QuickAddItem() {
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 placeholder="0.00"
                 required
-                className="glass-card border-border/50 focus:border-accent font-pixel text-accent"
-                style={{ boxShadow: form.price ? '0 0 8px rgba(0,255,209,0.15)' : undefined }}
+                className="bg-black/20 border-border/50 focus:border-accent font-pixel text-accent text-lg py-5"
               />
             </div>
 
             <div>
               <Label className="font-sans font-bold text-foreground mb-1.5 block">
-                What You Paid <span className="text-muted-foreground">$</span>
+                Cost Basis <span className="text-muted-foreground ml-1 text-xs">$</span>
               </Label>
               <Input
                 type="number"
@@ -327,7 +319,7 @@ export default function QuickAddItem() {
                 value={form.cost}
                 onChange={(e) => setForm({ ...form, cost: e.target.value })}
                 placeholder="0.00"
-                className="glass-card border-border/50 focus:border-primary font-pixel"
+                className="bg-black/20 border-border/50 focus:border-primary font-mono py-5"
               />
             </div>
 
@@ -336,40 +328,43 @@ export default function QuickAddItem() {
               <Textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Condition details, measurements, any flaws..."
+                placeholder="Measurements, flaws, history..."
                 rows={3}
-                className="glass-card border-border/50 focus:border-primary font-sans resize-none"
+                className="bg-black/20 border-border/50 focus:border-primary font-sans resize-none"
               />
             </div>
           </div>
 
-          {/* Profit preview */}
-          {form.price && form.cost && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/5 border border-accent/20">
-              <span className="font-sans text-sm text-muted-foreground">Est. profit:</span>
-              <span className="font-pixel text-accent text-glow-mint text-sm">
-                ${(Number(form.price) - Number(form.cost)).toFixed(2)}
-              </span>
-              <span className="font-sans text-xs text-muted-foreground">(before fees)</span>
-            </div>
-          )}
+          <div className="flex items-center justify-between pt-4 border-t border-border/50">
+            {form.price && form.cost ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-accent/10 border border-accent/20">
+                <span className="font-sans text-xs text-muted-foreground">Profit est:</span>
+                <span className="font-pixel text-accent text-sm">
+                  ${(Number(form.price) - Number(form.cost)).toFixed(2)}
+                </span>
+              </div>
+            ) : <div />}
 
-          <div className="flex items-center justify-between pt-2">
-            <button
-              type="button"
-              onClick={reset}
-              className="font-sans text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={createItem.isPending || !form.title || !form.price}
-              className="px-6 py-2.5 rounded-full font-pixel text-sm text-white bg-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
-              style={{ boxShadow: '0 0 20px rgba(255,45,120,0.5), 0 0 40px rgba(255,45,120,0.2)' }}
-            >
-              {createItem.isPending ? 'Saving...' : '♥ Add to Inventory'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={reset}
+                className="px-4 py-2 font-sans text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createItem.isPending || !form.title || !form.price}
+                className="px-6 py-2.5 rounded-lg font-sans font-bold text-sm text-primary-foreground bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(255,45,120,0.3)] hover:shadow-[0_0_25px_rgba(255,45,120,0.5)] flex items-center gap-2"
+              >
+                {createItem.isPending ? 'Saving...' : (
+                  <>
+                    Save & Continue <Zap size={14} />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       )}
