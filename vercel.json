@@ -1,0 +1,9 @@
+{
+  "buildCommand": "pnpm run build:vercel",
+  "outputDirectory": "artifacts/resale-app/dist/public",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
