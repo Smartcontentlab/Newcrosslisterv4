@@ -1,59 +1,10 @@
-import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, itemsTable } from "@workspace/db";
-import {
-  GenerateListingBody,
-  GenerateListingResponse,
-  GetPriceEstimateBody,
-  GetPriceEstimateResponse,
-  AiChatBody,
-  AiChatResponse,
-} from "@workspace/api-zod";
+from pathlib import Path
+import re
 
-const router: IRouter = Router();
+path = Path('/home/ubuntu/crosslisterv4/artifacts/api-server/src/routes/ai.ts')
+text = path.read_text()
 
-function getServerEnv(name: string): string | undefined {
-  const netlifyEnv = (globalThis as { Netlify?: { env?: { get: (key: string) => string | undefined } } }).Netlify?.env;
-  return netlifyEnv?.get(name) ?? process.env[name];
-}
-
-async function callNim(messages: Array<{ role: "system" | "user" | "assistant"; content: string }>, maxTokens = 700): Promise<string> {
-  const apiKey = getServerEnv("NVIDIA_NIM_API_KEY");
-  if (!apiKey) throw new Error("NVIDIA_NIM_API_KEY is not configured");
-  const baseUrl = (getServerEnv("NVIDIA_NIM_BASE_URL") ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
-  const model = getServerEnv("NVIDIA_NIM_MODEL") ?? "nvidia/nemotron-3.5-lightning-30b-a3b";
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature: 0.2, max_tokens: maxTokens }),
-  });
-  if (!response.ok) throw new Error(`NVIDIA NIM returned HTTP ${response.status}`);
-  const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new Error("NVIDIA NIM returned an empty response");
-  return content;
-}
-
-function parseJsonResponse<T>(text: string): T {
-  const fenced = text.match(/```json\s*([\s\S]*?)```/i)?.[1] ?? text;
-  const start = fenced.indexOf("{");
-  const end = fenced.lastIndexOf("}");
-  return JSON.parse(fenced.slice(start >= 0 ? start : 0, end >= 0 ? end + 1 : undefined)) as T;
-}
-
-const MARKETPLACE_STYLES: Record<string, string> = {
-  ebay: "keyword-rich, structured, search-optimized with complete item specifics",
-  poshmark: "trend-focused, fashion-forward language with style tags and emoji-friendly formatting",
-  depop: "modern, youth-focused with trending fashion terms and hashtag suggestions",
-  mercari: "short, clean, mobile-friendly with buyer-focused keywords",
-  facebook: "locally optimized, clear and easy to read for neighborhood buyers",
-  etsy: "handcrafted story-telling, vintage or artisan language, search-friendly",
-  grailed: "menswear-savvy, brand-focused, sizing details prominent",
-  whatnot: "live-sale friendly, exciting and engaging language",
-  shopify: "professional brand voice, SEO-optimized, conversion-focused",
-};
-
-router.post("/ai/generate-listing", async (req, res): Promise<void> => {
+generator = r'''router.post("/ai/generate-listing", async (req, res): Promise<void> => {
   const parsed = GenerateListingBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -78,9 +29,9 @@ router.post("/ai/generate-listing", async (req, res): Promise<void> => {
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "NVIDIA NIM listing generation failed" });
   }
-});
+});'''
 
-router.post("/ai/price-estimate", async (req, res): Promise<void> => {
+estimator = r'''router.post("/ai/price-estimate", async (req, res): Promise<void> => {
   const parsed = GetPriceEstimateBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -97,9 +48,9 @@ router.post("/ai/price-estimate", async (req, res): Promise<void> => {
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "NVIDIA NIM price estimation failed" });
   }
-});
+});'''
 
-router.post("/ai/chat", async (req, res): Promise<void> => {
+chat = r'''router.post("/ai/chat", async (req, res): Promise<void> => {
   const parsed = AiChatBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -116,6 +67,10 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "NVIDIA NIM chat failed" });
   }
-});
+});'''
 
-export default router;
+text = re.sub(r'router\.post\("/ai/generate-listing"[\s\S]*?\n\}\);\n\nrouter\.post\("/ai/price-estimate"', generator + '\n\nrouter.post("/ai/price-estimate"', text, count=1)
+text = re.sub(r'router\.post\("/ai/price-estimate"[\s\S]*?\n\}\);\n\nrouter\.post\("/ai/chat"', estimator + '\n\nrouter.post("/ai/chat"', text, count=1)
+text = re.sub(r'router\.post\("/ai/chat"[\s\S]*?\n\}\);\n\nexport default router;', chat + '\n\nexport default router;', text, count=1)
+path.write_text(text)
+print('NVIDIA NIM AI routes integrated')
