@@ -11,7 +11,7 @@
  *   POST /api/agent/complete       — mark a post as done; creates a Listing record
  */
 
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, notInArray, inArray } from "drizzle-orm";
 import { db, itemsTable, listingsTable } from "@workspace/db";
 
@@ -325,8 +325,8 @@ function generateCopy(item: typeof itemsTable.$inferSelect, marketplace: string)
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-/** GET /api/agent/status */
-router.get("/agent/status", async (_req, res): Promise<void> => {
+/** GET /api/agent and /api/agent/status */
+const agentStatusHandler = async (_req: Request, res: Response): Promise<void> => {
   const items = await db.select().from(itemsTable);
   const listings = await db.select().from(listingsTable);
 
@@ -362,7 +362,10 @@ router.get("/agent/status", async (_req, res): Promise<void> => {
       "setter.call(el, value); el.dispatchEvent(new Event('input', {bubbles:true}));",
     tools: TOOL_SCHEMAS,
   });
-});
+};
+
+router.get("/agent", agentStatusHandler);
+router.get("/agent/status", agentStatusHandler);
 
 /** GET /api/agent/queue */
 router.get("/agent/queue", async (_req, res): Promise<void> => {
