@@ -26,3 +26,9 @@ An asynchronous direct call to the installed background-removal library was star
 
 
 After an additional 45-second wait, the direct IMG.LY background-removal call still emitted no completion or error result. The external IMG.LY package archive is reachable from the sandbox, but it is approximately 285 MB, reinforcing that the default client-side deployment is too large and unpredictable for a responsive production resale workflow. The implementation will need a smaller self-hosted/routable model configuration or a server-side image-processing provider before background removal can be marked production-ready.
+
+
+A live visual check of `/inventory` after adding the delisting queue returned a blank client page even though the route itself returned HTTP 200. This is a client-side regression and must be fixed before delivery. The page HTML was saved at `/home/ubuntu/browser_html/crosslinkos_netlify_app_inventory_1787181493710.html`.
+
+
+Follow-up DOM inspection showed that the Inventory route did mount successfully; the apparent blank page was a screenshot-capture artifact. The live page text included the Listing Studio shortcut, Sold-item Control Queue, two pending removal cards for Depop and Mercari, an Open Fulfillment Checklist link, sold-item labels, and a `SOLD · 2 DELIST` indicator on the relevant item. API data and UI content therefore agree.
