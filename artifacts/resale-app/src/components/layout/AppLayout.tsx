@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   List,
   Package,
+  PlusSquare,
   Settings2,
   ShoppingCart,
   Sparkles,
@@ -24,13 +25,14 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: 'Dashboard', icon: <LayoutDashboard size={17} />, code: '00' },
-  { path: '/inventory', label: 'Inventory', icon: <Package size={17} />, code: '01' },
-  { path: '/listings', label: 'Listings', icon: <List size={17} />, code: '02' },
-  { path: '/orders', label: 'Orders', icon: <ShoppingCart size={17} />, code: '03' },
-  { path: '/shipping', label: 'Fulfillment', icon: <Truck size={17} />, code: '04' },
-  { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={17} />, code: '05' },
-  { path: '/ai-assistant', label: 'AI Assistant', icon: <Sparkles size={17} />, code: '06' },
-  { path: '/agent', label: 'Agent Hub', icon: <Bot size={17} />, code: '07' },
+  { path: '/listing-studio', label: 'Listing Studio', icon: <PlusSquare size={17} />, code: '01' },
+  { path: '/inventory', label: 'Inventory', icon: <Package size={17} />, code: '02' },
+  { path: '/listings', label: 'Listings', icon: <List size={17} />, code: '03' },
+  { path: '/orders', label: 'Orders', icon: <ShoppingCart size={17} />, code: '04' },
+  { path: '/shipping', label: 'Fulfillment', icon: <Truck size={17} />, code: '05' },
+  { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={17} />, code: '06' },
+  { path: '/ai-assistant', label: 'AI Assistant', icon: <Sparkles size={17} />, code: '07' },
+  { path: '/agent', label: 'Agent Hub', icon: <Bot size={17} />, code: '08' },
 ];
 
 interface AppLayoutProps {

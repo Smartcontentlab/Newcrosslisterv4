@@ -10,6 +10,7 @@ import Shipping from '@/pages/shipping';
 import Analytics from '@/pages/analytics';
 import AiAssistant from '@/pages/ai-assistant';
 import AgentHub from '@/pages/agent';
+import ListingStudio from '@/pages/listing-studio';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient({
@@ -29,6 +30,9 @@ function Router() {
       </Route>
       <Route path="/inventory">
         <AppLayout><Inventory /></AppLayout>
+      </Route>
+      <Route path="/listing-studio">
+        <AppLayout><ListingStudio /></AppLayout>
       </Route>
       <Route path="/listings">
         <AppLayout><Listings /></AppLayout>

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, type SQL } from "drizzle-orm";
 import { db, ordersTable, itemsTable, shippingTasksTable } from "@workspace/db";
+import { enqueueDelistingTasksForSale } from "../lib/marketplace-workflow";
 import {
   ListOrdersQueryParams,
   CreateOrderBody,
@@ -81,12 +82,15 @@ router.post("/orders", async (req, res): Promise<void> => {
     });
   }
 
-  if (order.status === "shipped" || order.status === "delivered") {
-    await db
-      .update(itemsTable)
-      .set({ status: "sold" })
-      .where(eq(itemsTable.id, order.itemId));
-  }
+  await db
+    .update(itemsTable)
+    .set({ status: "sold", soldPlatform: order.marketplace, soldAt: new Date() })
+    .where(eq(itemsTable.id, order.itemId));
+  await enqueueDelistingTasksForSale({
+    itemId: order.itemId,
+    orderId: order.id,
+    soldMarketplace: order.marketplace,
+  });
 
   const enriched = await enrichOrders([order]);
   res.status(201).json(CreateOrderResponse.parse(enriched[0]));
@@ -162,11 +166,16 @@ router.patch("/orders/:id", async (req, res): Promise<void> => {
     }
   }
 
-  if (parsed.data.status === "shipped" || parsed.data.status === "delivered") {
+  if (["awaiting_shipment", "shipped", "delivered"].includes(order.status)) {
     await db
       .update(itemsTable)
-      .set({ status: "sold" })
+      .set({ status: "sold", soldPlatform: order.marketplace, soldAt: new Date() })
       .where(eq(itemsTable.id, order.itemId));
+    await enqueueDelistingTasksForSale({
+      itemId: order.itemId,
+      orderId: order.id,
+      soldMarketplace: order.marketplace,
+    });
   }
 
   const enriched = await enrichOrders([order]);

@@ -7,6 +7,7 @@ import shippingRouter from "./shipping";
 import analyticsRouter from "./analytics";
 import aiRouter from "./ai";
 import agentRouter from "./agent";
+import workflowRouter from "./workflow";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(shippingRouter);
 router.use(analyticsRouter);
 router.use(aiRouter);
 router.use(agentRouter);
+router.use(workflowRouter);
 
 export default router;
