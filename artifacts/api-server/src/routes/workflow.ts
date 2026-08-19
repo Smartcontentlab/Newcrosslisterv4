@@ -118,24 +118,10 @@ function fallbackContent(item: typeof itemsTable.$inferSelect, platform: string)
   };
 }
 
-async function createDraftContent(item: typeof itemsTable.$inferSelect, platform: string) {
-  const fallback = fallbackContent(item, platform);
-  try {
-    const content = await callNim(
-      "You write accurate resale listings. Return only JSON with title, description, and tags. Do not invent measurements, flaws, brand, size, condition, or platform policies.",
-      `Create a concise ${platform} resale listing from this item. Item data: ${JSON.stringify({ title: item.title, description: item.description, brand: item.brand, category: item.category, size: item.size, color: item.color, condition: item.condition, tags: item.tags, price: item.price })}`,
-      700,
-    );
-    const parsed = extractJson(content);
-    return {
-      title: typeof parsed?.title === "string" && parsed.title.trim() ? parsed.title.slice(0, 80) : fallback.title,
-      description: typeof parsed?.description === "string" && parsed.description.trim() ? parsed.description : fallback.description,
-      tags: Array.isArray(parsed?.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 10) : fallback.tags,
-      usedFallback: !parsed,
-    };
-  } catch {
-    return { ...fallback, usedFallback: true };
-  }
+function createDraftContent(item: typeof itemsTable.$inferSelect, platform: string) {
+  // Draft creation must be fast and dependable. The separate AI-assist action enriches
+  // the canonical record, while these platform templates preserve a safe fallback for every marketplace.
+  return { ...fallbackContent(item, platform), usedFallback: true };
 }
 
 router.get("/workflow/items", async (_req, res): Promise<void> => {
@@ -210,7 +196,7 @@ router.post("/workflow/items/:id/marketplace-drafts", async (req, res): Promise<
 
   const drafts = [];
   for (const platform of SUPPORTED_MARKETPLACES) {
-    const content = await createDraftContent(item, platform);
+    const content = createDraftContent(item, platform);
     const requirements = draftRequirements[platform].map((field) => ({ ...field, required: true, value: itemValue(item, field.key) }));
     const missingFields = requirements.filter((field) => field.value === null || field.value === "" || field.value === false || field.value === 0).map((field) => field.key);
     const status = missingFields.length === 0 ? "ready" : "draft";

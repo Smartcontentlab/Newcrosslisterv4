@@ -20,7 +20,7 @@ export async function enqueueDelistingTasksForSale(input: {
     if (listing.marketplace !== input.soldMarketplace) pendingMarketplaces.set(listing.marketplace, null);
   }
   for (const draft of drafts) {
-    if (draft.marketplace !== input.soldMarketplace && ["active", "published", "ready"].includes(draft.status)) {
+    if (draft.marketplace !== input.soldMarketplace && ["active", "published"].includes(draft.status)) {
       pendingMarketplaces.set(draft.marketplace, draft.id);
     }
   }
