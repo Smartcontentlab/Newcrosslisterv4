@@ -22,6 +22,9 @@ const CATEGORIES = [
   'Collectibles', 'Books', 'Games', 'Toys', 'Sports', 'Beauty', 'Other',
 ];
 
+const MAX_PHOTOS = 8;
+const MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+
 interface PhotoPreview {
   url: string; // object URL for display
   dataUrl: string; // base64 for storage
@@ -48,6 +51,7 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submissionLock = useRef(false);
   const createItem = useCreateItem();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -60,20 +64,34 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
     });
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
+    const selected = Array.from(files);
+    const imageFiles = selected.filter((file) => file.type.startsWith('image/'));
+    const oversized = imageFiles.filter((file) => file.size > MAX_FILE_SIZE_BYTES);
+    const validFiles = imageFiles.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
 
+    if (selected.some((file) => !file.type.startsWith('image/'))) {
+      toast({ title: 'Image files only', description: 'Choose JPG, PNG, WEBP, or another supported image file.', variant: 'destructive' });
+    }
+    if (oversized.length > 0) {
+      toast({ title: 'Image too large', description: 'Each photo must be 12 MB or smaller.', variant: 'destructive' });
+    }
+    if (validFiles.length === 0) return;
+
+    const remainingSlots = Math.max(0, MAX_PHOTOS - photos.length);
     const previews = await Promise.all(
-      imageFiles.slice(0, 8).map(async (file) => ({
+      validFiles.slice(0, remainingSlots).map(async (file) => ({
         url: URL.createObjectURL(file),
         dataUrl: await readAsDataUrl(file),
         name: file.name,
       }))
     );
 
-    setPhotos((prev) => [...prev, ...previews].slice(0, 8));
+    if (validFiles.length > remainingSlots) {
+      toast({ title: 'Photo limit reached', description: `You can attach up to ${MAX_PHOTOS} photos per item.` });
+    }
+    setPhotos((prev) => [...prev, ...previews].slice(0, MAX_PHOTOS));
     setExpanded(true);
-  }, []);
+  }, [photos.length, toast]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -104,6 +122,7 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
     photos.forEach((p) => URL.revokeObjectURL(p.url));
     setPhotos([]);
     setExpanded(false);
+    submissionLock.current = false;
     setForm({
       title: '', description: '', brand: '', category: '',
       condition: 'good', price: '', cost: '', tags: '',
@@ -112,7 +131,8 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.price) return;
+    if (!form.title || !form.price || submissionLock.current) return;
+    submissionLock.current = true;
 
     createItem.mutate(
       {
@@ -142,7 +162,8 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
           }
         },
         onError: () => {
-          toast({ title: 'Error', description: 'Could not save item', variant: 'destructive' });
+          submissionLock.current = false;
+          toast({ title: 'Save failed', description: 'Could not save item. Your photos and form data are still here—please retry.', variant: 'destructive' });
         },
       }
     );
@@ -177,7 +198,7 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
                 <h3 className="font-sans font-bold text-lg text-foreground flex items-center gap-2">
                   Drop photos to add inventory <Zap size={14} className="text-accent" />
                 </h3>
-                <p className="font-sans text-sm text-muted-foreground">or click to browse. Max 8 images.</p>
+                <p className="font-sans text-sm text-muted-foreground">or click to browse. Up to 8 images · 12 MB each.</p>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 text-xs font-pixel text-muted-foreground">
@@ -209,7 +230,7 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
                   )}
                 </div>
               ))}
-              {photos.length < 8 && (
+              {photos.length < MAX_PHOTOS && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
@@ -220,7 +241,7 @@ export default function QuickAddItem({ onItemCreated }: QuickAddItemProps) {
               )}
             </div>
             <p className="font-pixel text-[10px] text-muted-foreground whitespace-nowrap hidden sm:block">
-              {photos.length}/8
+              {photos.length}/{MAX_PHOTOS}
             </p>
           </div>
         )}
