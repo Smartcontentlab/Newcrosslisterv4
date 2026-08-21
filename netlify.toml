@@ -14,3 +14,9 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[build.environment]
+  VITE_SUPABASE_URL = "https://wxtwjuqajceahzxyquzm.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK"
+  SUPABASE_URL = "https://wxtwjuqajceahzxyquzm.supabase.co"
+  SUPABASE_PUBLISHABLE_KEY = "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK"

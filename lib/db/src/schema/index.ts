@@ -1,3 +1,4 @@
+export * from "./user_profiles";
 export * from "./items";
 export * from "./listings";
 export * from "./orders";

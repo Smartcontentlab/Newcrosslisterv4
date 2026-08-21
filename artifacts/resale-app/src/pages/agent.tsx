@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bot, Copy, Check, Globe, List, ChevronDown, ChevronRight, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiFetch } from '@/lib/supabase';
 
 const API_BASE = `${import.meta.env.BASE_URL?.replace(/\/$/, '') || ''}/api`.replace('//', '/');
 
@@ -78,13 +79,13 @@ export default function AgentPage() {
 
   const { data: status } = useQuery({
     queryKey: ['agent-status'],
-    queryFn: () => fetch(`${API_BASE}/agent/status`).then(r => r.json()),
+    queryFn: () => apiFetch(`${API_BASE}/agent/status`).then(r => r.json()),
     refetchInterval: 10_000,
   });
 
   const { data: queue } = useQuery({
     queryKey: ['agent-queue'],
-    queryFn: () => fetch(`${API_BASE}/agent/queue`).then(r => r.json()),
+    queryFn: () => apiFetch(`${API_BASE}/agent/queue`).then(r => r.json()),
     refetchInterval: 15_000,
   });
 

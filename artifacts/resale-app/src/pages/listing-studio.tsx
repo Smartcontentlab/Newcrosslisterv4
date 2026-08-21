@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiFetch } from '@/lib/supabase';
 
 const CATEGORIES = ['Clothing', 'Sneakers', 'Electronics', 'Accessories', 'Home & Garden', 'Collectibles', 'Books', 'Games', 'Toys', 'Sports', 'Beauty', 'Other'];
 const CONDITIONS = [
@@ -155,10 +156,10 @@ export default function ListingStudio() {
     if (!target) return;
     setPhotos((current) => current.map((photo) => photo.id === photoId ? { ...photo, processingStatus: 'processing' } : photo));
     try {
-      const { default: removeBackground } = await import('@imgly/background-removal');
+      const { removeBackground } = await import('@imgly/background-removal');
       const source = await (await fetch(target.original)).blob();
       const foreground = await Promise.race([
-        removeBackground(source, { device: 'cpu', model: 'isnet_quint8', output: { format: 'image/png', quality: 0.92, type: 'foreground' } }),
+        removeBackground(source, { device: 'cpu', model: 'isnet_quint8', output: { format: 'image/png', quality: 0.92 } }),
         new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Background removal took too long. Keep the original photo or try again on a faster connection.')), BACKGROUND_REMOVAL_TIMEOUT_MS)),
       ]);
       const whiteBackground = await createWhiteBackground(foreground);
@@ -183,7 +184,7 @@ export default function ListingStudio() {
       tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean), photos: activePhotos, photoRecords: photos,
     };
     try {
-      const response = await fetch(itemId ? `/api/workflow/items/${itemId}` : '/api/workflow/items', {
+      const response = await apiFetch(itemId ? `/api/workflow/items/${itemId}` : '/api/workflow/items', {
         method: itemId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const data = await response.json();
@@ -202,7 +203,7 @@ export default function ListingStudio() {
     if (!id) return;
     setIsAssisting(true);
     try {
-      const response = await fetch(`/api/workflow/items/${id}/ai-assist`, { method: 'POST' });
+      const response = await apiFetch(`/api/workflow/items/${id}/ai-assist`, { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'AI assistance is unavailable');
       setForm((current) => ({
@@ -225,7 +226,7 @@ export default function ListingStudio() {
     if (!id) return;
     setIsGeneratingDrafts(true);
     try {
-      const response = await fetch(`/api/workflow/items/${id}/marketplace-drafts`, { method: 'POST' });
+      const response = await apiFetch(`/api/workflow/items/${id}/marketplace-drafts`, { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not generate marketplace drafts');
       setDrafts(data);
@@ -237,7 +238,7 @@ export default function ListingStudio() {
 
   const updateDraftStatus = async (draftId: number, status: string) => {
     try {
-      const response = await fetch(`/api/workflow/marketplace-drafts/${draftId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      const response = await apiFetch(`/api/workflow/marketplace-drafts/${draftId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not update the marketplace draft');
       setDrafts((current) => current.map((draft) => draft.id === draftId ? { ...draft, status: data.status } : draft));
@@ -252,7 +253,7 @@ export default function ListingStudio() {
     if (!id || !salePrice) { toast({ title: 'Enter the sale price', description: 'Record the final sale price before moving this item to fulfillment.', variant: 'destructive' }); return; }
     setIsMarkingSold(true);
     try {
-      const response = await fetch(`/api/workflow/items/${id}/mark-sold`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ marketplace: salePlatform, salePrice: Number(salePrice) }) });
+      const response = await apiFetch(`/api/workflow/items/${id}/mark-sold`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ marketplace: salePlatform, salePrice: Number(salePrice) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not record the sale');
       update('status', 'sold');

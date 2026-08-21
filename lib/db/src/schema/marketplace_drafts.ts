@@ -1,4 +1,5 @@
-import { pgTable, text, serial, timestamp, real, integer, jsonb } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, real, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { userProfilesTable } from "./user_profiles";
 
 export type MarketplaceDraftField = {
   key: string;
@@ -10,6 +11,7 @@ export type MarketplaceDraftField = {
 
 export const marketplaceDraftsTable = pgTable("marketplace_drafts", {
   id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => userProfilesTable.id, { onDelete: "cascade" }),
   itemId: integer("item_id").notNull(),
   marketplace: text("marketplace").notNull(),
   status: text("status").notNull().default("draft"),

@@ -12,8 +12,9 @@
  */
 
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, notInArray, inArray } from "drizzle-orm";
+import { and, eq, notInArray, inArray } from "drizzle-orm";
 import { db, itemsTable, listingsTable } from "@workspace/db";
+import { getAuthenticatedUser } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -327,8 +328,9 @@ function generateCopy(item: typeof itemsTable.$inferSelect, marketplace: string)
 
 /** GET /api/agent and /api/agent/status */
 const agentStatusHandler = async (_req: Request, res: Response): Promise<void> => {
-  const items = await db.select().from(itemsTable);
-  const listings = await db.select().from(listingsTable);
+  const userId = getAuthenticatedUser(res).id;
+  const items = await db.select().from(itemsTable).where(eq(itemsTable.userId, userId));
+  const listings = await db.select().from(listingsTable).where(eq(listingsTable.userId, userId));
 
   const listedItemPlatforms = new Set(listings.map((l) => `${l.itemId}:${l.marketplace}`));
   let pendingCount = 0;
@@ -369,10 +371,12 @@ router.get("/agent/status", agentStatusHandler);
 
 /** GET /api/agent/queue */
 router.get("/agent/queue", async (_req, res): Promise<void> => {
-  const items = await db.select().from(itemsTable).where(
+  const userId = getAuthenticatedUser(res).id;
+  const items = await db.select().from(itemsTable).where(and(
+    eq(itemsTable.userId, userId),
     notInArray(itemsTable.status, ["sold", "archived"])
-  );
-  const listings = await db.select().from(listingsTable);
+  ));
+  const listings = await db.select().from(listingsTable).where(eq(listingsTable.userId, userId));
 
   const listedSet = new Set(listings.map((l) => `${l.itemId}:${l.marketplace}`));
 
@@ -410,7 +414,8 @@ router.get("/agent/instructions/:itemId/:marketplace", async (req, res): Promise
     return;
   }
 
-  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+  const userId = getAuthenticatedUser(res).id;
+  const [item] = await db.select().from(itemsTable).where(and(eq(itemsTable.id, itemId), eq(itemsTable.userId, userId)));
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;
@@ -516,7 +521,8 @@ router.post("/agent/complete", async (req, res): Promise<void> => {
     return;
   }
 
-  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+  const userId = getAuthenticatedUser(res).id;
+  const [item] = await db.select().from(itemsTable).where(and(eq(itemsTable.id, itemId), eq(itemsTable.userId, userId)));
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;
@@ -528,6 +534,7 @@ router.post("/agent/complete", async (req, res): Promise<void> => {
   const [listing] = await db
     .insert(listingsTable)
     .values({
+      userId,
       itemId,
       marketplace,
       status: "active",

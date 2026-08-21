@@ -1,9 +1,11 @@
-import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, serial, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { userProfilesTable } from "./user_profiles";
 
 export const shippingTasksTable = pgTable("shipping_tasks", {
   id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => userProfilesTable.id, { onDelete: "cascade" }),
   orderId: integer("order_id").notNull(),
   steps: jsonb("steps").notNull().$type<Array<{
     key: string;
@@ -17,6 +19,7 @@ export const shippingTasksTable = pgTable("shipping_tasks", {
 
 export const insertShippingTaskSchema = createInsertSchema(shippingTasksTable).omit({
   id: true,
+  userId: true,
   createdAt: true,
   updatedAt: true,
 });

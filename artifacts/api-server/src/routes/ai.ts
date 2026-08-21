@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, itemsTable } from "@workspace/db";
+import { getAuthenticatedUser } from "../lib/auth";
 import {
   GenerateListingBody,
   GenerateListingResponse,
@@ -73,7 +74,7 @@ function asStringArray(value: unknown): string[] {
   return [];
 }
 
-function normalizePriceEstimate(raw: unknown): GetPriceEstimateResponse {
+function normalizePriceEstimate(raw: unknown) {
   const source = (raw && typeof raw === "object") ? raw as Record<string, unknown> : {};
   const range = source.priceRange && typeof source.priceRange === "object" ? source.priceRange as Record<string, unknown> : {};
   const suggestedPrice = asNumber(source.suggestedPrice ?? source.estimatedPrice ?? source.averagePrice ?? source.price ?? range.suggestedPrice ?? range.average);
@@ -132,7 +133,8 @@ router.post("/ai/generate-listing", async (req, res): Promise<void> => {
     return;
   }
 
-  const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, parsed.data.itemId));
+  const userId = getAuthenticatedUser(res).id;
+  const [item] = await db.select().from(itemsTable).where(and(eq(itemsTable.id, parsed.data.itemId), eq(itemsTable.userId, userId)));
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;

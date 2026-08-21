@@ -1,6 +1,7 @@
-import { pgTable, text, serial, timestamp, real, jsonb } from "drizzle-orm/pg-core";
+import { jsonb, pgTable, real, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { userProfilesTable } from "./user_profiles";
 
 export type ItemPhotoRecord = {
   id: string;
@@ -14,6 +15,7 @@ export type ItemPhotoRecord = {
 
 export const itemsTable = pgTable("items", {
   id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => userProfilesTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
   brand: text("brand"),
@@ -42,6 +44,7 @@ export const itemsTable = pgTable("items", {
 
 export const insertItemSchema = createInsertSchema(itemsTable).omit({
   id: true,
+  userId: true,
   createdAt: true,
   updatedAt: true,
 });

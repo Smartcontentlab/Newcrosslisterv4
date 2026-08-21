@@ -13,8 +13,10 @@ import {
   Sparkles,
   Truck,
   Zap,
+  LogOut,
 } from 'lucide-react';
 import { ReactNode } from 'react';
+import { useAuth } from '@/lib/auth-context';
 
 interface NavItem {
   path: string;
@@ -41,7 +43,11 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
+  const { user, profile, signOut } = useAuth();
   const activeItem = navItems.find((item) => location === item.path || (item.path !== '/' && location.startsWith(item.path))) ?? navItems[0];
+  const operatorName = profile?.displayName || user?.email?.split('@')[0] || 'Seller';
+  const operatorPlan = profile?.plan || 'free';
+  const initials = operatorName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'CL';
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
@@ -97,13 +103,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="border-t border-sidebar-border/80 p-4">
           <div className="mb-3 flex items-center justify-between px-2">
             <span className="cx-eyebrow">Operator profile</span>
-            <Settings2 size={14} className="text-muted-foreground" />
+            <div className="flex items-center gap-2"><Settings2 size={14} className="text-muted-foreground" /><button type="button" onClick={() => void signOut()} title="Sign out" className="text-muted-foreground transition hover:text-destructive"><LogOut size={14} /></button></div>
           </div>
           <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/35 p-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary via-secondary to-accent text-[0.6rem] font-bold text-background shadow-[0_0_18px_hsl(var(--primary)/0.24)]">US</div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary via-secondary to-accent text-[0.6rem] font-bold text-background shadow-[0_0_18px_hsl(var(--primary)/0.24)]">{initials}</div>
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-foreground">Pro Seller</p>
-              <p className="mt-1 flex items-center gap-1.5 font-mono text-[0.58rem] text-accent"><span className="cx-status-dot" /> active</p>
+              <p className="truncate text-xs font-bold text-foreground">{operatorName}</p>
+              <p className="mt-1 flex items-center gap-1.5 font-mono text-[0.58rem] text-accent"><span className="cx-status-dot" /> {operatorPlan} · active</p>
             </div>
           </div>
         </div>

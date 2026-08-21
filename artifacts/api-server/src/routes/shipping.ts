@@ -1,162 +1,92 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, shippingTasksTable, ordersTable, itemsTable } from "@workspace/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { db, itemsTable, ordersTable, shippingTasksTable } from "@workspace/db";
 import {
   GetShippingTaskParams,
   GetShippingTaskResponse,
-  UpdateShippingTaskParams,
-  UpdateShippingTaskBody,
-  UpdateShippingTaskResponse,
   ListShippingTasksResponse,
+  UpdateShippingTaskBody,
+  UpdateShippingTaskParams,
+  UpdateShippingTaskResponse,
 } from "@workspace/api-zod";
-
-async function enrichTask(task: typeof shippingTasksTable.$inferSelect) {
-  const [order] = await db
-    .select()
-    .from(ordersTable)
-    .where(eq(ordersTable.id, task.orderId));
-
-  if (!order) {
-    return {
-      ...task,
-      orderMarketplace: null,
-      orderBuyerName: null,
-      itemTitle: null,
-      trackingNumber: null,
-    };
-  }
-
-  const [item] = await db
-    .select({ title: itemsTable.title })
-    .from(itemsTable)
-    .where(eq(itemsTable.id, order.itemId));
-
-  return {
-    ...task,
-    orderMarketplace: order.marketplace,
-    orderBuyerName: order.buyerName ?? null,
-    itemTitle: item?.title ?? null,
-    trackingNumber: order.trackingNumber ?? null,
-  };
-}
+import { getAuthenticatedUser } from "../lib/auth";
 
 const router: IRouter = Router();
 
-router.get("/shipping", async (_req, res): Promise<void> => {
-  // Get all orders awaiting shipment
-  const pendingOrders = await db
-    .select()
-    .from(ordersTable)
-    .where(eq(ordersTable.status, "awaiting_shipment"));
+async function enrichTask(task: typeof shippingTasksTable.$inferSelect, userId: string) {
+  const [order] = await db.select().from(ordersTable).where(and(eq(ordersTable.id, task.orderId), eq(ordersTable.userId, userId)));
+  if (!order) return { ...task, orderMarketplace: null, orderBuyerName: null, itemTitle: null, trackingNumber: null };
+  const [item] = await db.select({ title: itemsTable.title }).from(itemsTable).where(and(eq(itemsTable.id, order.itemId), eq(itemsTable.userId, userId)));
+  return { ...task, orderMarketplace: order.marketplace, orderBuyerName: order.buyerName ?? null, itemTitle: item?.title ?? null, trackingNumber: order.trackingNumber ?? null };
+}
 
-  const orderIds = pendingOrders.map((o) => o.id);
-  if (orderIds.length === 0) {
-    res.json(ListShippingTasksResponse.parse([]));
+router.get("/shipping", async (_request, response): Promise<void> => {
+  const userId = getAuthenticatedUser(response).id;
+  const pendingOrders = await db.select().from(ordersTable).where(and(eq(ordersTable.userId, userId), eq(ordersTable.status, "awaiting_shipment")));
+  if (pendingOrders.length === 0) {
+    response.json(ListShippingTasksResponse.parse([]));
     return;
   }
-
-  const tasks = await db.select().from(shippingTasksTable);
-  const relevantTasks = tasks.filter((t) => orderIds.includes(t.orderId));
-
-  const allItems = await db
-    .select({ id: itemsTable.id, title: itemsTable.title })
-    .from(itemsTable);
-  const itemMap = new Map(allItems.map((i) => [i.id, i.title]));
-
-  const orderMap = new Map(pendingOrders.map((o) => [o.id, o]));
-
-  const enriched = relevantTasks.map((task) => {
-    const order = orderMap.get(task.orderId);
-    return {
-      ...task,
-      orderMarketplace: order?.marketplace ?? null,
-      orderBuyerName: order?.buyerName ?? null,
-      itemTitle: order ? (itemMap.get(order.itemId) ?? null) : null,
-      trackingNumber: order?.trackingNumber ?? null,
-    };
-  });
-
-  res.json(ListShippingTasksResponse.parse(enriched));
+  const orderIds = pendingOrders.map((order) => order.id);
+  const [tasks, items] = await Promise.all([
+    db.select().from(shippingTasksTable).where(and(eq(shippingTasksTable.userId, userId), inArray(shippingTasksTable.orderId, orderIds))),
+    db.select({ id: itemsTable.id, title: itemsTable.title }).from(itemsTable).where(eq(itemsTable.userId, userId)),
+  ]);
+  const ordersById = new Map(pendingOrders.map((order) => [order.id, order]));
+  const titlesById = new Map(items.map((item) => [item.id, item.title]));
+  response.json(ListShippingTasksResponse.parse(tasks.map((task) => {
+    const order = ordersById.get(task.orderId);
+    return { ...task, orderMarketplace: order?.marketplace ?? null, orderBuyerName: order?.buyerName ?? null, itemTitle: order ? titlesById.get(order.itemId) ?? null : null, trackingNumber: order?.trackingNumber ?? null };
+  })));
 });
 
-router.get("/shipping/:id", async (req, res): Promise<void> => {
-  const params = GetShippingTaskParams.safeParse(req.params);
+router.get("/shipping/:id", async (request, response): Promise<void> => {
+  const params = GetShippingTaskParams.safeParse(request.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    response.status(400).json({ error: params.error.message });
     return;
   }
-
-  const [task] = await db
-    .select()
-    .from(shippingTasksTable)
-    .where(eq(shippingTasksTable.id, params.data.id));
-
+  const userId = getAuthenticatedUser(response).id;
+  const [task] = await db.select().from(shippingTasksTable).where(and(eq(shippingTasksTable.id, params.data.id), eq(shippingTasksTable.userId, userId)));
   if (!task) {
-    res.status(404).json({ error: "Shipping task not found" });
+    response.status(404).json({ error: "Shipping task not found" });
     return;
   }
-
-  const enriched = await enrichTask(task);
-  res.json(GetShippingTaskResponse.parse(enriched));
+  response.json(GetShippingTaskResponse.parse(await enrichTask(task, userId)));
 });
 
-router.patch("/shipping/:id", async (req, res): Promise<void> => {
-  const params = UpdateShippingTaskParams.safeParse(req.params);
+router.patch("/shipping/:id", async (request, response): Promise<void> => {
+  const params = UpdateShippingTaskParams.safeParse(request.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    response.status(400).json({ error: params.error.message });
     return;
   }
-
-  const parsed = UpdateShippingTaskBody.safeParse(req.body);
+  const parsed = UpdateShippingTaskBody.safeParse(request.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    response.status(400).json({ error: parsed.error.message });
     return;
   }
-
-  const [existing] = await db
-    .select()
-    .from(shippingTasksTable)
-    .where(eq(shippingTasksTable.id, params.data.id));
-
+  const userId = getAuthenticatedUser(response).id;
+  const [existing] = await db.select().from(shippingTasksTable).where(and(eq(shippingTasksTable.id, params.data.id), eq(shippingTasksTable.userId, userId)));
   if (!existing) {
-    res.status(404).json({ error: "Shipping task not found" });
+    response.status(404).json({ error: "Shipping task not found" });
     return;
   }
 
-  // Merge updated steps
   const now = new Date().toISOString();
   const updatedSteps = (existing.steps as Array<{ key: string; label: string; completed: boolean; completedAt: string | null }>).map((step) => {
-    const patch = parsed.data.steps.find((s) => s.key === step.key);
-    if (!patch) return step;
-    return {
-      ...step,
-      completed: patch.completed,
-      completedAt: patch.completed && !step.completed ? now : step.completedAt,
-    };
+    const patch = parsed.data.steps.find((candidate) => candidate.key === step.key);
+    return patch ? { ...step, completed: patch.completed, completedAt: patch.completed && !step.completed ? now : step.completedAt } : step;
   });
-
-  const [task] = await db
-    .update(shippingTasksTable)
-    .set({ steps: updatedSteps })
-    .where(eq(shippingTasksTable.id, params.data.id))
-    .returning();
-
+  const [task] = await db.update(shippingTasksTable).set({ steps: updatedSteps }).where(and(eq(shippingTasksTable.id, params.data.id), eq(shippingTasksTable.userId, userId))).returning();
   if (!task) {
-    res.status(404).json({ error: "Shipping task not found" });
+    response.status(404).json({ error: "Shipping task not found" });
     return;
   }
-
-  // If all steps completed, mark order as shipped
-  const allDone = updatedSteps.every((s) => s.completed);
-  if (allDone) {
-    await db
-      .update(ordersTable)
-      .set({ status: "shipped" })
-      .where(eq(ordersTable.id, task.orderId));
+  if (updatedSteps.every((step) => step.completed)) {
+    await db.update(ordersTable).set({ status: "shipped" }).where(and(eq(ordersTable.id, task.orderId), eq(ordersTable.userId, userId)));
   }
-
-  const enriched = await enrichTask(task);
-  res.json(UpdateShippingTaskResponse.parse(enriched));
+  response.json(UpdateShippingTaskResponse.parse(await enrichTask(task, userId)));
 });
 
 export default router;

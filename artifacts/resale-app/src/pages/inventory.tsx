@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { ItemInputCondition, ItemInputStatus } from '@workspace/api-client-react';
 import PostToMarketplace from '@/components/PostToMarketplace';
 import ItemImage from '@/components/ItemImage';
+import { apiFetch } from '@/lib/supabase';
 
 const CORE_PLATFORMS = ['poshmark', 'depop', 'mercari'] as const;
 const PLATFORM_ICONS: Record<string, string> = { poshmark: '♥', depop: '★', mercari: '✦' };
@@ -39,7 +40,7 @@ export default function Inventory() {
   const { data: delistingTasks = [], isLoading: isLoadingDelistingTasks } = useQuery<DelistingTask[]>({
     queryKey: ['workflow', 'delisting-tasks'],
     queryFn: async () => {
-      const response = await fetch('/api/workflow/delisting-tasks');
+      const response = await apiFetch('/api/workflow/delisting-tasks');
       if (!response.ok) throw new Error('Could not load delisting tasks');
       return response.json();
     },
@@ -83,7 +84,7 @@ export default function Inventory() {
   const completeDelistingTask = async (task: DelistingTask) => {
     setCompletingTaskId(task.id);
     try {
-      const response = await fetch(`/api/workflow/delisting-tasks/${task.id}`, {
+      const response = await apiFetch(`/api/workflow/delisting-tasks/${task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed', note: 'Manual marketplace removal confirmed from Inventory.' }),
