@@ -14,6 +14,7 @@ import {
   Truck,
   Zap,
   LogOut,
+  PlugZap,
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { useAuth } from '@/lib/auth-context';
@@ -30,11 +31,12 @@ const navItems: NavItem[] = [
   { path: '/listing-studio', label: 'Listing Studio', icon: <PlusSquare size={17} />, code: '01' },
   { path: '/inventory', label: 'Inventory', icon: <Package size={17} />, code: '02' },
   { path: '/listings', label: 'Listings', icon: <List size={17} />, code: '03' },
-  { path: '/orders', label: 'Orders', icon: <ShoppingCart size={17} />, code: '04' },
+  { path: '/orders', label: 'Sold & Fulfillment', icon: <ShoppingCart size={17} />, code: '04' },
   { path: '/shipping', label: 'Fulfillment', icon: <Truck size={17} />, code: '05' },
   { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={17} />, code: '06' },
   { path: '/ai-assistant', label: 'AI Assistant', icon: <Sparkles size={17} />, code: '07' },
   { path: '/agent', label: 'Agent Hub', icon: <Bot size={17} />, code: '08' },
+  { path: '/connections', label: 'Connections', icon: <PlugZap size={17} />, code: '09' },
 ];
 
 interface AppLayoutProps {

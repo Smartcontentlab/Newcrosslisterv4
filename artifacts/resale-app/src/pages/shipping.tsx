@@ -1,5 +1,6 @@
 import { useListShippingTasks, useUpdateShippingTask, getListShippingTasksQueryKey, getListOrdersQueryKey, getGetDashboardSummaryQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Link } from 'wouter';
 import { Check, Circle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,9 +40,11 @@ export default function Shipping() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-end justify-between border-b border-border/50 pb-4">
         <div>
-          <h1 className="font-pixel text-xl tracking-wide uppercase text-foreground mb-2">Fulfillment</h1>
-          <p className="text-xs font-sans text-muted-foreground uppercase tracking-widest">{activeTasks.length} PENDING TASKS</p>
+          <p className="cx-eyebrow">Sales / pull · print · pack · ship</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Fulfillment queue</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{activeTasks.length} sale{activeTasks.length === 1 ? '' : 's'} waiting for a shipping action.</p>
         </div>
+        <Link href="/orders" className="rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20">View sold & delisting status</Link>
       </div>
 
       <div className="space-y-6">

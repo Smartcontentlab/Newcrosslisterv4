@@ -13,6 +13,7 @@ import Analytics from "@/pages/analytics";
 import AiAssistant from "@/pages/ai-assistant";
 import AgentHub from "@/pages/agent";
 import ListingStudio from "@/pages/listing-studio";
+import Connections from "@/pages/connections";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -31,6 +32,7 @@ function WorkspaceRoutes() {
       <Route path="/analytics"><AppLayout><Analytics /></AppLayout></Route>
       <Route path="/ai-assistant"><AppLayout><AiAssistant /></AppLayout></Route>
       <Route path="/agent"><AppLayout><AgentHub /></AppLayout></Route>
+      <Route path="/connections"><AppLayout><Connections /></AppLayout></Route>
       <Route component={NotFound} />
     </Switch>
   );

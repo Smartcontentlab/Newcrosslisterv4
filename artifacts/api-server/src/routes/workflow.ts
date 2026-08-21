@@ -18,6 +18,8 @@ const router: IRouter = Router();
 const itemStatus = z.enum(["draft", "active", "sold", "archived"]);
 const condition = z.enum(["new", "like_new", "good", "fair", "poor"]);
 const marketplace = z.enum(SUPPORTED_MARKETPLACES);
+const marketplaceDraftStatus = z.enum(["draft", "ready", "prefilled", "draft_saved", "published", "sold", "delisting", "delisted", "needs_attention"]);
+const FINAL_MARKETPLACE_STATUSES = new Set(["published", "sold", "delisting", "delisted"]);
 const photoRecord = z.object({
   id: z.string(), original: z.string(), processed: z.string().nullable().optional(),
   active: z.enum(["original", "processed"]), processingStatus: z.enum(["original", "processing", "processed", "failed"]),
@@ -95,6 +97,23 @@ router.post("/workflow/items", async (request, response): Promise<void> => {
   const [item] = await db.insert(itemsTable).values({ ...parsed.data, userId, sourceUrl: parsed.data.sourceUrl || null }).returning();
   response.status(201).json(item);
 });
+/** One row per physical item; Poshmark, Depop, and Mercari drafts are nested for compact status chips. */
+router.get("/workflow/draft-board", async (_request, response): Promise<void> => {
+  const userId = getAuthenticatedUser(response).id;
+  const [items, drafts] = await Promise.all([
+    db.select().from(itemsTable).where(eq(itemsTable.userId, userId)).orderBy(desc(itemsTable.updatedAt)),
+    db.select().from(marketplaceDraftsTable).where(eq(marketplaceDraftsTable.userId, userId)),
+  ]);
+  const draftsByItem = new Map<number, typeof drafts>();
+  for (const draft of drafts) {
+    if (!SUPPORTED_MARKETPLACES.includes(draft.marketplace as (typeof SUPPORTED_MARKETPLACES)[number])) continue;
+    draftsByItem.set(draft.itemId, [...(draftsByItem.get(draft.itemId) ?? []), draft]);
+  }
+  response.json(items
+    .filter((item) => !["sold", "archived"].includes(item.status))
+    .map((item) => ({ item, drafts: draftsByItem.get(item.id) ?? [] })));
+});
+
 router.get("/workflow/items/:id", async (request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id; const id = Number(request.params.id); const item = await ownedItem(id, userId);
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
@@ -130,7 +149,13 @@ router.post("/workflow/items/:id/marketplace-drafts", async (request, response):
     const content = createDraftContent(item, platform);
     const requirements = draftRequirements[platform].map((field) => ({ ...field, required: true, value: itemValue(item, field.key) }));
     const missingFields = requirements.filter((field) => field.value === null || field.value === "" || field.value === false || field.value === 0).map((field) => field.key);
-    const status = missingFields.length === 0 ? "ready" : "draft";
+    const calculatedStatus = missingFields.length === 0 ? "ready" : "draft";
+    const [existing] = await db.select().from(marketplaceDraftsTable).where(and(
+      eq(marketplaceDraftsTable.itemId, item.id),
+      eq(marketplaceDraftsTable.userId, userId),
+      eq(marketplaceDraftsTable.marketplace, platform),
+    ));
+    const status = existing && FINAL_MARKETPLACE_STATUSES.has(existing.status) ? existing.status : calculatedStatus;
     const [draft] = await db.insert(marketplaceDraftsTable).values({ userId, itemId: item.id, marketplace: platform, status, title: content.title, description: content.description, tags: content.tags, price: item.price, requiredFields: requirements, missingFields }).onConflictDoUpdate({ target: [marketplaceDraftsTable.itemId, marketplaceDraftsTable.marketplace], set: { status, title: content.title, description: content.description, tags: content.tags, price: item.price, requiredFields: requirements, missingFields } }).returning();
     drafts.push({ ...draft, usedFallback: content.usedFallback });
   }
@@ -142,10 +167,11 @@ router.get("/workflow/items/:id/marketplace-drafts", async (request, response): 
   response.json(await db.select().from(marketplaceDraftsTable).where(and(eq(marketplaceDraftsTable.itemId, itemId), eq(marketplaceDraftsTable.userId, userId))));
 });
 router.patch("/workflow/marketplace-drafts/:id", async (request, response): Promise<void> => {
-  const parsed = z.object({ status: z.string().optional(), title: z.string().optional(), description: z.string().optional(), tags: z.array(z.string()).optional(), price: z.number().min(0).optional(), externalListingId: z.string().optional(), externalUrl: z.string().url().optional().or(z.literal("")) }).safeParse(request.body);
+  const parsed = z.object({ status: marketplaceDraftStatus.optional(), title: z.string().optional(), description: z.string().optional(), tags: z.array(z.string()).optional(), price: z.number().min(0).optional(), externalListingId: z.string().optional(), externalUrl: z.string().url().optional().or(z.literal("")) }).safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: parsed.error.flatten() }); return; }
   const userId = getAuthenticatedUser(response).id;
-  const [draft] = await db.update(marketplaceDraftsTable).set({ ...parsed.data, externalUrl: parsed.data.externalUrl || null }).where(and(eq(marketplaceDraftsTable.id, Number(request.params.id)), eq(marketplaceDraftsTable.userId, userId))).returning();
+  const update = { ...parsed.data, externalUrl: parsed.data.externalUrl || null, ...(parsed.data.status === "published" ? { publishedAt: new Date() } : {}) };
+  const [draft] = await db.update(marketplaceDraftsTable).set(update).where(and(eq(marketplaceDraftsTable.id, Number(request.params.id)), eq(marketplaceDraftsTable.userId, userId))).returning();
   if (!draft) { response.status(404).json({ error: "Marketplace draft not found" }); return; }
   response.json(draft);
 });

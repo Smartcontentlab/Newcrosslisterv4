@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CrossLinkOS Draft Fill</title>
+    <style>
+      :root { color-scheme: dark; --bg:#0b0a12; --panel:#151320; --line:#2e2941; --text:#f4f0ff; --muted:#aaa1bc; --violet:#a78bfa; --cyan:#3dd9c6; --danger:#fb7185; }
+      * { box-sizing:border-box; } body { margin:0; background:radial-gradient(circle at top right,#211a3a 0,transparent 35%),var(--bg); color:var(--text); font:13px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+      main { min-height:100vh; padding:16px; } .eyebrow { color:var(--violet); font:600 10px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.12em; text-transform:uppercase; } h1 { margin:6px 0 4px; font-size:20px; letter-spacing:-.03em; } p { margin:0; } .sub { color:var(--muted); } .notice { margin-top:14px; border:1px solid var(--line); background:rgba(15,13,24,.72); border-radius:12px; padding:12px; color:var(--muted); } .notice strong { color:var(--text); } .toolbar { display:flex; gap:8px; margin-top:14px; } button { appearance:none; border:1px solid var(--line); border-radius:9px; background:#1c1830; color:var(--text); padding:9px 10px; font:600 12px inherit; cursor:pointer; } button:hover { border-color:var(--violet); background:#251e40; } button.primary { border-color:rgba(167,139,250,.6); background:rgba(167,139,250,.15); color:#dcd1ff; } button.accent { border-color:rgba(61,217,198,.5); background:rgba(61,217,198,.11); color:var(--cyan); } button:disabled { opacity:.45; cursor:not-allowed; } #queue { display:grid; gap:10px; margin-top:14px; } .card { border:1px solid var(--line); border-radius:13px; background:rgba(21,19,32,.92); padding:13px; } .top { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; } .platform,.state { border:1px solid var(--line); border-radius:999px; padding:3px 7px; font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace; text-transform:uppercase; letter-spacing:.06em; } .platform { color:var(--violet); border-color:rgba(167,139,250,.35); background:rgba(167,139,250,.08); } .state.ready { color:var(--violet); } .state.prefilled { color:var(--cyan); border-color:rgba(61,217,198,.35); } .state.needs_attention { color:var(--danger); border-color:rgba(251,113,133,.35); } h2 { margin:10px 0 0; font-size:14px; } .meta { margin-top:6px; color:var(--muted); font-size:12px; } .card button { width:100%; margin-top:11px; } .empty { padding:24px 8px; color:var(--muted); text-align:center; } .footer { margin-top:14px; color:var(--muted); font-size:11px; line-height:1.55; } .status { margin-top:10px; min-height:18px; color:var(--muted); font-size:12px; } .status.error { color:var(--danger); } .status.good { color:var(--cyan); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">CrossLinkOS / local draft fill</p>
+      <h1>Review first. Publish yourself.</h1>
+      <p class="sub">This side panel only fills the active marketplace form. It does not save, submit, or publish.</p>
+      <div id="active-tab" class="notice">Checking the active tab…</div>
+      <div class="toolbar"><button id="refresh" class="primary">Refresh queue</button><button id="clear">Clear local queue</button></div>
+      <p id="status" class="status" aria-live="polite"></p>
+      <section id="queue" aria-live="polite"></section>
+      <p class="footer"><strong>Privacy boundary:</strong> drafts are held in temporary extension memory and clear when Chrome restarts or the extension reloads. Marketplace passwords and cookies are never read or stored. Photos are never copied through this extension; upload them manually in the marketplace form.</p>
+    </main>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

@@ -1,16 +1,21 @@
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react';
 import {
+  ArrowRight,
   Bot,
   Check,
-  ChevronRight,
+  CircleDollarSign,
   ImagePlus,
   Loader2,
+  MessageSquare,
   PackageCheck,
   RotateCcw,
+  Save,
   Sparkles,
+  Tags,
   Trash2,
   Wand2,
 } from 'lucide-react';
+import { Link } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +30,7 @@ const CONDITIONS = [
   { value: 'good', label: 'Good' },
   { value: 'fair', label: 'Fair' },
   { value: 'poor', label: 'Poor' },
-];
+] as const;
 const MARKETPLACES = ['poshmark', 'depop', 'mercari'] as const;
 const MAX_PHOTOS = 8;
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
@@ -33,6 +38,7 @@ const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const BACKGROUND_REMOVAL_TIMEOUT_MS = 120_000;
 
 type Marketplace = (typeof MARKETPLACES)[number];
+type Condition = (typeof CONDITIONS)[number]['value'];
 type PhotoRecord = {
   id: string;
   original: string;
@@ -53,7 +59,6 @@ type MarketplaceDraft = {
   missingFields: string[];
   usedFallback?: boolean;
 };
-
 type CanonicalForm = {
   title: string;
   description: string;
@@ -67,18 +72,35 @@ type CanonicalForm = {
   notes: string;
   sourceLocation: string;
   sourceUrl: string;
-  condition: 'new' | 'like_new' | 'good' | 'fair' | 'poor';
+  condition: Condition;
   status: 'draft' | 'active' | 'sold' | 'archived';
   price: string;
   cost: string;
   weight: string;
   tags: string;
 };
+type AiSuggestion = Pick<CanonicalForm, 'title' | 'description' | 'category' | 'size' | 'color' | 'tags'> & { confidence: string; usedFallback?: boolean };
+type ChatMessage = { role: 'user' | 'assistant'; text: string; suggestions?: string[] };
+type FeeAssumptions = {
+  poshmarkOverage: string;
+  depopBuyerShipping: string;
+  depopSellerShipping: string;
+  depopBoosted: boolean;
+  mercariShippingMode: 'buyer' | 'seller';
+  mercariBuyerShipping: string;
+  mercariSellerShipping: string;
+};
 
 const initialForm: CanonicalForm = {
   title: '', description: '', brand: '', model: '', category: '', size: '', color: '', measurements: '', sku: '', notes: '', sourceLocation: '', sourceUrl: '',
   condition: 'good', status: 'draft', price: '', cost: '', weight: '', tags: '',
 };
+const initialFeeAssumptions: FeeAssumptions = {
+  poshmarkOverage: '', depopBuyerShipping: '', depopSellerShipping: '', depopBoosted: false, mercariShippingMode: 'buyer', mercariBuyerShipping: '', mercariSellerShipping: '',
+};
+
+const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+const safeNumber = (value: string) => Math.max(0, Number(value) || 0);
 
 function toDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -113,40 +135,59 @@ function createWhiteBackground(foreground: Blob): Promise<Blob> {
   });
 }
 
+function statusLabel(status: string) {
+  return ({ draft: 'Needs details', ready: 'Needs posted', prefilled: 'Prefilled — review', draft_saved: 'Draft saved', published: 'Live', sold: 'Sold', delisted: 'Delisted', needs_attention: 'Needs attention' } as Record<string, string>)[status] ?? status;
+}
+
 export default function ListingStudio() {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<CanonicalForm>(initialForm);
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
+  const [fees, setFees] = useState<FeeAssumptions>(initialFeeAssumptions);
   const [itemId, setItemId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<MarketplaceDraft[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isAssisting, setIsAssisting] = useState(false);
   const [isGeneratingDrafts, setIsGeneratingDrafts] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
+  const [chatInput, setChatInput] = useState('');
+  const [chat, setChat] = useState<ChatMessage[]>([{ role: 'assistant', text: 'I can sharpen your title, write an honest description, suggest tags, or help you pressure-test this price. I only use the facts you enter.' }]);
+  const [isChatting, setIsChatting] = useState(false);
   const [salePlatform, setSalePlatform] = useState<Marketplace>('poshmark');
   const [salePrice, setSalePrice] = useState('');
   const [isMarkingSold, setIsMarkingSold] = useState(false);
 
   const activePhotos = useMemo(() => photos.map((photo) => photo.active === 'processed' && photo.processed ? photo.processed : photo.original), [photos]);
-  const estimatedMargin = form.price && form.cost ? Number(form.price) - Number(form.cost) : null;
+  const proceeds = useMemo(() => {
+    const listPrice = safeNumber(form.price);
+    const paid = safeNumber(form.cost);
+    const poshmarkFee = listPrice < 15 ? 2.95 : listPrice * 0.2;
+    const poshmarkNet = listPrice - poshmarkFee - safeNumber(fees.poshmarkOverage);
+    const depopShipping = safeNumber(fees.depopBuyerShipping);
+    const depopFee = (listPrice + depopShipping) * 0.033 + 0.45 + (fees.depopBoosted ? listPrice * 0.12 : 0);
+    const depopNet = listPrice - depopFee - safeNumber(fees.depopSellerShipping);
+    const mercariBuyerShipping = fees.mercariShippingMode === 'buyer' ? safeNumber(fees.mercariBuyerShipping) : 0;
+    const mercariFee = (listPrice + mercariBuyerShipping) * 0.1;
+    const mercariNet = listPrice - mercariFee - (fees.mercariShippingMode === 'seller' ? safeNumber(fees.mercariSellerShipping) : 0);
+    return [
+      { platform: 'Poshmark', net: poshmarkNet, profit: poshmarkNet - paid, fee: poshmarkFee, note: fees.poshmarkOverage ? `Includes ${money(safeNumber(fees.poshmarkOverage))} seller label upgrade` : 'Buyer pays standard shipping; no seller label upgrade entered.' },
+      { platform: 'Depop', net: depopNet, profit: depopNet - paid, fee: depopFee, note: fees.depopBoosted ? 'Includes US processing and 12% boosted-listing fee.' : 'Includes US payment processing; no selling fee assumed.' },
+      { platform: 'Mercari', net: mercariNet, profit: mercariNet - paid, fee: mercariFee, note: fees.mercariShippingMode === 'buyer' ? '10% seller fee includes buyer-paid shipping entered below.' : '10% seller fee plus seller-funded shipping entered below.' },
+    ];
+  }, [fees, form.cost, form.price]);
 
   const update = <K extends keyof CanonicalForm>(key: K, value: CanonicalForm[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const updateFee = <K extends keyof FeeAssumptions>(key: K, value: FeeAssumptions[K]) => setFees((current) => ({ ...current, [key]: value }));
 
   const addFiles = async (files: FileList | File[]) => {
     const selected = Array.from(files);
     const imageFiles = selected.filter((file) => SUPPORTED_IMAGE_TYPES.has(file.type) && file.size <= MAX_FILE_BYTES);
-    if (selected.length !== imageFiles.length) toast({ title: 'Some photos were skipped', description: 'Use JPG, PNG, or WEBP files that are 12 MB or smaller. These formats support white-background processing.', variant: 'destructive' });
+    if (selected.length !== imageFiles.length) toast({ title: 'Some photos were skipped', description: 'Use JPG, PNG, or WEBP files that are 12 MB or smaller.', variant: 'destructive' });
     const available = Math.max(0, MAX_PHOTOS - photos.length);
     if (!available) { toast({ title: 'Photo limit reached', description: `A listing can include up to ${MAX_PHOTOS} photos.` }); return; }
-    const records = await Promise.all(imageFiles.slice(0, available).map(async (file) => ({
-      id: crypto.randomUUID(),
-      original: await toDataUrl(file),
-      active: 'original' as const,
-      processingStatus: 'original' as const,
-      name: file.name,
-      createdAt: new Date().toISOString(),
-    })));
+    const records = await Promise.all(imageFiles.slice(0, available).map(async (file) => ({ id: crypto.randomUUID(), original: await toDataUrl(file), active: 'original' as const, processingStatus: 'original' as const, name: file.name, createdAt: new Date().toISOString() })));
     if (imageFiles.length > available) toast({ title: 'Photo limit reached', description: `Only the first ${available} selected photo(s) were added.` });
     setPhotos((current) => [...current, ...records]);
   };
@@ -162,8 +203,7 @@ export default function ListingStudio() {
         removeBackground(source, { device: 'cpu', model: 'isnet_quint8', output: { format: 'image/png', quality: 0.92 } }),
         new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Background removal took too long. Keep the original photo or try again on a faster connection.')), BACKGROUND_REMOVAL_TIMEOUT_MS)),
       ]);
-      const whiteBackground = await createWhiteBackground(foreground);
-      const processed = await toDataUrl(whiteBackground);
+      const processed = await toDataUrl(await createWhiteBackground(foreground));
       setPhotos((current) => current.map((photo) => photo.id === photoId ? { ...photo, processed, active: 'processed', processingStatus: 'processed' } : photo));
       toast({ title: 'White-background photo ready', description: 'Preview it below; you can revert to the original at any time.' });
     } catch (error) {
@@ -180,17 +220,15 @@ export default function ListingStudio() {
       title: form.title.trim(), description: form.description || undefined, brand: form.brand || undefined, model: form.model || undefined,
       category: form.category || undefined, size: form.size || undefined, color: form.color || undefined, measurements: form.measurements || undefined,
       sku: form.sku || undefined, notes: form.notes || undefined, sourceLocation: form.sourceLocation || undefined, sourceUrl: form.sourceUrl || undefined,
-      price: Number(form.price) || 0, cost: Number(form.cost) || 0, weight: form.weight ? Number(form.weight) : undefined,
+      price: safeNumber(form.price), cost: safeNumber(form.cost), weight: form.weight ? safeNumber(form.weight) : undefined,
       tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean), photos: activePhotos, photoRecords: photos,
     };
     try {
-      const response = await apiFetch(itemId ? `/api/workflow/items/${itemId}` : '/api/workflow/items', {
-        method: itemId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
+      const response = await apiFetch(itemId ? `/api/workflow/items/${itemId}` : '/api/workflow/items', { method: itemId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.fieldErrors ? 'Please review the highlighted listing fields.' : data.error || 'Could not save the listing');
+      if (!response.ok) throw new Error(data.error?.fieldErrors ? 'Please review the listing fields.' : data.error || 'Could not save the listing');
       setItemId(data.id);
-      toast({ title: itemId ? 'Listing saved' : 'Canonical listing created', description: itemId ? 'Your latest edits are persisted.' : 'Now generate platform-ready drafts when you are ready.' });
+      toast({ title: itemId ? 'Listing saved' : 'Canonical listing created', description: itemId ? 'Your changes are safely saved.' : 'Your item is now ready for AI assistance and platform drafts.' });
       return data.id as number;
     } catch (error) {
       toast({ title: 'Save failed', description: error instanceof Error ? error.message : 'Your edits are still in the form—please retry.', variant: 'destructive' });
@@ -198,7 +236,7 @@ export default function ListingStudio() {
     } finally { setIsSaving(false); }
   };
 
-  const requestAiAssist = async () => {
+  const requestAiAssist = async (focus: 'all' | 'title' | 'tags' = 'all') => {
     const id = itemId ?? await saveCanonicalItem();
     if (!id) return;
     setIsAssisting(true);
@@ -206,18 +244,57 @@ export default function ListingStudio() {
       const response = await apiFetch(`/api/workflow/items/${id}/ai-assist`, { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'AI assistance is unavailable');
-      setForm((current) => ({
-        ...current,
-        title: data.title || current.title,
-        description: data.description || current.description,
-        tags: Array.isArray(data.tags) ? data.tags.join(', ') : current.tags,
-        category: data.category || current.category,
-        color: data.color || current.color,
-        size: data.size || current.size,
-      }));
-      toast({ title: data.usedFallback ? 'Listing template applied' : 'AI suggestions applied', description: `${data.confidence || 'Seller review required'}. Review every field before publishing.` });
+      const suggestion: AiSuggestion = {
+        title: focus === 'tags' ? form.title : data.title || form.title,
+        description: focus === 'title' || focus === 'tags' ? form.description : data.description || form.description,
+        tags: Array.isArray(data.tags) ? data.tags.join(', ') : form.tags,
+        category: data.category || form.category,
+        color: data.color || form.color,
+        size: data.size || form.size,
+        confidence: data.confidence || 'Seller review required',
+        usedFallback: Boolean(data.usedFallback),
+      };
+      setAiSuggestion(suggestion);
+      toast({ title: data.usedFallback ? 'Template suggestion ready' : 'AI suggestion ready', description: 'Compare it with your copy, edit it if you like, then choose what to apply.' });
     } catch (error) {
       toast({ title: 'AI assistance failed', description: error instanceof Error ? error.message : 'You can keep editing manually.', variant: 'destructive' });
+    } finally { setIsAssisting(false); }
+  };
+
+  const applySuggestion = () => {
+    if (!aiSuggestion) return;
+    setForm((current) => ({ ...current, title: aiSuggestion.title, description: aiSuggestion.description, tags: aiSuggestion.tags, category: aiSuggestion.category, color: aiSuggestion.color, size: aiSuggestion.size }));
+    setAiSuggestion(null);
+    toast({ title: 'Suggestion applied', description: 'Review the changes, then save your canonical listing.' });
+  };
+
+  const sendChat = async (prompt?: string) => {
+    const message = (prompt ?? chatInput).trim();
+    if (!message) return;
+    setChat((current) => [...current, { role: 'user', text: message }]);
+    setChatInput('');
+    setIsChatting(true);
+    try {
+      const response = await apiFetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, context: { item: { ...form, photoCount: photos.length }, pricing: proceeds.map(({ platform, net, profit }) => ({ platform, net, profit })) } }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'The co-pilot could not answer right now.');
+      setChat((current) => [...current, { role: 'assistant', text: data.reply, suggestions: data.suggestions }]);
+    } catch (error) {
+      setChat((current) => [...current, { role: 'assistant', text: error instanceof Error ? error.message : 'The co-pilot could not answer right now. Please try again.' }]);
+    } finally { setIsChatting(false); }
+  };
+
+  const estimatePrice = async () => {
+    setIsAssisting(true);
+    try {
+      const response = await apiFetch('/api/ai/price-estimate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: form.title, brand: form.brand || undefined, model: form.model || undefined, category: form.category || undefined, condition: form.condition }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Price estimate unavailable');
+      setChat((current) => [...current, { role: 'assistant', text: `Price planning estimate: ${money(data.minPrice)}–${money(data.maxPrice)}, with ${money(data.suggestedPrice)} as the suggested starting price. Confidence: ${data.confidence}. ${data.reasoning}` }]);
+      update('price', String(data.suggestedPrice));
+      toast({ title: 'Estimate added to List price', description: 'Review the estimate against actual sold comparables before you post.' });
+    } catch (error) {
+      toast({ title: 'Price estimate failed', description: error instanceof Error ? error.message : 'Try again after adding more item details.', variant: 'destructive' });
     } finally { setIsAssisting(false); }
   };
 
@@ -230,22 +307,10 @@ export default function ListingStudio() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not generate marketplace drafts');
       setDrafts(data);
-      toast({ title: 'Platform drafts ready', description: 'Review platform-specific copy and required fields before any publishing connection is enabled.' });
+      toast({ title: 'P / D / M drafts ready', description: 'Open the Draft Board to monitor each physical item in one line and push ready drafts to your extension.' });
     } catch (error) {
       toast({ title: 'Draft generation failed', description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' });
     } finally { setIsGeneratingDrafts(false); }
-  };
-
-  const updateDraftStatus = async (draftId: number, status: string) => {
-    try {
-      const response = await apiFetch(`/api/workflow/marketplace-drafts/${draftId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not update the marketplace draft');
-      setDrafts((current) => current.map((draft) => draft.id === draftId ? { ...draft, status: data.status } : draft));
-      toast({ title: 'Marketplace status updated', description: status === 'published' ? 'This draft is now tracked as manually posted. It will be queued for delisting if the item sells elsewhere.' : 'Marketplace status updated.' });
-    } catch (error) {
-      toast({ title: 'Status update failed', description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' });
-    }
   };
 
   const markSold = async () => {
@@ -253,24 +318,24 @@ export default function ListingStudio() {
     if (!id || !salePrice) { toast({ title: 'Enter the sale price', description: 'Record the final sale price before moving this item to fulfillment.', variant: 'destructive' }); return; }
     setIsMarkingSold(true);
     try {
-      const response = await apiFetch(`/api/workflow/items/${id}/mark-sold`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ marketplace: salePlatform, salePrice: Number(salePrice) }) });
+      const response = await apiFetch(`/api/workflow/items/${id}/mark-sold`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ marketplace: salePlatform, salePrice: safeNumber(salePrice) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not record the sale');
       update('status', 'sold');
-      toast({ title: 'Sale recorded', description: `${data.delistingTasksQueued} remaining-platform delisting task(s) were added and the pull–print–pack–ship workflow is ready.` });
+      toast({ title: 'Sale recorded', description: `Sold on ${salePlatform}. ${data.delistingTasksQueued} remaining-platform delisting task(s) and a pull–print–pack–ship checklist are now ready.` });
     } catch (error) {
       toast({ title: 'Could not record sale', description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' });
     } finally { setIsMarkingSold(false); }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-28">
       <section className="cx-panel overflow-hidden rounded-2xl p-6 sm:p-8">
         <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
           <div>
             <p className="cx-eyebrow">Listing Studio / canonical record</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Build once. Prepare everywhere.</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Upload the product, preserve original photos, create white-background versions, keep your core listing data in one editable record, then generate separate Poshmark, Depop, and Mercari drafts.</p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">Create one truthful item record, compare expected take-home money before you choose a price, and prepare reviewable Poshmark, Depop, and Mercari drafts without claiming a post happened before you verify it.</p>
           </div>
           <div className="flex flex-wrap gap-2 font-mono text-[0.62rem] uppercase tracking-wider">
             <span className="rounded-full border border-border bg-background/50 px-3 py-2 text-muted-foreground">{photos.length}/{MAX_PHOTOS} photos</span>
@@ -279,34 +344,35 @@ export default function ListingStudio() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
         <div className="cx-panel rounded-2xl p-5 sm:p-6">
-          <div className="mb-5 flex items-center justify-between">
-            <div><p className="cx-eyebrow">01 / product images</p><h2 className="mt-2 text-lg font-semibold">Photo workbench</h2></div>
-            <button type="button" onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"><ImagePlus size={15} /> Add photos</button>
-          </div>
+          <div className="mb-5 flex items-center justify-between"><div><p className="cx-eyebrow">01 / product images</p><h2 className="mt-2 text-lg font-semibold">Photo workbench</h2></div><button type="button" onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"><ImagePlus size={15} /> Add photos</button></div>
           <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files && addFiles(event.target.files)} />
           <div onDrop={(event: DragEvent) => { event.preventDefault(); setIsDragging(false); addFiles(event.dataTransfer.files); }} onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onClick={() => photos.length === 0 && inputRef.current?.click()} className={`rounded-xl border border-dashed p-5 transition ${isDragging ? 'border-primary bg-primary/10' : 'border-border bg-background/35'} ${photos.length === 0 ? 'cursor-pointer' : ''}`}>
-            {photos.length === 0 ? <div className="flex min-h-44 flex-col items-center justify-center text-center"><span className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-primary/35 bg-primary/10 text-primary"><ImagePlus size={23} /></span><p className="font-semibold">Drop product photos here</p><p className="mt-2 max-w-xs text-xs leading-5 text-muted-foreground">JPG, PNG, or WEBP up to 12 MB each. Originals are always kept so you can revert after processing.</p></div> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{photos.map((photo, index) => <div key={photo.id} className="group overflow-hidden rounded-xl border border-border bg-background/45"><div className="relative aspect-square"><img src={photo.active === 'processed' && photo.processed ? photo.processed : photo.original} alt={`Product ${index + 1}`} className="h-full w-full object-cover" />{index === 0 && <span className="absolute left-2 top-2 rounded bg-background/90 px-2 py-1 font-mono text-[0.55rem] text-primary">COVER</span>}{photo.processingStatus === 'processing' && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/75"><Loader2 className="animate-spin text-primary" size={22} /><span className="font-mono text-[0.55rem] text-foreground">CUTTING OUT</span></div>}</div><div className="space-y-2 p-2.5"><div className="flex items-center justify-between font-mono text-[0.55rem] uppercase"><span className={photo.processingStatus === 'processed' ? 'text-accent' : photo.processingStatus === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{photo.processingStatus === 'processed' ? 'white bg ready' : photo.processingStatus === 'failed' ? 'retry available' : 'original'}</span><button type="button" onClick={() => setPhotos((current) => current.filter((item) => item.id !== photo.id))} className="text-muted-foreground hover:text-destructive" aria-label="Remove photo"><Trash2 size={13} /></button></div><div className="flex gap-2">{photo.processingStatus !== 'processing' && <button type="button" onClick={() => processPhoto(photo.id)} className="flex flex-1 items-center justify-center gap-1 rounded-md border border-primary/35 bg-primary/10 px-2 py-1.5 text-[0.62rem] font-semibold text-primary hover:bg-primary/20"><Wand2 size={12} /> White BG</button>}{photo.processed && <button type="button" onClick={() => setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, active: item.active === 'processed' ? 'original' : 'processed' } : item))} className="rounded-md border border-border px-2 py-1.5 text-muted-foreground hover:text-foreground" title="Toggle original and processed"><RotateCcw size={12} /></button>}</div></div></div>)}</div>}</div>
-          {photos.length > 0 && <p className="mt-4 text-xs text-muted-foreground">Background removal runs in your browser. The first run may download a model and can take up to two minutes; you can save originals immediately, retry processing, or keep the original photo.</p>}
+            {photos.length === 0 ? <div className="flex min-h-44 flex-col items-center justify-center text-center"><span className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-primary/35 bg-primary/10 text-primary"><ImagePlus size={23} /></span><p className="font-semibold">Drop product photos here</p><p className="mt-2 max-w-xs text-xs leading-5 text-muted-foreground">JPG, PNG, or WEBP up to 12 MB each. Originals are always kept so you can revert after processing.</p></div> : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{photos.map((photo, index) => <div key={photo.id} className="group overflow-hidden rounded-xl border border-border bg-background/45"><div className="relative aspect-square"><img src={photo.active === 'processed' && photo.processed ? photo.processed : photo.original} alt={`Product ${index + 1}`} className="h-full w-full object-cover" />{index === 0 && <span className="absolute left-2 top-2 rounded bg-background/90 px-2 py-1 font-mono text-[0.55rem] text-primary">COVER</span>}{photo.processingStatus === 'processing' && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/75"><Loader2 className="animate-spin text-primary" size={22} /><span className="font-mono text-[0.55rem] text-foreground">CUTTING OUT</span></div>}</div><div className="space-y-2 p-2.5"><div className="flex items-center justify-between font-mono text-[0.55rem] uppercase"><span className={photo.processingStatus === 'processed' ? 'text-accent' : photo.processingStatus === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{photo.processingStatus === 'processed' ? 'white bg ready' : photo.processingStatus === 'failed' ? 'retry available' : 'original'}</span><button type="button" onClick={() => setPhotos((current) => current.filter((item) => item.id !== photo.id))} className="text-muted-foreground hover:text-destructive" aria-label="Remove photo"><Trash2 size={13} /></button></div><div className="flex gap-2">{photo.processingStatus !== 'processing' && <button type="button" onClick={() => processPhoto(photo.id)} className="flex flex-1 items-center justify-center gap-1 rounded-md border border-primary/35 bg-primary/10 px-2 py-1.5 text-[0.62rem] font-semibold text-primary hover:bg-primary/20"><Wand2 size={12} /> White BG</button>}{photo.processed && <button type="button" onClick={() => setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, active: item.active === 'processed' ? 'original' : 'processed' } : item))} className="rounded-md border border-border px-2 py-1.5 text-muted-foreground hover:text-foreground" title="Toggle original and processed"><RotateCcw size={12} /></button>}</div></div></div>)}</div>}
+          </div>
+          {photos.length > 0 && <p className="mt-4 text-xs text-muted-foreground">Background removal runs in your browser. Save originals immediately, retry processing, or keep the original photo at any time.</p>}
         </div>
 
-        <div className="cx-panel rounded-2xl p-5 sm:p-6">
-          <p className="cx-eyebrow">02 / action center</p><h2 className="mt-2 text-lg font-semibold">Save, assist, and prepare</h2>
-          <div className="mt-5 space-y-3">
-            <button type="button" onClick={saveCanonicalItem} disabled={isSaving} className="flex w-full items-center justify-between rounded-xl border border-primary/45 bg-primary px-4 py-3 text-left text-primary-foreground transition hover:brightness-110 disabled:opacity-50"><span><span className="block text-sm font-bold">{isSaving ? 'Saving canonical record…' : itemId ? 'Save listing changes' : 'Create canonical listing'}</span><span className="mt-1 block text-xs opacity-75">Persists your listing and active photo selections.</span></span>{isSaving ? <Loader2 className="animate-spin" size={18} /> : <ChevronRight size={18} />}</button>
-            <button type="button" onClick={requestAiAssist} disabled={isAssisting} className="flex w-full items-center justify-between rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-left text-accent transition hover:bg-accent/15 disabled:opacity-50"><span><span className="block text-sm font-bold">{isAssisting ? 'Getting AI suggestions…' : 'Ask AI to refine fields'}</span><span className="mt-1 block text-xs text-muted-foreground">Suggestions are always editable and never published automatically.</span></span>{isAssisting ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}</button>
-            <button type="button" onClick={generateMarketplaceDrafts} disabled={isGeneratingDrafts} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3 text-left text-foreground transition hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"><span><span className="block text-sm font-bold">{isGeneratingDrafts ? 'Writing platform drafts…' : 'Generate three platform drafts'}</span><span className="mt-1 block text-xs text-muted-foreground">Creates Poshmark, Depop, and Mercari readiness records.</span></span>{isGeneratingDrafts ? <Loader2 className="animate-spin text-primary" size={18} /> : <Bot className="text-primary" size={18} />}</button>
-          </div>
-          <div className="mt-6 rounded-xl border border-border bg-background/35 p-4"><p className="cx-eyebrow">Margin snapshot</p><div className="mt-3 flex items-end justify-between"><div><p className="text-xs text-muted-foreground">Target price</p><p className="mt-1 text-2xl font-semibold text-foreground">${Number(form.price || 0).toFixed(2)}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">Before fees</p><p className={`mt-1 text-2xl font-semibold ${estimatedMargin === null ? 'text-muted-foreground' : estimatedMargin >= 0 ? 'text-accent' : 'text-destructive'}`}>{estimatedMargin === null ? '—' : `$${estimatedMargin.toFixed(2)}`}</p></div></div></div>
-        </div>
+        <aside className="cx-panel rounded-2xl p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4"><div><p className="cx-eyebrow">02 / AI co-pilot</p><h2 className="mt-2 text-lg font-semibold">Listing help, in the form</h2><p className="mt-2 text-sm leading-5 text-muted-foreground">Suggestions are editable. The co-pilot never invents photos, posts listings, or changes your data without your review.</p></div><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent/40 bg-accent/10 text-accent"><Bot size={17} /></span></div>
+          <div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => requestAiAssist('all')} disabled={isAssisting} className="rounded-lg border border-accent/35 bg-accent/10 px-3 py-2 text-left text-xs font-semibold text-accent hover:bg-accent/15 disabled:opacity-50"><Sparkles size={14} className="mb-1" />Write description</button><button type="button" onClick={() => requestAiAssist('title')} disabled={isAssisting} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-left text-xs font-semibold hover:border-primary/35 disabled:opacity-50"><Wand2 size={14} className="mb-1 text-primary" />Improve title</button><button type="button" onClick={() => requestAiAssist('tags')} disabled={isAssisting} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-left text-xs font-semibold hover:border-primary/35 disabled:opacity-50"><Tags size={14} className="mb-1 text-primary" />Suggest tags</button><button type="button" onClick={estimatePrice} disabled={isAssisting} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-left text-xs font-semibold hover:border-primary/35 disabled:opacity-50"><CircleDollarSign size={14} className="mb-1 text-primary" />Estimate price</button></div>
+          {isAssisting && <div className="mt-4 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-primary"><Loader2 size={14} className="animate-spin" />Working from the item facts you entered…</div>}
+          {aiSuggestion && <div className="mt-4 space-y-3 rounded-xl border border-accent/30 bg-accent/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-accent">Editable suggestion</p><p className="mt-1 text-[0.68rem] text-muted-foreground">{aiSuggestion.confidence}{aiSuggestion.usedFallback ? ' · template fallback' : ''}</p></div><button type="button" onClick={() => setAiSuggestion(null)} className="text-xs text-muted-foreground hover:text-foreground">Discard</button></div><div className="grid gap-3"><div><Label className="text-[0.68rem]">Suggested title</Label><Input value={aiSuggestion.title} onChange={(event) => setAiSuggestion((current) => current ? { ...current, title: event.target.value } : current)} className="mt-1 bg-background/45 text-xs" /></div><div><Label className="text-[0.68rem]">Suggested description</Label><Textarea value={aiSuggestion.description} onChange={(event) => setAiSuggestion((current) => current ? { ...current, description: event.target.value } : current)} className="mt-1 min-h-24 bg-background/45 text-xs" /></div><div><Label className="text-[0.68rem]">Suggested tags</Label><Input value={aiSuggestion.tags} onChange={(event) => setAiSuggestion((current) => current ? { ...current, tags: event.target.value } : current)} className="mt-1 bg-background/45 text-xs" /></div></div><button type="button" onClick={applySuggestion} className="w-full rounded-lg bg-accent px-3 py-2 text-xs font-bold text-accent-foreground hover:brightness-110">Apply editable suggestion</button></div>}
+          <div className="mt-4 max-h-56 space-y-3 overflow-y-auto rounded-xl border border-border bg-background/30 p-3">{chat.map((entry, index) => <div key={`${entry.role}-${index}`} className={`rounded-lg p-2.5 text-xs leading-5 ${entry.role === 'assistant' ? 'bg-white/5 text-muted-foreground' : 'ml-5 bg-primary/10 text-foreground'}`}><p className="mb-1 font-mono text-[0.55rem] uppercase tracking-wider text-primary">{entry.role === 'assistant' ? 'Co-pilot' : 'You'}</p><p>{entry.text}</p>{entry.suggestions?.length ? <div className="mt-2 flex flex-wrap gap-1.5">{entry.suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => sendChat(suggestion)} className="rounded border border-primary/25 px-2 py-1 text-[0.62rem] text-primary hover:bg-primary/10">{suggestion}</button>)}</div> : null}</div>)}{isChatting && <div className="flex items-center gap-2 px-1 text-xs text-primary"><Loader2 size={13} className="animate-spin" />Thinking…</div>}</div>
+          <div className="mt-3 flex gap-2"><Input value={chatInput} onChange={(event) => setChatInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void sendChat(); } }} placeholder="Ask about title, tags, fees, or pricing…" className="bg-background/45 text-xs" /><button type="button" onClick={() => sendChat()} disabled={isChatting || !chatInput.trim()} className="rounded-lg border border-primary/40 bg-primary/10 px-3 text-primary disabled:opacity-50" aria-label="Send co-pilot message"><MessageSquare size={15} /></button></div>
+        </aside>
       </section>
 
-      <section className="cx-panel rounded-2xl p-5 sm:p-6"><div className="mb-6"><p className="cx-eyebrow">03 / universal listing data</p><h2 className="mt-2 text-lg font-semibold">Your canonical item record</h2><p className="mt-2 text-sm text-muted-foreground">Enter the information once. Platform-specific drafts inherit this record and report only the fields they still need.</p></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><div className="md:col-span-2 xl:col-span-3"><Label>Item title <span className="text-primary">*</span></Label><Input value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="e.g. 1990s Levi's 501 Straight Jeans" className="mt-2 bg-background/45" /></div><div><Label>Brand</Label><Input value={form.brand} onChange={(event) => update('brand', event.target.value)} placeholder="Levi's" className="mt-2 bg-background/45" /></div><div><Label>Model / style</Label><Input value={form.model} onChange={(event) => update('model', event.target.value)} placeholder="501" className="mt-2 bg-background/45" /></div><div><Label>Category</Label><Select value={form.category} onValueChange={(value) => update('category', value)}><SelectTrigger className="mt-2 bg-background/45"><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent></Select></div><div><Label>Size</Label><Input value={form.size} onChange={(event) => update('size', event.target.value)} placeholder="e.g. 30 x 32" className="mt-2 bg-background/45" /></div><div><Label>Color</Label><Input value={form.color} onChange={(event) => update('color', event.target.value)} placeholder="Medium wash blue" className="mt-2 bg-background/45" /></div><div><Label>Condition</Label><Select value={form.condition} onValueChange={(value) => update('condition', value as CanonicalForm['condition'])}><SelectTrigger className="mt-2 bg-background/45"><SelectValue /></SelectTrigger><SelectContent>{CONDITIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div><div><Label>Target list price</Label><Input type="number" min="0" step="0.01" value={form.price} onChange={(event) => update('price', event.target.value)} placeholder="0.00" className="mt-2 bg-background/45" /></div><div><Label>Cost basis</Label><Input type="number" min="0" step="0.01" value={form.cost} onChange={(event) => update('cost', event.target.value)} placeholder="0.00" className="mt-2 bg-background/45" /></div><div><Label>SKU</Label><Input value={form.sku} onChange={(event) => update('sku', event.target.value)} placeholder="BIN-A3-014" className="mt-2 bg-background/45" /></div><div><Label>Source location</Label><Input value={form.sourceLocation} onChange={(event) => update('sourceLocation', event.target.value)} placeholder="Goodwill — Downtown" className="mt-2 bg-background/45" /></div><div><Label>Tags</Label><Input value={form.tags} onChange={(event) => update('tags', event.target.value)} placeholder="vintage, denim, jeans" className="mt-2 bg-background/45" /></div><div className="md:col-span-2 xl:col-span-3"><Label>Measurements</Label><Textarea value={form.measurements} onChange={(event) => update('measurements', event.target.value)} placeholder="Waist: 15 in flat · Inseam: 31 in · Rise: 11 in" className="mt-2 min-h-20 bg-background/45" /></div><div className="md:col-span-2 xl:col-span-3"><Label>Description / known details</Label><Textarea value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Describe the item honestly: material, wear, flaws, fit, and anything a buyer should know." className="mt-2 min-h-28 bg-background/45" /></div><div className="md:col-span-2 xl:col-span-3"><Label>Internal notes</Label><Textarea value={form.notes} onChange={(event) => update('notes', event.target.value)} placeholder="Private notes are not included in marketplace drafts." className="mt-2 min-h-20 bg-background/45" /></div></div></section>
+      <section className="cx-panel rounded-2xl p-5 sm:p-6"><div className="mb-6"><p className="cx-eyebrow">03 / universal listing data</p><h2 className="mt-2 text-lg font-semibold">Your canonical item record</h2><p className="mt-2 text-sm text-muted-foreground">Enter the reusable item facts once. P/D/M drafts inherit them and report only what still needs attention.</p></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><div className="md:col-span-2 xl:col-span-3"><Label>Item title <span className="text-primary">*</span></Label><Input value={form.title} onChange={(event) => update('title', event.target.value)} placeholder="e.g. 1990s Levi's 501 Straight Jeans" className="mt-2 bg-background/45" /></div><div><Label>Brand</Label><Input value={form.brand} onChange={(event) => update('brand', event.target.value)} placeholder="Levi's" className="mt-2 bg-background/45" /></div><div><Label>Model / style</Label><Input value={form.model} onChange={(event) => update('model', event.target.value)} placeholder="501" className="mt-2 bg-background/45" /></div><div><Label>Category</Label><Select value={form.category} onValueChange={(value) => update('category', value)}><SelectTrigger className="mt-2 bg-background/45"><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent></Select></div><div><Label>Size</Label><Input value={form.size} onChange={(event) => update('size', event.target.value)} placeholder="e.g. 30 x 32" className="mt-2 bg-background/45" /></div><div><Label>Color</Label><Input value={form.color} onChange={(event) => update('color', event.target.value)} placeholder="Medium wash blue" className="mt-2 bg-background/45" /></div><div><Label>Condition</Label><Select value={form.condition} onValueChange={(value) => update('condition', value as Condition)}><SelectTrigger className="mt-2 bg-background/45"><SelectValue /></SelectTrigger><SelectContent>{CONDITIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div><div><Label>List price <span className="text-primary">(one price)</span></Label><Input type="number" min="0" step="0.01" value={form.price} onChange={(event) => update('price', event.target.value)} placeholder="0.00" className="mt-2 bg-background/45" /></div><div><Label>What I paid <span className="text-muted-foreground">(acquisition cost)</span></Label><Input type="number" min="0" step="0.01" value={form.cost} onChange={(event) => update('cost', event.target.value)} placeholder="0.00" className="mt-2 bg-background/45" /></div><div><Label>Weight (lb)</Label><Input type="number" min="0" step="0.01" value={form.weight} onChange={(event) => update('weight', event.target.value)} placeholder="For shipping planning" className="mt-2 bg-background/45" /></div><div><Label>SKU</Label><Input value={form.sku} onChange={(event) => update('sku', event.target.value)} placeholder="BIN-A3-014" className="mt-2 bg-background/45" /></div><div><Label>Source location</Label><Input value={form.sourceLocation} onChange={(event) => update('sourceLocation', event.target.value)} placeholder="Goodwill — Downtown" className="mt-2 bg-background/45" /></div><div><Label>Tags</Label><Input value={form.tags} onChange={(event) => update('tags', event.target.value)} placeholder="vintage, denim, jeans" className="mt-2 bg-background/45" /></div><div className="md:col-span-2 xl:col-span-3"><Label>Measurements</Label><Textarea value={form.measurements} onChange={(event) => update('measurements', event.target.value)} placeholder="Waist: 15 in flat · Inseam: 31 in · Rise: 11 in" className="mt-2 min-h-20 bg-background/45" /></div><div className="md:col-span-2 xl:col-span-3"><Label>Description / known details</Label><Textarea value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Describe material, wear, flaws, fit, and anything a buyer should know." className="mt-2 min-h-28 bg-background/45" /></div><div className="md:col-span-2 xl:col-span-3"><Label>Internal notes</Label><Textarea value={form.notes} onChange={(event) => update('notes', event.target.value)} placeholder="Private notes are not included in marketplace drafts." className="mt-2 min-h-20 bg-background/45" /></div></div></section>
 
-      <section className="cx-panel rounded-2xl p-5 sm:p-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="cx-eyebrow">04 / platform readiness</p><h2 className="mt-2 text-lg font-semibold">Poshmark, Depop, and Mercari drafts</h2></div><p className="max-w-md text-xs leading-5 text-muted-foreground">These are reviewable draft records only. CrossLinkOS will not claim a marketplace post succeeded until a supported connection confirms it.</p></div>{drafts.length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-border bg-background/30 p-7 text-center"><p className="font-semibold">No platform drafts yet</p><p className="mt-2 text-sm text-muted-foreground">Save the canonical record, then generate the three platform drafts.</p></div> : <div className="mt-5 grid gap-4 lg:grid-cols-3">{drafts.map((draft) => <article key={draft.id} className="rounded-xl border border-border bg-background/35 p-4"><div className="flex items-center justify-between"><span className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-primary">{draft.marketplace}</span><span className={`rounded-full border px-2 py-1 font-mono text-[0.54rem] uppercase ${draft.status === 'ready' ? 'border-accent/35 bg-accent/10 text-accent' : 'border-primary/35 bg-primary/10 text-primary'}`}>{draft.status}</span></div><h3 className="mt-4 line-clamp-2 font-semibold text-foreground">{draft.title || form.title}</h3><p className="mt-2 text-sm text-muted-foreground">${draft.price.toFixed(2)} · {draft.tags.slice(0, 3).join(' · ') || 'No tags yet'}</p>{draft.missingFields.length > 0 ? <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3"><p className="text-xs font-semibold text-amber-300">Needs: {draft.missingFields.join(', ')}</p></div> : <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-accent"><Check size={14} /> Ready for review</div>}{draft.usedFallback && <p className="mt-3 text-[0.66rem] text-muted-foreground">Template fallback used; review wording before publishing.</p>}{draft.status === 'ready' && <button type="button" onClick={() => updateDraftStatus(draft.id, 'published')} className="mt-4 w-full rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20">Mark posted manually</button>}{draft.status === 'published' && <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-accent"><Check size={14} /> Tracked as posted</div>}</article>)}</div>}</section>
+      <section className="cx-panel rounded-2xl p-5 sm:p-6"><div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><p className="cx-eyebrow">04 / net proceeds & profit</p><h2 className="mt-2 text-lg font-semibold">One list price. Three fee-aware outcomes.</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">These are US planning estimates, not marketplace quotes. Adjust shipping assumptions below and confirm current fees before you post or accept an offer.</p></div><span className="rounded-full border border-accent/35 bg-accent/10 px-3 py-2 font-mono text-[0.6rem] uppercase tracking-wider text-accent">List price {money(safeNumber(form.price))}</span></div><div className="mt-5 overflow-x-auto rounded-xl border border-border"><table className="min-w-[760px] w-full text-left text-sm"><thead className="border-b border-border bg-background/45 font-mono text-[0.6rem] uppercase tracking-wider text-muted-foreground"><tr><th className="px-4 py-3">Platform</th><th className="px-4 py-3">Estimated fee</th><th className="px-4 py-3">Net proceeds</th><th className="px-4 py-3">Est. profit</th><th className="px-4 py-3">Planning note</th></tr></thead><tbody className="divide-y divide-border/70">{proceeds.map((row) => <tr key={row.platform}><td className="px-4 py-3 font-semibold text-foreground">{row.platform}</td><td className="px-4 py-3 text-muted-foreground">{money(row.fee)}</td><td className="px-4 py-3 font-semibold text-primary">{money(row.net)}</td><td className={`px-4 py-3 font-semibold ${row.profit >= 0 ? 'text-accent' : 'text-destructive'}`}>{money(row.profit)}</td><td className="max-w-sm px-4 py-3 text-xs leading-5 text-muted-foreground">{row.note}</td></tr>)}</tbody></table></div><div className="mt-5 grid gap-4 lg:grid-cols-3"><div className="rounded-xl border border-border bg-background/30 p-4"><p className="text-sm font-semibold">Poshmark</p><Label className="mt-3 block text-xs">Seller label upgrade / overage</Label><Input type="number" min="0" step="0.01" value={fees.poshmarkOverage} onChange={(event) => updateFee('poshmarkOverage', event.target.value)} placeholder="0.00" className="mt-1.5 bg-background/45" /><p className="mt-2 text-xs leading-5 text-muted-foreground">$2.95 below $15; 20% at $15+. Standard buyer shipping is not added to your proceeds.</p></div><div className="rounded-xl border border-border bg-background/30 p-4"><p className="text-sm font-semibold">Depop (US)</p><Label className="mt-3 block text-xs">Buyer shipping</Label><Input type="number" min="0" step="0.01" value={fees.depopBuyerShipping} onChange={(event) => updateFee('depopBuyerShipping', event.target.value)} placeholder="0.00" className="mt-1.5 bg-background/45" /><Label className="mt-3 block text-xs">Seller-funded shipping</Label><Input type="number" min="0" step="0.01" value={fees.depopSellerShipping} onChange={(event) => updateFee('depopSellerShipping', event.target.value)} placeholder="0.00" className="mt-1.5 bg-background/45" /><label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={fees.depopBoosted} onChange={(event) => updateFee('depopBoosted', event.target.checked)} /> Include 12% boosted-listing fee</label></div><div className="rounded-xl border border-border bg-background/30 p-4"><p className="text-sm font-semibold">Mercari</p><Select value={fees.mercariShippingMode} onValueChange={(value) => updateFee('mercariShippingMode', value as FeeAssumptions['mercariShippingMode'])}><SelectTrigger className="mt-3 bg-background/45"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="buyer">Buyer pays shipping</SelectItem><SelectItem value="seller">I offer free shipping</SelectItem></SelectContent></Select>{fees.mercariShippingMode === 'buyer' ? <><Label className="mt-3 block text-xs">Buyer-paid shipping</Label><Input type="number" min="0" step="0.01" value={fees.mercariBuyerShipping} onChange={(event) => updateFee('mercariBuyerShipping', event.target.value)} placeholder="0.00" className="mt-1.5 bg-background/45" /></> : <><Label className="mt-3 block text-xs">Your estimated shipping cost</Label><Input type="number" min="0" step="0.01" value={fees.mercariSellerShipping} onChange={(event) => updateFee('mercariSellerShipping', event.target.value)} placeholder="0.00" className="mt-1.5 bg-background/45" /></>}</div></div><p className="mt-4 text-[0.68rem] leading-5 text-muted-foreground">Fee basis: <a className="text-primary underline-offset-4 hover:underline" href="https://support.poshmark.com/s/article/297755057" target="_blank" rel="noreferrer">Poshmark</a>, <a className="text-primary underline-offset-4 hover:underline" href="https://depophelp.zendesk.com/hc/en-gb/articles/360001791127-Seller-fees-and-charges" target="_blank" rel="noreferrer">Depop</a>, and <a className="text-primary underline-offset-4 hover:underline" href="https://www.mercari.com/us/help_center/article/169/" target="_blank" rel="noreferrer">Mercari</a>. Platform policies and taxes can change.</p></section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_1.3fr]"><div className="cx-panel rounded-2xl p-5 sm:p-6"><p className="cx-eyebrow">05 / sale handoff</p><h2 className="mt-2 text-lg font-semibold">Record a sale</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">This changes the inventory status to sold, creates remaining-platform delisting tasks, and starts the pull–print–pack–ship checklist.</p><div className="mt-5 grid grid-cols-2 gap-3"><div><Label>Sold on</Label><Select value={salePlatform} onValueChange={(value) => setSalePlatform(value as Marketplace)}><SelectTrigger className="mt-2 bg-background/45"><SelectValue /></SelectTrigger><SelectContent>{MARKETPLACES.map((platform) => <SelectItem key={platform} value={platform} className="capitalize">{platform}</SelectItem>)}</SelectContent></Select></div><div><Label>Sale price</Label><Input type="number" min="0" step="0.01" value={salePrice} onChange={(event) => setSalePrice(event.target.value)} placeholder="0.00" className="mt-2 bg-background/45" /></div></div><button type="button" onClick={markSold} disabled={isMarkingSold} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm font-bold text-accent hover:bg-accent/15 disabled:opacity-50">{isMarkingSold ? <Loader2 className="animate-spin" size={16} /> : <PackageCheck size={16} />}{isMarkingSold ? 'Recording sale…' : 'Mark sold and create tasks'}</button></div><div className="cx-panel rounded-2xl p-5 sm:p-6"><p className="cx-eyebrow">Workflow promise</p><h2 className="mt-2 text-lg font-semibold">What happens after a sale</h2><ol className="mt-5 space-y-3 text-sm text-muted-foreground"><li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/35 bg-primary/10 font-mono text-[0.6rem] text-primary">01</span><span>Record the sale platform and final price on the canonical item.</span></li><li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/35 bg-primary/10 font-mono text-[0.6rem] text-primary">02</span><span>Queue the remaining Poshmark, Depop, or Mercari drafts for delisting—not silent automatic removal.</span></li><li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary/35 bg-primary/10 font-mono text-[0.6rem] text-primary">03</span><span>Create the pull–print–pack–ship task, with the existing fulfillment page as the operational checklist.</span></li></ol></div></section>
+      <section className="cx-panel rounded-2xl p-5 sm:p-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="cx-eyebrow">05 / P · D · M readiness</p><h2 className="mt-2 text-lg font-semibold">Generate drafts, then monitor each item once.</h2><p className="mt-2 text-sm text-muted-foreground">“Needs posted” means the CrossLinkOS draft is complete but is not yet confirmed in that marketplace.</p></div>{drafts.length > 0 && <Link href="/listings" className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-4 py-2.5 text-sm font-bold text-primary hover:bg-primary/20">Open Draft Board <ArrowRight size={16} /></Link>}</div>{drafts.length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-border bg-background/30 p-7 text-center"><p className="font-semibold">No platform drafts yet</p><p className="mt-2 text-sm text-muted-foreground">Save your item, then generate Poshmark, Depop, and Mercari drafts from the sticky action bar below.</p></div> : <div className="mt-5 grid gap-3 md:grid-cols-3">{drafts.map((draft) => <article key={draft.id} className="rounded-xl border border-border bg-background/35 p-4"><div className="flex items-center justify-between"><span className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-primary">{draft.marketplace}</span><span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-1 font-mono text-[0.54rem] uppercase text-primary">{statusLabel(draft.status)}</span></div><h3 className="mt-4 line-clamp-2 font-semibold text-foreground">{draft.title || form.title}</h3>{draft.missingFields.length > 0 ? <p className="mt-3 text-xs text-amber-300">Needs: {draft.missingFields.join(', ')}</p> : <p className="mt-3 flex items-center gap-1.5 text-xs text-accent"><Check size={14} /> Ready for your review</p>}</article>)}</div>}</section>
+
+      <section className="grid gap-6 lg:grid-cols-[1fr_1.3fr]"><div className="cx-panel rounded-2xl p-5 sm:p-6"><p className="cx-eyebrow">06 / sale handoff</p><h2 className="mt-2 text-lg font-semibold">Record a sale</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Select where it sold. The item then moves to sold records with remaining-platform delisting tasks and its pull–print–pack–ship checklist.</p><div className="mt-5 grid grid-cols-2 gap-3"><div><Label>Sold on</Label><Select value={salePlatform} onValueChange={(value) => setSalePlatform(value as Marketplace)}><SelectTrigger className="mt-2 bg-background/45"><SelectValue /></SelectTrigger><SelectContent>{MARKETPLACES.map((platform) => <SelectItem key={platform} value={platform} className="capitalize">{platform}</SelectItem>)}</SelectContent></Select></div><div><Label>Sale price</Label><Input type="number" min="0" step="0.01" value={salePrice} onChange={(event) => setSalePrice(event.target.value)} placeholder="0.00" className="mt-2 bg-background/45" /></div></div><button type="button" onClick={markSold} disabled={isMarkingSold} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm font-bold text-accent hover:bg-accent/15 disabled:opacity-50">{isMarkingSold ? <Loader2 className="animate-spin" size={16} /> : <PackageCheck size={16} />}{isMarkingSold ? 'Recording sale…' : 'Record sale and start fulfillment'}</button></div><div className="cx-panel rounded-2xl p-5 sm:p-6"><p className="cx-eyebrow">Lifecycle promise</p><h2 className="mt-2 text-lg font-semibold">No lost inventory after a sale</h2><div className="mt-5 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3"><div className="rounded-lg border border-border bg-background/30 p-3"><p className="font-mono text-[0.6rem] text-primary">01 / SOLD ON</p><p className="mt-2">See the platform and final sale amount.</p></div><div className="rounded-lg border border-border bg-background/30 p-3"><p className="font-mono text-[0.6rem] text-primary">02 / DELIST</p><p className="mt-2">Track each remaining P/D/M listing until you confirm it is removed.</p></div><div className="rounded-lg border border-border bg-background/30 p-3"><p className="font-mono text-[0.6rem] text-primary">03 / FULFILL</p><p className="mt-2">Pull, print, pack, ship, and record delivery steps.</p></div></div></div></section>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-background/95 px-4 py-3 backdrop-blur-xl lg:left-72 lg:px-10"><div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 text-xs text-muted-foreground"><span className={`h-2 w-2 rounded-full ${itemId ? 'bg-accent' : 'bg-primary'}`} />{itemId ? 'Changes save to your canonical listing.' : 'Save this item before preparing marketplace drafts.'}</div><div className="grid grid-cols-3 gap-2 sm:flex"><button type="button" onClick={saveCanonicalItem} disabled={isSaving} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground hover:brightness-110 disabled:opacity-50">{isSaving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}{isSaving ? 'Saving' : 'Save'}</button><button type="button" onClick={() => requestAiAssist('all')} disabled={isAssisting} className="inline-flex items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2.5 text-xs font-bold text-accent hover:bg-accent/15 disabled:opacity-50"><Sparkles size={15} />AI assist</button><button type="button" onClick={generateMarketplaceDrafts} disabled={isGeneratingDrafts} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background/55 px-3 py-2.5 text-xs font-bold text-foreground hover:border-primary/40 disabled:opacity-50">{isGeneratingDrafts ? <Loader2 className="animate-spin" size={15} /> : <ArrowRight size={15} />}{isGeneratingDrafts ? 'Preparing' : 'Generate P/D/M'}</button></div></div></div>
     </div>
   );
 }

@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "CrossLinkOS Draft Fill",
+  "version": "0.1.0",
+  "description": "Locally fills reviewable CrossLinkOS resale drafts in open Poshmark, Depop, and Mercari listing forms. It never saves or publishes a listing.",
+  "minimum_chrome_version": "114",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "tabs"],
+  "host_permissions": [
+    "https://newcrosslisterv4000.vercel.app/*",
+    "https://*.poshmark.com/*",
+    "https://*.depop.com/*",
+    "https://*.mercari.com/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open CrossLinkOS Draft Fill"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://newcrosslisterv4000.vercel.app/*"],
+      "js": ["crosslinkos-bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://*.poshmark.com/*", "https://*.depop.com/*", "https://*.mercari.com/*"],
+      "js": ["marketplace-content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "externally_connectable": {
+    "matches": ["https://newcrosslisterv4000.vercel.app/*"]
+  }
+}
