@@ -10,7 +10,7 @@
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK"
   },
   "functions": {
-    "api/[...path].ts": {
+    "api/[[...path]].ts": {
       "maxDuration": 60
     }
   },
