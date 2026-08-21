@@ -52,3 +52,4 @@ Thumbs.db
 /serverless/
 /public/
 /artifacts/api-server/public/
+/artifacts/api-server/serverless/

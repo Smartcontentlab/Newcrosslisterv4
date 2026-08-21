@@ -10,6 +10,9 @@ type SupabaseAuthUser = {
   email?: string | null;
 };
 
+const defaultSupabaseUrl = "https://wxtwjuqajceahzxyquzm.supabase.co";
+const defaultSupabasePublishableKey = "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK";
+
 function getServerEnv(name: string): string | undefined {
   const netlifyEnv = (globalThis as { Netlify?: { env?: { get: (key: string) => string | undefined } } }).Netlify?.env;
   return netlifyEnv?.get(name) ?? process.env[name];
@@ -39,8 +42,8 @@ export const requireAuth: RequestHandler = async (
     return;
   }
 
-  const supabaseUrl = getServerEnv("SUPABASE_URL");
-  const publishableKey = getServerEnv("SUPABASE_PUBLISHABLE_KEY");
+  const supabaseUrl = getServerEnv("SUPABASE_URL") ?? defaultSupabaseUrl;
+  const publishableKey = getServerEnv("SUPABASE_PUBLISHABLE_KEY") ?? defaultSupabasePublishableKey;
   if (!supabaseUrl || !publishableKey) {
     response.status(503).json({ error: "Authentication is not configured" });
     return;

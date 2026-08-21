@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const defaultSupabaseUrl = "https://wxtwjuqajceahzxyquzm.supabase.co";
+const defaultSupabasePublishableKey = "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK";
+
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? defaultSupabaseUrl;
+const supabasePublishableKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ?? defaultSupabasePublishableKey;
 
 export const authConfigurationReady = Boolean(supabaseUrl && supabasePublishableKey);
 

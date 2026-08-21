@@ -36,3 +36,7 @@ The user-authorized Vercel account is the `shay` team (`team_Uxn8CM88WMpbiVaCBzV
 The direct Vercel logs showed that its function builder runs `build:vercel` from `artifacts/api-server`, rather than the repository root. The API workspace script now invokes the root build and stages the generated root static output in `artifacts/api-server/public`, satisfying that builder’s current-directory output check. The same local command was verified successfully.
 
 [5]: https://vercel.com/docs/project-configuration/vercel-json "Vercel — Static Configuration with vercel.json"
+
+### Live verification — 2026-08-21
+
+The Vercel deployment `dpl_DYATDiGWZF6iZeN47Bxq2bHczuy9` reached `READY` on `https://newcrosslisterv4000.vercel.app`. The static Vite authentication page rendered, but `/api/healthz` returned Vercel `404 NOT_FOUND`, which proves the serverless API function was not deployed at the expected `/api` route. The rendered authentication page also reported that authentication was not configured, confirming that the browser build did not receive `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` at build time. The next corrective work must place the API entry in the Vercel function builder’s actual workspace path and provide safe built-in defaults for the public Supabase browser configuration while server-only credentials remain deployment variables.

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
-    "build:vercel": "pnpm -w run build:vercel && rm -rf public && cp -R ../../public public",
+    "build:vercel": "pnpm -w run build:vercel && rm -rf public serverless && cp -R ../../public public && cp -R ../../serverless serverless",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
