@@ -1,11 +1,13 @@
 import { build } from "esbuild";
-import { mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = path.join(repoRoot, "serverless");
+const staticSourceDirectory = path.join(repoRoot, "artifacts/resale-app/dist/public");
+const staticOutputDirectory = path.join(repoRoot, "public");
 
 function run(command, args, env = {}) {
   return new Promise((resolve, reject) => {
@@ -20,6 +22,7 @@ function run(command, args, env = {}) {
 }
 
 await rm(bundleDirectory, { recursive: true, force: true });
+await rm(staticOutputDirectory, { recursive: true, force: true });
 await mkdir(bundleDirectory, { recursive: true });
 
 await run("pnpm", ["--filter", "@workspace/resale-app", "run", "build"], {
@@ -27,6 +30,8 @@ await run("pnpm", ["--filter", "@workspace/resale-app", "run", "build"], {
   BASE_PATH: "/",
   NODE_ENV: "production",
 });
+
+await cp(staticSourceDirectory, staticOutputDirectory, { recursive: true });
 
 await build({
   entryPoints: [path.join(repoRoot, "artifacts/api-server/src/app.ts")],
@@ -39,4 +44,4 @@ await build({
   sourcemap: false,
 });
 
-console.log("Vercel client and API bundle created.");
+console.log("Vercel static client and API bundle created.");
