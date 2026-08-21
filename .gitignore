@@ -51,3 +51,4 @@ Thumbs.db
 # Generated Vercel server bundle
 /serverless/
 /public/
+/artifacts/api-server/public/

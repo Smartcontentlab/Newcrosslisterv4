@@ -28,3 +28,11 @@ The Vercel route will add a Vercel-compatible Node serverless entry point and re
 [3]: https://developers.cloudflare.com/workers/platform/pricing/ "Cloudflare Workers Pricing"
 
 [4]: https://render.com/docs/free "Render — Deploy for Free"
+
+## Vercel deployment diagnostics
+
+The user-authorized Vercel account is the `shay` team (`team_Uxn8CM88WMpbiVaCBzVe0NNj`). The active root project is `newcrosslisterv4000` (`prj_AS3fB0yB9Ji6jemwBZk4YVZPp3nU`). Vercel initially classified it as Express despite its Vite client. Official Vercel configuration documentation confirms that `vercel.json` supports the `framework` property and that it overrides the Framework Preset; the repository now explicitly uses `"framework": "vite"`. The documentation also confirms that `outputDirectory` overrides Project Settings.[5]
+
+The direct Vercel logs showed that its function builder runs `build:vercel` from `artifacts/api-server`, rather than the repository root. The API workspace script now invokes the root build and stages the generated root static output in `artifacts/api-server/public`, satisfying that builder’s current-directory output check. The same local command was verified successfully.
+
+[5]: https://vercel.com/docs/project-configuration/vercel-json "Vercel — Static Configuration with vercel.json"

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
-    "build:vercel": "echo 'Vercel API bundle is prepared by the repository-root build command.'",
+    "build:vercel": "pnpm -w run build:vercel && rm -rf public && cp -R ../../public public",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
