@@ -23,6 +23,7 @@ const FINAL_MARKETPLACE_STATUSES = new Set(["published", "sold", "delisting", "d
 const photoRecord = z.object({
   id: z.string(), original: z.string(), processed: z.string().nullable().optional(),
   active: z.enum(["original", "processed"]), processingStatus: z.enum(["original", "processing", "processed", "failed"]),
+  backgroundStyle: z.enum(["white", "textured_slate"]).optional(),
   name: z.string().optional(), createdAt: z.string(),
 });
 const canonicalItemBody = z.object({
@@ -30,7 +31,8 @@ const canonicalItemBody = z.object({
   category: z.string().optional(), size: z.string().optional(), color: z.string().optional(), measurements: z.string().optional(),
   sku: z.string().optional(), notes: z.string().optional(), sourceLocation: z.string().optional(), sourceUrl: z.string().url().optional().or(z.literal("")),
   condition: condition.default("good"), status: itemStatus.default("draft"), price: z.number().min(0).default(0), cost: z.number().min(0).default(0),
-  weight: z.number().min(0).optional(), photos: z.array(z.string()).default([]), photoRecords: z.array(photoRecord).default([]), tags: z.array(z.string()).default([]),
+  weight: z.number().min(0).optional(), photos: z.array(z.string()).default([]), photoRecords: z.array(photoRecord).default([]),
+  marketplaceDetails: z.record(z.string(), z.unknown()).default({}), tags: z.array(z.string()).default([]),
 });
 const patchCanonicalItemBody = canonicalItemBody.partial();
 const DEFAULT_SHIPPING_STEPS = [
@@ -44,9 +46,9 @@ const DEFAULT_SHIPPING_STEPS = [
   { key: "buyer_notified", label: "Buyer notified", completed: false, completedAt: null },
 ];
 const draftRequirements: Record<string, Array<{ key: string; label: string; help?: string }>> = {
-  poshmark: [{ key: "brand", label: "Brand" }, { key: "category", label: "Category" }, { key: "size", label: "Size" }, { key: "condition", label: "Condition" }, { key: "color", label: "Color" }, { key: "price", label: "List price" }],
-  depop: [{ key: "brand", label: "Brand" }, { key: "category", label: "Category" }, { key: "size", label: "Size" }, { key: "condition", label: "Condition" }, { key: "price", label: "List price" }, { key: "photos", label: "At least one photo" }],
-  mercari: [{ key: "brand", label: "Brand" }, { key: "category", label: "Category" }, { key: "condition", label: "Condition" }, { key: "price", label: "List price" }, { key: "photos", label: "At least one photo" }],
+  poshmark: [{ key: "title", label: "Title" }, { key: "description", label: "Description" }, { key: "marketplaceDetails.department", label: "Department" }, { key: "category", label: "Category" }, { key: "marketplaceDetails.subcategory", label: "Subcategory" }, { key: "size", label: "Size" }, { key: "marketplaceDetails.originalPrice", label: "Original price" }, { key: "price", label: "List price" }, { key: "photos", label: "Cover photo" }],
+  depop: [{ key: "description", label: "Description" }, { key: "brand", label: "Brand" }, { key: "category", label: "Category" }, { key: "marketplaceDetails.subcategory", label: "Subcategory" }, { key: "size", label: "Size" }, { key: "color", label: "Color" }, { key: "marketplaceDetails.quantity", label: "Quantity" }, { key: "price", label: "List price" }, { key: "marketplaceDetails.depopShippingMethod", label: "Shipping method" }, { key: "photos", label: "At least one photo" }],
+  mercari: [{ key: "description", label: "Description" }, { key: "brand", label: "Brand" }, { key: "category", label: "Category" }, { key: "condition", label: "Condition" }, { key: "price", label: "List price" }, { key: "weight", label: "Item/package weight" }, { key: "marketplaceDetails.mercariShippingMethod", label: "Shipping method" }, { key: "marketplaceDetails.mercariPayer", label: "Shipping payer" }, { key: "photos", label: "At least one photo" }],
 };
 
 function extractJson(content: string): Record<string, unknown> | null {
@@ -68,6 +70,11 @@ async function callNim(system: string, prompt: string, maxTokens = 800) {
 function itemValue(item: typeof itemsTable.$inferSelect, key: string): string | number | boolean | null {
   if (key === "photos") return item.photoRecords.length > 0 || item.photos.length > 0;
   if (key === "price") return item.price;
+  if (key.startsWith("marketplaceDetails.")) {
+    const details = item.marketplaceDetails as Record<string, unknown>;
+    const value = details[key.slice("marketplaceDetails.".length)];
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : null;
+  }
   return (item as unknown as Record<string, string | number | boolean | null>)[key] ?? null;
 }
 function fallbackContent(item: typeof itemsTable.$inferSelect, platform: string) {

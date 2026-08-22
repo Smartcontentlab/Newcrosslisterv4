@@ -9,6 +9,7 @@ export type ItemPhotoRecord = {
   processed?: string | null;
   active: "original" | "processed";
   processingStatus: "original" | "processing" | "processed" | "failed";
+  backgroundStyle?: "white" | "textured_slate";
   name?: string;
   createdAt: string;
 };
@@ -37,6 +38,7 @@ export const itemsTable = pgTable("items", {
   weight: real("weight"),
   photos: text("photos").array().notNull().default([]),
   photoRecords: jsonb("photo_records").$type<ItemPhotoRecord[]>().notNull().default([]),
+  marketplaceDetails: jsonb("marketplace_details").$type<Record<string, unknown>>().notNull().default({}),
   tags: text("tags").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
