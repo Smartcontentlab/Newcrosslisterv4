@@ -1,0 +1,55 @@
+import { jsonb, pgTable, real, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+import { userProfilesTable } from "./user_profiles";
+
+export type ItemPhotoRecord = {
+  id: string;
+  original: string;
+  processed?: string | null;
+  active: "original" | "processed";
+  processingStatus: "original" | "processing" | "processed" | "failed";
+  backgroundStyle?: "white" | "textured_slate";
+  name?: string;
+  createdAt: string;
+};
+
+export const itemsTable = pgTable("items", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => userProfilesTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  brand: text("brand"),
+  model: text("model"),
+  category: text("category"),
+  size: text("size"),
+  color: text("color"),
+  measurements: text("measurements"),
+  sku: text("sku"),
+  notes: text("notes"),
+  sourceLocation: text("source_location"),
+  sourceUrl: text("source_url"),
+  soldPlatform: text("sold_platform"),
+  soldAt: timestamp("sold_at", { withTimezone: true }),
+  condition: text("condition").notNull().default("good"),
+  status: text("status").notNull().default("draft"),
+  price: real("price").notNull().default(0),
+  cost: real("cost").notNull().default(0),
+  weight: real("weight"),
+  photos: text("photos").array().notNull().default([]),
+  photoRecords: jsonb("photo_records").$type<ItemPhotoRecord[]>().notNull().default([]),
+  marketplaceDetails: jsonb("marketplace_details").$type<Record<string, unknown>>().notNull().default({}),
+  tags: text("tags").array().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertItemSchema = createInsertSchema(itemsTable).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertItem = z.infer<typeof insertItemSchema>;
+export type Item = typeof itemsTable.$inferSelect;

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "CrosslinkOS"
+description = "A resale operations workspace that helps multi-marketplace sellers manage inventory, listings, orders, shipping, analytics, and AI-assisted listing workflows from one dashboard."
+version = "1.0.0"
+id = "artifacts/resale-app"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21228
+
+[services.development]
+run = "pnpm --filter @workspace/resale-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/resale-app", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/resale-app/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21228"
+BASE_PATH = "/"
