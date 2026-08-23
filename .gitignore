@@ -47,9 +47,3 @@ Thumbs.db
 # Replit
 .cache/
 .local/
-
-# Generated Vercel server bundle
-/serverless/
-/public/
-/artifacts/api-server/public/
-/artifacts/api-server/serverless/
