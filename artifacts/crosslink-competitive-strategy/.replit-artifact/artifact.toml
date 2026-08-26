@@ -1,0 +1,28 @@
+kind = "slides"
+previewPath = "/crosslink-competitive-strategy/"
+title = "Crosslink X Competitive Strategy"
+description = "A stakeholder-ready competitive strategy deck for Crosslink X, comparing resale software platforms, identifying repeatable product patterns, and defining the opportunity for an AI operating system that connects sourcing, listing, selling, fulfillment, and business intelligence."
+version = "1.0.0"
+id = "artifacts/crosslink-competitive-strategy"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/crosslink-competitive-strategy/" ]
+localPort = 25681
+
+[services.development]
+run = "pnpm --filter @workspace/crosslink-competitive-strategy run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/crosslink-competitive-strategy", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/crosslink-competitive-strategy/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25681"
+BASE_PATH = "/crosslink-competitive-strategy/"
