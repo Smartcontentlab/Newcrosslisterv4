@@ -1,0 +1,7 @@
+const base = import.meta.env.BASE_URL;
+export default function Cover() {
+  return <div className="relative flex w-screen h-screen overflow-hidden deck-root">
+    <aside className="strategy-rail relative"><div className="flex items-center gap-[.8vw]"><span className="h-[1.25vw] w-[1.25vw] rounded-[.25vw] bg-primary" /><p className="rail-brand">Crosslink X</p></div><p className="rail-label">Strategy deck</p><p className="rail-item active">Competitive intelligence</p><p className="rail-item">Product wedge</p><p className="rail-item">Build sequence</p><p className="rail-footer">v1.0 · August 2026</p></aside>
+    <main className="slide-main relative flex flex-col justify-center"><p className="eyebrow">AI operating system for resellers</p><h1 className="mt-[2vh] max-w-[47vw] text-[5.5vw] font-extrabold leading-[.95] tracking-[-.08em] text-white">Competitive strategy</h1><p className="mt-[3vh] max-w-[30vw] text-[2vw] leading-[1.5] text-[#b8c3df]">What the market proves, where it stops, and where Crosslink X can win.</p><div className="mt-[5vh] flex max-w-[30vw] flex-wrap items-center gap-[1vw]"><span className="signal"><span className="dot" /> Research synthesis</span><span className="font-mono text-[1.5vw] text-[#7d89a8]">19 slides · public sources</span></div><img src={`${base}hero-resale-intelligence.jpg`} crossOrigin="anonymous" alt="Resale items arranged for intelligence research" className="absolute bottom-[5vh] right-[5vw] h-[38vh] w-[39vw] rounded-[1vw] border border-white/10 object-cover opacity-80" /></main>
+  </div>;
+}

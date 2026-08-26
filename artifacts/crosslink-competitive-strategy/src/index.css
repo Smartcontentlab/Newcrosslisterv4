@@ -11,15 +11,14 @@
 }
 
 :root {
-  /* Replace these with brand colors */
-  --slide-primary: #4f46e5;
-  --slide-accent: #06b6d4;
-  --slide-bg: #f8fafc;
-  --slide-text: #0f172a;
-  --slide-muted: #64748b;
-  --font-display-family: 'Inter', system-ui, sans-serif;
-  --font-body-family: 'Inter', system-ui, sans-serif;
-  color-scheme: light;
+  --slide-primary: #8fb4ff;
+  --slide-accent: #b8d77a;
+  --slide-bg: #151a27;
+  --slide-text: #f1f5ff;
+  --slide-muted: #9aa6c8;
+  --font-display-family: 'Manrope', sans-serif;
+  --font-body-family: 'Manrope', sans-serif;
+  color-scheme: dark;
 }
 
 html,
@@ -34,6 +33,36 @@ body {
   background: var(--slide-bg);
   color: var(--slide-text);
 }
+
+.deck-root { background: radial-gradient(circle at 88% 8%, rgba(91, 133, 220, .15), transparent 28vw), #151a27; font-family: var(--font-body-family); }
+.strategy-rail { width: 20vw; border-right: 1px solid rgba(255,255,255,.09); padding: 5vh 2.8vw; background: rgba(12,16,27,.36); }
+.rail-brand { font-size: 1.5vw; font-weight: 800; letter-spacing: -.04em; color: #f7f9ff; }
+.rail-label { margin-top: 6vh; font-family: 'IBM Plex Mono', monospace; color: #657196; font-size: 1.5vw; letter-spacing: .1em; text-transform: uppercase; }
+.rail-item { margin-top: 2vh; color: #a7b2d1; font-size: 1.5vw; }
+.rail-item.active { color: #b8d77a; font-weight: 700; }
+.rail-footer { position: absolute; bottom: 5vh; font-family: 'IBM Plex Mono', monospace; font-size: 1.5vw; color: #657196; }
+.slide-main { flex: 1; padding: 7vh 5.4vw 5vh; }
+.eyebrow { font-family: 'IBM Plex Mono', monospace; color: #8fb4ff; font-size: 1.5vw; letter-spacing: .11em; text-transform: uppercase; }
+.slide-title { margin-top: 1.5vh; max-width: 66vw; font-size: 4.15vw; line-height: 1.07; letter-spacing: -.06em; font-weight: 800; text-wrap: balance; color: #f6f8ff; }
+.slide-subtitle { margin-top: 2.5vh; max-width: 58vw; font-size: 2.05vw; line-height: 1.5; color: #acb7d5; text-wrap: pretty; }
+.content-grid { margin-top: 5vh; display: grid; grid-template-columns: 1fr 1fr; gap: 2vw; }
+.deck-card { border: 1px solid rgba(255,255,255,.1); background: rgba(8,12,21,.42); border-radius: 1vw; padding: 2.4vh 2.2vw; }
+.card-kicker { font-family: 'IBM Plex Mono', monospace; font-size: 1.5vw; color: #8fb4ff; letter-spacing: .1em; text-transform: uppercase; }
+.card-title { margin-top: 1vh; font-size: 1.8vw; line-height: 1.18; font-weight: 800; color: #f5f7ff; }
+.deck-list { margin: 0; padding-left: 1.25vw; display: grid; gap: 1.2vh; color: #c1cae0; font-size: 2vw; line-height: 1.35; }
+.deck-list li::marker { color: #b8d77a; }
+.source { margin-top: 2vh; font-family: 'IBM Plex Mono', monospace; color: #74809f; font-size: 1.5vw; line-height: 1.45; }
+.slide-number { position: absolute; right: 5vw; bottom: 4vh; font-family: 'IBM Plex Mono', monospace; color: #657196; font-size: 1.5vw; }
+.signal { display: inline-flex; align-items: center; gap: .6vw; border: 1px solid rgba(184,215,122,.28); border-radius: 999px; padding: .8vh 1vw; color: #b8d77a; font-family: 'IBM Plex Mono', monospace; font-size: 1.5vw; }
+.dot { width: .55vw; height: .55vw; border-radius: 999px; background: #b8d77a; display: inline-block; }
+.metric { font-family: 'IBM Plex Mono', monospace; font-size: 6.8vw; letter-spacing: -.09em; color: #b8d77a; line-height: .9; }
+.matrix { margin-top: 4vh; border-collapse: collapse; width: 100%; font-size: 1.5vw; color: #d9e0ef; }
+.matrix th { color: #8fb4ff; font-family: 'IBM Plex Mono', monospace; font-size: 1.5vw; letter-spacing: .05em; text-transform: uppercase; }
+.matrix td, .matrix th { border-bottom: 1px solid rgba(255,255,255,.09); padding: 1.45vh 1vw; text-align: left; }
+.yes { color: #b8d77a; font-weight: 800; }.partial { color: #e5b97d; font-weight: 800; }.no { color: #657196; }
+.quote { margin-top: 6vh; max-width: 64vw; font-size: 4.3vw; line-height: 1.12; letter-spacing: -.06em; font-weight: 800; color: #f5f7ff; text-wrap: balance; }
+.node { border: 1px solid rgba(143,180,255,.35); background: rgba(143,180,255,.09); border-radius: 999px; padding: 1.25vh 1.6vw; font-size: 1.55vw; font-weight: 700; color: #e9efff; }
+.line { height: 1px; flex: 1; background: linear-gradient(90deg, rgba(143,180,255,.65), rgba(184,215,122,.72)); }
 
 .slide {
   width: 100vw;

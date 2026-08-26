@@ -1,1 +1,21 @@
-[]
+[
+  {"id":"b01c","position":1,"filepath":"src/pages/slides/Cover.tsx","title":"Crosslink X","description":"Competitive strategy cover","speakerNotes":""},
+  {"id":"b02c","position":2,"filepath":"src/pages/slides/FragmentedCategory.tsx","title":"The category is fragmented by design","description":"Category framing","speakerNotes":""},
+  {"id":"b03c","position":3,"filepath":"src/pages/slides/StrategicOpening.tsx","title":"The strategic opening","description":"Strategic thesis","speakerNotes":""},
+  {"id":"b04c","position":4,"filepath":"src/pages/slides/CompetitiveLandscape.tsx","title":"Competitive landscape","description":"Competitive set","speakerNotes":""},
+  {"id":"b05c","position":5,"filepath":"src/pages/slides/SellerJobs.tsx","title":"What sellers are actually hiring software to do","description":"Seller jobs","speakerNotes":""},
+  {"id":"b06c","position":6,"filepath":"src/pages/slides/FeatureMatrix.tsx","title":"Feature matrix: where the market is strong","description":"Feature matrix","speakerNotes":""},
+  {"id":"b07c","position":7,"filepath":"src/pages/slides/Vendoo.tsx","title":"Vendoo proves speed is valuable","description":"Vendoo analysis","speakerNotes":""},
+  {"id":"b08c","position":8,"filepath":"src/pages/slides/ListPerfectly.tsx","title":"List Perfectly proves trust is a product feature","description":"List Perfectly analysis","speakerNotes":""},
+  {"id":"b09c","position":9,"filepath":"src/pages/slides/CrosslistFlyp.tsx","title":"Crosslist and Flyp prove the value of low-friction capture","description":"Crosslist and Flyp analysis","speakerNotes":""},
+  {"id":"b10c","position":10,"filepath":"src/pages/slides/SellerAider.tsx","title":"SellerAider proves sellers want automation after publishing","description":"SellerAider analysis","speakerNotes":""},
+  {"id":"b11c","position":11,"filepath":"src/pages/slides/AiNative.tsx","title":"AI-native entrants prove the interface is changing","description":"AI entrants","speakerNotes":""},
+  {"id":"b12c","position":12,"filepath":"src/pages/slides/ClonePatterns.tsx","title":"The pattern worth cloning","description":"Product patterns","speakerNotes":""},
+  {"id":"b13c","position":13,"filepath":"src/pages/slides/AvoidPatterns.tsx","title":"The pattern not worth cloning","description":"Anti patterns","speakerNotes":""},
+  {"id":"b14c","position":14,"filepath":"src/pages/slides/Ebay.tsx","title":"eBay is the decision engine, not just another channel","description":"eBay strategy","speakerNotes":""},
+  {"id":"b15c","position":15,"filepath":"src/pages/slides/SystemLoop.tsx","title":"Crosslink X’s differentiated system loop","description":"Operating loop","speakerNotes":""},
+  {"id":"b16c","position":16,"filepath":"src/pages/slides/ProductWedge.tsx","title":"The product wedge","description":"Product wedge","speakerNotes":""},
+  {"id":"b17c","position":17,"filepath":"src/pages/slides/BuildSequence.tsx","title":"Recommended build sequence","description":"Roadmap","speakerNotes":""},
+  {"id":"b18c","position":18,"filepath":"src/pages/slides/NextCategory.tsx","title":"Crosslink X can own the next category","description":"Closing thesis","speakerNotes":""},
+  {"id":"b19c","position":19,"filepath":"src/pages/slides/Sources.tsx","title":"Sources and research notes","description":"Sources","speakerNotes":""}
+]
