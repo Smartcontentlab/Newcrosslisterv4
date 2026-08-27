@@ -9,6 +9,7 @@ import analyticsRouter from "./analytics";
 import aiRouter from "./ai";
 import agentRouter from "./agent";
 import workflowRouter from "./workflow";
+import buyScannerRouter from "./buy-scanner";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -24,5 +25,6 @@ router.use(analyticsRouter);
 router.use(aiRouter);
 router.use(agentRouter);
 router.use(workflowRouter);
+router.use(buyScannerRouter);
 
 export default router;

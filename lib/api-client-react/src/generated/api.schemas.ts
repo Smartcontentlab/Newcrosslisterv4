@@ -528,6 +528,96 @@ export interface AssistantReply {
   suggestions?: string[];
 }
 
+export interface BuyScanRequest {
+  title: string;
+  brand?: string;
+  category?: string;
+  condition?: string;
+  /** @minimum 0 */
+  purchaseCost: number;
+}
+
+export interface BuyScanComp {
+  title: string;
+  price: number;
+  soldAt: string;
+  source: string;
+}
+
+export type BuyScanResultRecommendation = typeof BuyScanResultRecommendation[keyof typeof BuyScanResultRecommendation];
+
+
+export const BuyScanResultRecommendation = {
+  yes: 'yes',
+  no: 'no',
+} as const;
+
+export type BuyScanResultConfidence = typeof BuyScanResultConfidence[keyof typeof BuyScanResultConfidence];
+
+
+export const BuyScanResultConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export type BuyScanResultSourceStatus = typeof BuyScanResultSourceStatus[keyof typeof BuyScanResultSourceStatus];
+
+
+export const BuyScanResultSourceStatus = {
+  live: 'live',
+  unavailable: 'unavailable',
+} as const;
+
+export interface BuyScanResult {
+  recommendation: BuyScanResultRecommendation;
+  rationale: string;
+  purchaseCost: number;
+  estimatedSalePrice: number;
+  estimatedFees: number;
+  projectedProfit: number;
+  confidence: BuyScanResultConfidence;
+  comps: BuyScanComp[];
+  sourceStatus: BuyScanResultSourceStatus;
+}
+
+export type BuyCandidateInputRecommendation = typeof BuyCandidateInputRecommendation[keyof typeof BuyCandidateInputRecommendation];
+
+
+export const BuyCandidateInputRecommendation = {
+  yes: 'yes',
+  no: 'no',
+} as const;
+
+export type BuyCandidateInputConfidence = typeof BuyCandidateInputConfidence[keyof typeof BuyCandidateInputConfidence];
+
+
+export const BuyCandidateInputConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export interface BuyCandidateInput {
+  title: string;
+  brand?: string;
+  category?: string;
+  purchaseCost: number;
+  recommendation: BuyCandidateInputRecommendation;
+  rationale: string;
+  estimatedSalePrice: number;
+  estimatedFees: number;
+  projectedProfit: number;
+  confidence: BuyCandidateInputConfidence;
+  comps: BuyScanComp[];
+}
+
+export type BuyCandidate = BuyCandidateInput & {
+  id: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ListItemsParams = {
 status?: ListItemsStatus;
 category?: string;

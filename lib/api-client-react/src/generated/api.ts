@@ -22,6 +22,10 @@ import type {
 import type {
   AiChatRequest,
   AssistantReply,
+  BuyCandidate,
+  BuyCandidateInput,
+  BuyScanRequest,
+  BuyScanResult,
   CategoryStat,
   DashboardSummary,
   GenerateListingRequest,
@@ -2182,5 +2186,295 @@ export const useAiChat = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAiChatMutationOptions(options));
+    }
+
+export const getEvaluateBuyScanUrl = () => {
+
+
+
+
+  return `/api/buy-scanner/evaluate`
+}
+
+/**
+ * @summary Evaluate whether a shopper should buy an item
+ */
+export const evaluateBuyScan = async (buyScanRequest: BuyScanRequest, options?: RequestInit): Promise<BuyScanResult> => {
+
+  return customFetch<BuyScanResult>(getEvaluateBuyScanUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(buyScanRequest)
+  }
+);}
+
+
+
+
+
+export const getEvaluateBuyScanMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof evaluateBuyScan>>, TError,{data: BodyType<BuyScanRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof evaluateBuyScan>>, TError,{data: BodyType<BuyScanRequest>}, TContext> => {
+
+const mutationKey = ['evaluateBuyScan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof evaluateBuyScan>>, {data: BodyType<BuyScanRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  evaluateBuyScan(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EvaluateBuyScanMutationResult = NonNullable<Awaited<ReturnType<typeof evaluateBuyScan>>>
+    export type EvaluateBuyScanMutationBody = BodyType<BuyScanRequest>
+    export type EvaluateBuyScanMutationError = ErrorType<void>
+
+    /**
+ * @summary Evaluate whether a shopper should buy an item
+ */
+export const useEvaluateBuyScan = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof evaluateBuyScan>>, TError,{data: BodyType<BuyScanRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof evaluateBuyScan>>,
+        TError,
+        {data: BodyType<BuyScanRequest>},
+        TContext
+      > => {
+      return useMutation(getEvaluateBuyScanMutationOptions(options));
+    }
+
+export const getListBuyCandidatesUrl = () => {
+
+
+
+
+  return `/api/buy-scanner/candidates`
+}
+
+/**
+ * @summary List saved shopping candidates
+ */
+export const listBuyCandidates = async ( options?: RequestInit): Promise<BuyCandidate[]> => {
+
+  return customFetch<BuyCandidate[]>(getListBuyCandidatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBuyCandidatesQueryKey = () => {
+    return [
+    `/api/buy-scanner/candidates`
+    ] as const;
+    }
+
+
+export const getListBuyCandidatesQueryOptions = <TData = Awaited<ReturnType<typeof listBuyCandidates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBuyCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBuyCandidatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBuyCandidates>>> = ({ signal }) => listBuyCandidates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBuyCandidates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListBuyCandidatesQueryResult = NonNullable<Awaited<ReturnType<typeof listBuyCandidates>>>
+export type ListBuyCandidatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List saved shopping candidates
+ */
+
+export function useListBuyCandidates<TData = Awaited<ReturnType<typeof listBuyCandidates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listBuyCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListBuyCandidatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateBuyCandidateUrl = () => {
+
+
+
+
+  return `/api/buy-scanner/candidates`
+}
+
+/**
+ * @summary Save a shopping candidate without creating inventory
+ */
+export const createBuyCandidate = async (buyCandidateInput: BuyCandidateInput, options?: RequestInit): Promise<BuyCandidate> => {
+
+  return customFetch<BuyCandidate>(getCreateBuyCandidateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(buyCandidateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBuyCandidateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBuyCandidate>>, TError,{data: BodyType<BuyCandidateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBuyCandidate>>, TError,{data: BodyType<BuyCandidateInput>}, TContext> => {
+
+const mutationKey = ['createBuyCandidate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBuyCandidate>>, {data: BodyType<BuyCandidateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBuyCandidate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBuyCandidateMutationResult = NonNullable<Awaited<ReturnType<typeof createBuyCandidate>>>
+    export type CreateBuyCandidateMutationBody = BodyType<BuyCandidateInput>
+    export type CreateBuyCandidateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save a shopping candidate without creating inventory
+ */
+export const useCreateBuyCandidate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBuyCandidate>>, TError,{data: BodyType<BuyCandidateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBuyCandidate>>,
+        TError,
+        {data: BodyType<BuyCandidateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBuyCandidateMutationOptions(options));
+    }
+
+export const getDeleteBuyCandidateUrl = (id: number,) => {
+
+
+
+
+  return `/api/buy-scanner/candidates/${id}`
+}
+
+/**
+ * @summary Remove a saved shopping candidate
+ */
+export const deleteBuyCandidate = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteBuyCandidateUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteBuyCandidateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBuyCandidate>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteBuyCandidate>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteBuyCandidate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteBuyCandidate>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteBuyCandidate(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteBuyCandidateMutationResult = NonNullable<Awaited<ReturnType<typeof deleteBuyCandidate>>>
+
+    export type DeleteBuyCandidateMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a saved shopping candidate
+ */
+export const useDeleteBuyCandidate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBuyCandidate>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteBuyCandidate>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteBuyCandidateMutationOptions(options));
     }
 

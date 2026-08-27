@@ -22,6 +22,8 @@ tags:
     description: Business analytics
   - name: ai
     description: AI features
+  - name: buy-scanner
+    description: Temporary buy decisions and saved shopping candidates
 
 paths:
   /healthz:
@@ -567,6 +569,77 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssistantReply"
+
+  # ── Buy scanner ────────────────────────────────────────────────────────────
+  /buy-scanner/evaluate:
+    post:
+      operationId: evaluateBuyScan
+      tags: [buy-scanner]
+      summary: Evaluate whether a shopper should buy an item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuyScanRequest"
+      responses:
+        "200":
+          description: Buy recommendation and sold-comps evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuyScanResult"
+        "502":
+          description: Sold-comps provider is unavailable
+
+  /buy-scanner/candidates:
+    get:
+      operationId: listBuyCandidates
+      tags: [buy-scanner]
+      summary: List saved shopping candidates
+      responses:
+        "200":
+          description: Saved candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BuyCandidate"
+    post:
+      operationId: createBuyCandidate
+      tags: [buy-scanner]
+      summary: Save a shopping candidate without creating inventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuyCandidateInput"
+      responses:
+        "201":
+          description: Saved candidate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuyCandidate"
+
+  /buy-scanner/candidates/{id}:
+    delete:
+      operationId: deleteBuyCandidate
+      tags: [buy-scanner]
+      summary: Remove a saved shopping candidate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Candidate removed
+        "404":
+          description: Candidate not found
 
 components:
   schemas:
@@ -1124,3 +1197,106 @@ components:
           type: array
           items:
             type: string
+
+    BuyScanRequest:
+      type: object
+      required: [title, purchaseCost]
+      properties:
+        title:
+          type: string
+        brand:
+          type: string
+        category:
+          type: string
+        condition:
+          type: string
+        purchaseCost:
+          type: number
+          minimum: 0
+
+    BuyScanComp:
+      type: object
+      required: [title, price, soldAt, source]
+      properties:
+        title:
+          type: string
+        price:
+          type: number
+        soldAt:
+          type: string
+        source:
+          type: string
+
+    BuyScanResult:
+      type: object
+      required: [recommendation, rationale, purchaseCost, estimatedSalePrice, estimatedFees, projectedProfit, confidence, comps, sourceStatus]
+      properties:
+        recommendation:
+          type: string
+          enum: [yes, no]
+        rationale:
+          type: string
+        purchaseCost:
+          type: number
+        estimatedSalePrice:
+          type: number
+        estimatedFees:
+          type: number
+        projectedProfit:
+          type: number
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        comps:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuyScanComp"
+        sourceStatus:
+          type: string
+          enum: [live, unavailable]
+
+    BuyCandidateInput:
+      type: object
+      required: [title, purchaseCost, recommendation, rationale, estimatedSalePrice, estimatedFees, projectedProfit, confidence, comps]
+      properties:
+        title:
+          type: string
+        brand:
+          type: string
+        category:
+          type: string
+        purchaseCost:
+          type: number
+        recommendation:
+          type: string
+          enum: [yes, no]
+        rationale:
+          type: string
+        estimatedSalePrice:
+          type: number
+        estimatedFees:
+          type: number
+        projectedProfit:
+          type: number
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        comps:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuyScanComp"
+
+    BuyCandidate:
+      allOf:
+        - $ref: "#/components/schemas/BuyCandidateInput"
+        - type: object
+          required: [id, createdAt, updatedAt]
+          properties:
+            id:
+              type: integer
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time

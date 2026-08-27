@@ -8,6 +8,16 @@
 
 export * from './aiChatRequest';
 export * from './assistantReply';
+export * from './buyCandidate';
+export * from './buyCandidateInput';
+export * from './buyCandidateInputConfidence';
+export * from './buyCandidateInputRecommendation';
+export * from './buyScanComp';
+export * from './buyScanRequest';
+export * from './buyScanResult';
+export * from './buyScanResultConfidence';
+export * from './buyScanResultRecommendation';
+export * from './buyScanResultSourceStatus';
 export * from './categoryStat';
 export * from './dashboardSummary';
 export * from './generatedListing';

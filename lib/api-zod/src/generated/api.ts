@@ -716,3 +716,120 @@ export const AiChatResponse = zod.object({
 })
 
 
+/**
+ * @summary Evaluate whether a shopper should buy an item
+ */
+export const evaluateBuyScanBodyPurchaseCostMin = 0;
+
+
+
+export const EvaluateBuyScanBody = zod.object({
+  "title": zod.string(),
+  "brand": zod.string().optional(),
+  "category": zod.string().optional(),
+  "condition": zod.string().optional(),
+  "purchaseCost": zod.number().min(evaluateBuyScanBodyPurchaseCostMin)
+})
+
+export const EvaluateBuyScanResponse = zod.object({
+  "recommendation": zod.enum(['yes', 'no']),
+  "rationale": zod.string(),
+  "purchaseCost": zod.number(),
+  "estimatedSalePrice": zod.number(),
+  "estimatedFees": zod.number(),
+  "projectedProfit": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "comps": zod.array(zod.object({
+  "title": zod.string(),
+  "price": zod.number(),
+  "soldAt": zod.string(),
+  "source": zod.string()
+})),
+  "sourceStatus": zod.enum(['live', 'unavailable'])
+})
+
+
+/**
+ * @summary List saved shopping candidates
+ */
+export const ListBuyCandidatesResponseItem = zod.object({
+  "title": zod.string(),
+  "brand": zod.string().optional(),
+  "category": zod.string().optional(),
+  "purchaseCost": zod.number(),
+  "recommendation": zod.enum(['yes', 'no']),
+  "rationale": zod.string(),
+  "estimatedSalePrice": zod.number(),
+  "estimatedFees": zod.number(),
+  "projectedProfit": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "comps": zod.array(zod.object({
+  "title": zod.string(),
+  "price": zod.number(),
+  "soldAt": zod.string(),
+  "source": zod.string()
+}))
+}).and(zod.object({
+  "id": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+export const ListBuyCandidatesResponse = zod.array(ListBuyCandidatesResponseItem)
+
+
+/**
+ * @summary Save a shopping candidate without creating inventory
+ */
+export const CreateBuyCandidateBody = zod.object({
+  "title": zod.string(),
+  "brand": zod.string().optional(),
+  "category": zod.string().optional(),
+  "purchaseCost": zod.number(),
+  "recommendation": zod.enum(['yes', 'no']),
+  "rationale": zod.string(),
+  "estimatedSalePrice": zod.number(),
+  "estimatedFees": zod.number(),
+  "projectedProfit": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "comps": zod.array(zod.object({
+  "title": zod.string(),
+  "price": zod.number(),
+  "soldAt": zod.string(),
+  "source": zod.string()
+}))
+})
+
+export const CreateBuyCandidateResponse = zod.object({
+  "title": zod.string(),
+  "brand": zod.string().optional(),
+  "category": zod.string().optional(),
+  "purchaseCost": zod.number(),
+  "recommendation": zod.enum(['yes', 'no']),
+  "rationale": zod.string(),
+  "estimatedSalePrice": zod.number(),
+  "estimatedFees": zod.number(),
+  "projectedProfit": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "comps": zod.array(zod.object({
+  "title": zod.string(),
+  "price": zod.number(),
+  "soldAt": zod.string(),
+  "source": zod.string()
+}))
+}).and(zod.object({
+  "id": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Remove a saved shopping candidate
+ */
+export const DeleteBuyCandidateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteBuyCandidateResponse = zod.void()
+
+
