@@ -11,12 +11,18 @@
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK"
   },
   "functions": {
-    "api/[[...path]].js": {
+    "api/index.js": {
       "maxDuration": 60
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

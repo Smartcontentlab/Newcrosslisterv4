@@ -12,7 +12,7 @@ A cross-listing and resale operations app. A seller enters an item once, the app
 - `lib/db`: Drizzle tables. `lib/api-client-react`: generated hooks. `lib/api-zod`, `lib/api-spec`: request validation and OpenAPI.
 - `chrome-extension`: Manifest V3 side panel that prefills marketplace forms.
 - `supabase/schema.sql`: the full database schema with row level security and the signup trigger.
-- Hosting: Vercel (`vercel.json`, `scripts/build-vercel.mjs`, `api/[[...path]].js`). `main` auto-deploys to `crosslinkos.vercel.app`.
+- Hosting: Vercel (`vercel.json`, `scripts/build-vercel.mjs`, `api/index.js` (all `/api/*` requests are rewritten to it)). `main` auto-deploys to `crosslinkos.vercel.app`.
 - Not part of the product: `artifacts/mockup-sandbox`, `artifacts/crosslink-competitive-strategy`, `.migration-backup` (kept as reference).
 
 ## Design system
