@@ -10,8 +10,8 @@ export function marketplaceName(id: string): string {
 }
 
 /**
- * Overlapping two-letter badges showing where an item is live.
- * Live = filled accent; not listed = hollow dashed ring. Never color-only: the count and aria-label say it too.
+ * Square two-letter tiles showing where an item is live.
+ * Live = filled lime; not listed = hollow dashed ring. Never color-only: the count and aria-label say it too.
  */
 export function MarketplaceBadges({ markets, live, className = '' }: { markets: readonly string[]; live: ReadonlySet<string>; className?: string }) {
   const liveCount = markets.filter((m) => live.has(m)).length;
@@ -27,8 +27,8 @@ export function MarketplaceBadges({ markets, live, className = '' }: { markets: 
           <span
             key={market}
             title={`${marketplaceName(market)}: ${on ? 'live' : 'not listed'}`}
-            className={`flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-card font-mono text-[0.5625rem] font-medium ${index > 0 ? '-ml-1.5' : ''} ${
-              on ? 'bg-primary text-primary-foreground' : 'border-dashed border-input bg-card text-muted-foreground'
+            className={`flex h-[26px] w-[26px] items-center justify-center border text-[0.5625rem] font-extrabold ${index > 0 ? '-ml-px' : ''} ${
+              on ? 'border-border bg-success text-success-foreground' : 'border-dashed border-muted-foreground bg-card text-muted-foreground'
             }`}
           >
             {CODES[market] ?? market.slice(0, 2).toUpperCase()}

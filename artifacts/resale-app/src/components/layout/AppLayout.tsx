@@ -7,21 +7,17 @@ import {
   List,
   LogOut,
   Menu,
-  Moon,
   Package,
   PlugZap,
   PlusSquare,
   Settings,
   ShoppingCart,
   Sparkles as SparklesIcon,
-  Sun,
   Truck,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useHealthCheck } from '@workspace/api-client-react';
 import { useAuth } from '@/lib/auth-context';
-import { useTheme } from '@/lib/theme';
-import { Sparkle } from '@/components/ui/sparkle';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 
 interface NavItem {
@@ -66,14 +62,14 @@ function NavLink({ item, location, onNavigate }: { item: NavItem; location: stri
       onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
       data-testid={`nav-${item.path.slice(1) || 'dashboard'}`}
-      className={`flex h-10 items-center gap-3 rounded-full px-3.5 text-sm font-medium transition-colors ${
-        active ? 'bg-foreground text-background' : 'text-ink-2 hover:bg-muted hover:text-foreground'
+      className={`flex h-[42px] items-center gap-2.5 border-2 px-3 text-xs font-extrabold uppercase tracking-[0.05em] text-foreground transition-colors ${
+        active ? 'border-foreground bg-primary' : 'border-transparent hover:bg-muted'
       }`}
     >
       {item.code ? (
-        <span className={`w-5 font-mono text-[0.6875rem] ${active ? 'text-accent-alt' : 'text-muted-foreground'}`}>{item.code}</span>
+        <span className={`w-5 tabular-nums ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{item.code}</span>
       ) : (
-        <span className={active ? 'text-accent-alt' : 'text-muted-foreground'}>{item.icon}</span>
+        <span className="w-5">{item.icon}</span>
       )}
       <span className="flex-1">{item.label}</span>
     </Link>
@@ -83,57 +79,42 @@ function NavLink({ item, location, onNavigate }: { item: NavItem; location: stri
 function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
   const [location] = useLocation();
   const { user, profile, signOut } = useAuth();
-  const { theme, setTheme } = useTheme();
   const health = useHealthCheck({ query: { refetchInterval: 60_000 } } as never);
   const online = health.isSuccess;
   const operatorName = profile?.displayName || user?.email?.split('@')[0] || 'Seller';
   const operatorPlan = profile?.plan || 'free';
-  const nextTheme = theme === 'dark' ? 'light' : 'dark';
 
   return (
-    <div className="flex h-full flex-col px-5 py-6">
-      <Link href="/" onClick={onNavigate} className="flex items-center gap-2 px-3.5 pb-6">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-foreground text-accent-alt"><Sparkle size={16} /></span>
-        <span className="font-display text-[1.375rem] font-bold tracking-tight">CrossLinkOS</span>
+    <div className="flex h-full flex-col p-4">
+      <Link href="/" onClick={onNavigate} className="cx-wordmark px-0 pb-4 pt-1 text-xl">
+        CrossLinkOS
       </Link>
 
-      <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto">
-        <p className="cx-eyebrow px-3.5 pb-1 pt-1">Browse</p>
+      <nav aria-label="Main" className="flex flex-1 flex-col gap-1 overflow-y-auto">
+        <p className="cx-eyebrow pb-1.5 pt-3">Browse</p>
         {browseItems.map((item) => <NavLink key={item.path} item={item} location={location} onNavigate={onNavigate} />)}
-        <p className="cx-eyebrow px-3.5 pb-1 pt-4">Tools</p>
+        <p className="cx-eyebrow pb-1.5 pt-3">Tools</p>
         {toolItems.map((item) => <NavLink key={item.path} item={item} location={location} onNavigate={onNavigate} />)}
       </nav>
 
-      <div className="mt-3 space-y-0.5">
+      <div className="mt-2 flex flex-col gap-1">
         {footerItems.map((item) => <NavLink key={item.path} item={item} location={location} onNavigate={onNavigate} />)}
       </div>
 
-      <div className="mt-3 flex flex-col gap-2 rounded-xl border border-border p-3">
-        <div className="flex items-center justify-between">
-          <span className="cx-eyebrow">Sync</span>
-          <button
-            type="button"
-            onClick={() => setTheme(nextTheme)}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            aria-label={`Switch to ${nextTheme} theme`}
-            title={`Switch to ${nextTheme} theme`}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
+      <div className="mt-3 flex flex-col gap-2 bg-inverse p-3 text-on-inverse">
+        <div className="flex items-center gap-2.5 text-[0.6875rem] font-semibold uppercase tracking-[0.08em]">
+          <span className={online ? 'cx-status-dot' : 'inline-block h-2.5 w-2.5 shrink-0 rounded-full border-2 border-dashed border-on-inverse-muted'} />
+          <span>{online ? 'All systems live' : health.isLoading ? 'Checking…' : 'API offline'}</span>
         </div>
-        <div className="flex items-center gap-2 font-mono text-xs">
-          <span className={online ? 'cx-status-dot' : 'inline-block h-2 w-2 rounded-full border border-dashed border-muted-foreground'} />
-          <span>{online ? 'API online' : health.isLoading ? 'Checking…' : 'API offline'}</span>
-        </div>
-        <div className="mt-1 flex items-center justify-between gap-2 border-t border-border pt-3">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{operatorName}</p>
-            <p className="font-mono text-[0.6875rem] uppercase tracking-[0.06em] text-muted-foreground">{operatorPlan} plan</p>
+            <p className="truncate text-xs font-extrabold uppercase tracking-[0.04em]">{operatorName}</p>
+            <p className="text-[0.625rem] font-medium uppercase tracking-[0.04em] text-on-inverse-muted">{operatorPlan} plan</p>
           </div>
           <button
             type="button"
             onClick={() => void signOut()}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-danger-tint hover:text-destructive"
+            className="flex h-8 w-8 shrink-0 items-center justify-center text-on-inverse transition hover:bg-primary hover:text-primary-foreground"
             aria-label="Sign out"
             title="Sign out"
           >
@@ -152,19 +133,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-sidebar-border bg-sidebar lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r-2 border-sidebar-border bg-sidebar lg:block">
         <SidebarBody />
       </aside>
 
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-foreground text-accent-alt"><Sparkle size={16} /></span>
-          <span className="font-display text-lg font-bold tracking-tight">CrossLinkOS</span>
-        </Link>
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b-2 border-border bg-background px-4 lg:hidden">
+        <Link href="/" className="cx-wordmark text-xl">CrossLinkOS</Link>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+          className="flex h-11 w-11 items-center justify-center border-2 border-border bg-card"
           aria-label="Open navigation"
         >
           <Menu size={18} />
@@ -172,7 +150,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </header>
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="left" className="w-[280px] bg-sidebar p-0">
+        <SheetContent side="left" className="w-[280px] border-r-2 border-border bg-sidebar p-0">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <SidebarBody onNavigate={() => setMenuOpen(false)} />
         </SheetContent>

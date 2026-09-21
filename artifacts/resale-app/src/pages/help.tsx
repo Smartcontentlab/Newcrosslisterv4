@@ -36,38 +36,38 @@ const FEES: Array<{ name: string; href: string }> = [
 
 export default function Help() {
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <PageHeader label="Help" title="How CrossLinkOS works" description="List once, prepare drafts for each marketplace, and stay in control of every final click." />
 
-      <section aria-label="Quick start" className="rounded-[20px] border border-border bg-card p-6">
-        <h2 className="font-display text-xl font-bold">Quick start</h2>
+      <section aria-label="Quick start" className="border-2 border-border bg-muted p-6">
+        <h2 className="text-[0.9375rem] font-extrabold">Quick start</h2>
         <ol className="mt-4 grid gap-3 md:grid-cols-2">
           {START.map((step, index) => (
-            <li key={step.title} className="flex gap-3 rounded-xl border border-border p-4">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs text-ink-2">{index + 1}</span>
+            <li key={step.title} className="flex gap-3 rounded-none border border-border p-4">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-none bg-muted font-semibold text-xs text-ink-2">{index + 1}</span>
               <div>
                 <p className="text-sm font-semibold">{step.title}</p>
                 <p className="mt-1 text-sm leading-5 text-ink-2">{step.body}</p>
-                <Link href={step.href} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline">{step.cta} <ArrowUpRight size={13} /></Link>
+                <Link href={step.href} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-foreground hover:underline">{step.cta} <ArrowUpRight size={13} /></Link>
               </div>
             </li>
           ))}
         </ol>
       </section>
 
-      <section aria-label="Draft status guide" className="rounded-[20px] border border-border bg-card px-7 py-6">
-        <h2 className="pb-3 font-display text-xl font-bold">What the draft states mean</h2>
+      <section aria-label="Draft status guide" className="border-2 border-border bg-muted px-7 py-6">
+        <h2 className="pb-3 text-[0.9375rem] font-extrabold">What the draft states mean</h2>
         {STATES.map((state) => (
           <div key={state.label} className="grid grid-cols-[28px_150px_minmax(0,1fr)] items-baseline gap-x-3 border-t border-border py-3 max-sm:grid-cols-[28px_minmax(0,1fr)]">
-            <span className="font-mono text-accent-text" aria-hidden="true">{state.glyph}</span>
-            <span className="font-mono text-xs uppercase tracking-[0.06em]">{state.label}</span>
+            <span className="font-semibold text-foreground" aria-hidden="true">{state.glyph}</span>
+            <span className="font-semibold text-xs uppercase tracking-[0.06em]">{state.label}</span>
             <span className="text-sm text-ink-2 max-sm:col-start-2">{state.meaning}</span>
           </div>
         ))}
       </section>
 
-      <section aria-label="Frequently asked questions" className="rounded-[20px] border border-border bg-card px-7 py-6">
-        <h2 className="pb-2 font-display text-xl font-bold">Questions</h2>
+      <section aria-label="Frequently asked questions" className="border-2 border-border bg-muted px-7 py-6">
+        <h2 className="pb-2 text-[0.9375rem] font-extrabold">Questions</h2>
         <Accordion type="single" collapsible>
           {FAQ.map((entry, index) => (
             <AccordionItem key={entry.q} value={`q${index}`} className="border-border">
@@ -79,21 +79,21 @@ export default function Help() {
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <section aria-label="Marketplace fee pages" className="rounded-[20px] border border-border bg-card p-6">
+        <section aria-label="Marketplace fee pages" className="border-2 border-border bg-muted p-6">
           <p className="cx-eyebrow cx-bracket">Fees</p>
-          <h2 className="mt-2 font-display text-xl font-bold">Check current fees</h2>
+          <h2 className="mt-2 text-[0.9375rem] font-extrabold">Check current fees</h2>
           <p className="mt-1 text-sm text-ink-2">Fee estimates in CrossLinkOS are planning aids. Marketplaces change their rules, so confirm the numbers at the source.</p>
           <ul className="mt-3 space-y-1">
             {FEES.map((fee) => (
-              <li key={fee.name}><a href={fee.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline">{fee.name} <ArrowUpRight size={13} /></a></li>
+              <li key={fee.name}><a href={fee.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-foreground hover:underline">{fee.name} <ArrowUpRight size={13} /></a></li>
             ))}
           </ul>
         </section>
-        <section aria-label="Feedback" className="rounded-[20px] border border-border bg-card p-6">
+        <section aria-label="Feedback" className="border-2 border-border bg-muted p-6">
           <p className="cx-eyebrow cx-bracket">Feedback</p>
-          <h2 className="mt-2 font-display text-xl font-bold">Something not working?</h2>
+          <h2 className="mt-2 text-[0.9375rem] font-extrabold">Something not working?</h2>
           <p className="mt-1 text-sm text-ink-2">Tell us what you were doing and what you expected. Screenshots help a lot.</p>
-          <a href="https://github.com/Smartcontentlab/Newcrosslisterv4/issues/new" target="_blank" rel="noreferrer" className="mt-4 inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-5 text-sm font-medium text-background hover:bg-foreground/85">Report an issue <ArrowUpRight size={14} /></a>
+          <a href="https://github.com/Smartcontentlab/Newcrosslisterv4/issues/new" target="_blank" rel="noreferrer" className="mt-4 inline-flex h-11 items-center gap-2 rounded-none bg-primary border-2 border-foreground hover:bg-accent-hover px-5 text-xs font-extrabold uppercase tracking-[0.05em] text-primary-foreground ">Report an issue <ArrowUpRight size={14} /></a>
         </section>
       </div>
     </div>

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Silkscreen&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@800&family=Nunito:wght@500;600;700;800;900&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -29,6 +29,7 @@
   --color-accent-tint: hsl(var(--accent-tint));
   --color-accent-text: hsl(var(--accent-text));
   --color-accent-light: hsl(var(--accent-light));
+  --color-accent-hover: hsl(var(--accent-hover));
   --color-accent-deep: hsl(var(--accent-deep));
   --color-accent-alt: hsl(var(--accent-alt));
   --color-destructive: hsl(var(--destructive));
@@ -56,229 +57,168 @@
   --font-mono: var(--app-font-mono);
   --font-display: var(--app-font-display);
   --font-pixel: var(--app-font-pixel);
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 }
 
+/* Crosslister design system (Framer "Readable Shape", synced 2026-09-21).
+   Light theme only. Square corners, 2px near-black frames, no shadows.
+   Values are HSL triplets of the hex tokens in the design system. */
 :root {
-  --background: 45 18% 96%;
-  --foreground: 240 8% 7%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 8% 7%;
-  --card-border: 47 14% 87%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 8% 7%;
-  --popover-border: 47 14% 87%;
-  --border: 47 14% 87%;
-  --input: 252 5% 57%;
-  --ring: 320 48% 49%;
-  --primary: 320 48% 49%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 45 17% 91%;
-  --secondary-foreground: 240 8% 7%;
-  --muted: 45 17% 91%;
-  --muted-foreground: 248 4% 43%;
-  --ink-2: 253 5% 34%;
-  --accent: 45 17% 91%;
-  --accent-foreground: 240 8% 7%;
-  --accent-tint: 322 62% 95%;
-  --accent-text: 320 53% 39%;
-  --accent-light: 322 68% 87%;
-  --accent-deep: 321 56% 28%;
-  --accent-alt: 325 63% 72%;
-  --destructive: 3 71% 41%;
+  --background: 37 31% 95%;           /* ground #F6F3EE */
+  --foreground: 0 0% 9%;              /* ink #161616 */
+  --card: 40 100% 99%;                /* card #FFFDF9: rows and fields inside a panel */
+  --card-foreground: 0 0% 9%;
+  --card-border: 0 0% 9%;
+  --popover: 40 100% 99%;
+  --popover-foreground: 0 0% 9%;
+  --popover-border: 0 0% 9%;
+  --border: 0 0% 9%;                  /* grid-line #161616 */
+  --input: 0 0% 9%;
+  --ring: 0 0% 9%;
+  --primary: 329 82% 78%;             /* Signal Pink #F59AC9: fills only, ink text on it */
+  --primary-foreground: 0 0% 9%;
+  --secondary: 38 22% 90%;            /* panel #ECE8E1 */
+  --secondary-foreground: 0 0% 9%;
+  --muted: 38 22% 90%;                /* panel #ECE8E1 */
+  --muted-foreground: 30 7% 35%;      /* muted #5E5852 */
+  --ink-2: 30 6% 25%;                 /* ink-2 #45413D */
+  --accent: 38 22% 90%;               /* hover surface = panel */
+  --accent-foreground: 0 0% 9%;
+  --accent-tint: 330 42% 91%;         /* accent-tint #F1DDE7: the one washed panel per screen */
+  --accent-text: 0 0% 9%;             /* pink is 1.8:1 as text, so "accent text" is ink */
+  --accent-light: 329 82% 78%;
+  --accent-deep: 0 0% 9%;
+  --accent-alt: 329 82% 78%;          /* pink on the inverse strip */
+  --accent-hover: 326 100% 72%;       /* #FF70C2 */
+  --destructive: 3 71% 41%;           /* danger #b3261e */
   --destructive-foreground: 0 0% 100%;
   --danger-tint: 5 79% 95%;
-  --success: 150 61% 30%;
-  --success-foreground: 0 0% 100%;
-  --success-tint: 146 42% 93%;
-  --warning: 39 100% 27%;
+  --success: 73 74% 42%;              /* Status Lime #98B91C: live dot, Send fill */
+  --success-foreground: 0 0% 9%;
+  --success-tint: 71 55% 85%;
+  --warning: 39 100% 27%;             /* #8a5a00 */
   --warning-tint: 40 100% 92%;
-  --inverse: 240 8% 7%;
-  --on-inverse: 0 0% 100%;
-  --on-inverse-muted: 249 19% 87%;
-  --label-on-inverse: 322 68% 87%;
-  --dot-on-inverse: 255 7% 21%;
-  --sidebar: 0 0% 100%;
-  --sidebar-foreground: 253 5% 34%;
-  --sidebar-border: 47 14% 87%;
-  --sidebar-primary: 240 8% 7%;
-  --sidebar-primary-foreground: 45 18% 96%;
-  --sidebar-accent: 45 17% 91%;
-  --sidebar-accent-foreground: 240 8% 7%;
-  --sidebar-ring: 320 48% 49%;
-  --app-font-display: 'Bricolage Grotesque', 'Instrument Sans', sans-serif;
-  --app-font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
-  --app-font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --app-font-pixel: 'Silkscreen', 'JetBrains Mono', monospace;
-  --radius: 12px;
-}
-
-.dark {
-  color-scheme: dark;
-  --background: 252 15% 6%;
-  --foreground: 252 24% 96%;
-  --card: 249 14% 10%;
-  --card-foreground: 252 24% 96%;
-  --card-border: 251 12% 18%;
-  --popover: 249 14% 10%;
-  --popover-foreground: 252 24% 96%;
-  --popover-border: 251 12% 18%;
-  --border: 251 12% 18%;
-  --input: 251 7% 50%;
-  --ring: 325 63% 72%;
-  --primary: 325 63% 72%;
-  --primary-foreground: 240 8% 7%;
-  --secondary: 252 14% 15%;
-  --secondary-foreground: 252 24% 96%;
-  --muted: 252 14% 15%;
-  --muted-foreground: 250 11% 69%;
-  --ink-2: 253 13% 78%;
-  --accent: 252 14% 15%;
-  --accent-foreground: 252 24% 96%;
-  --accent-tint: 314 40% 21%;
-  --accent-text: 324 100% 89%;
-  --accent-light: 312 41% 25%;
-  --accent-deep: 324 100% 89%;
-  --accent-alt: 320 48% 49%;
-  --destructive: 4 100% 76%;
-  --destructive-foreground: 4 100% 12%;
-  --danger-tint: 5 53% 15%;
-  --success: 151 57% 60%;
-  --success-foreground: 145 60% 8%;
-  --success-tint: 146 45% 13%;
-  --warning: 39 85% 67%;
-  --warning-tint: 41 76% 13%;
-  --inverse: 252 24% 96%;
-  --on-inverse: 240 8% 7%;
-  --on-inverse-muted: 253 5% 34%;
-  --label-on-inverse: 320 53% 39%;
-  --dot-on-inverse: 254 19% 86%;
-  --sidebar: 249 14% 10%;
-  --sidebar-foreground: 253 13% 78%;
-  --sidebar-border: 251 12% 18%;
-  --sidebar-primary: 252 24% 96%;
-  --sidebar-primary-foreground: 252 15% 6%;
-  --sidebar-accent: 252 14% 15%;
-  --sidebar-accent-foreground: 252 24% 96%;
-  --sidebar-ring: 325 63% 72%;
+  --inverse: 0 0% 9%;
+  --on-inverse: 37 31% 95%;
+  --on-inverse-muted: 37 12% 72%;
+  --label-on-inverse: 37 12% 72%;
+  --dot-on-inverse: 0 0% 25%;
+  --sidebar: 37 31% 95%;
+  --sidebar-foreground: 0 0% 9%;
+  --sidebar-border: 0 0% 9%;
+  --sidebar-primary: 329 82% 78%;
+  --sidebar-primary-foreground: 0 0% 9%;
+  --sidebar-accent: 38 22% 90%;
+  --sidebar-accent-foreground: 0 0% 9%;
+  --sidebar-ring: 0 0% 9%;
+  --app-font-display: 'Fira Sans', 'Nunito', system-ui, sans-serif;
+  --app-font-sans: 'Nunito', system-ui, sans-serif;
+  --app-font-mono: 'Nunito', system-ui, sans-serif;   /* no monospace in this system; numerals use tabular figures */
+  --app-font-pixel: 'Nunito', system-ui, sans-serif;
+  --radius: 0px;
 }
 
 @layer base {
   * { @apply border-border; }
-  html { background: hsl(var(--background)); }
+  html { background: hsl(var(--background)); color-scheme: light; }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    font-weight: 500;
     min-width: 320px;
     overflow-x: hidden;
   }
-  h1, h2 { font-family: var(--app-font-display); letter-spacing: -0.02em; }
-  h3 { letter-spacing: -0.005em; }
-  ::selection { background: hsl(var(--accent-light)); color: hsl(var(--accent-deep)); }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 8px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--input)); }
+  /* Panel titles: uppercase Nunito 800. The page headline uses .cx-display. */
+  h1, h2, h3 { font-family: var(--app-font-sans); }
+  h2 { text-transform: uppercase; letter-spacing: 0.02em; font-weight: 800; }
+  ::selection { background: hsl(var(--primary)); color: hsl(var(--foreground)); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--muted)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--foreground)); border: 2px solid hsl(var(--muted)); }
   :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 }
 
 @layer utilities {
-  .font-display { font-family: var(--app-font-display); letter-spacing: -0.02em; }
-  .font-pixel { font-family: var(--app-font-display); font-weight: 700; letter-spacing: -0.02em; }
-  .font-mono { font-family: var(--app-font-mono); font-variant-numeric: tabular-nums; }
+  /* Type styles from the design system. */
+  .cx-display { font-family: var(--app-font-display); font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
+  .font-display { font-family: var(--app-font-sans); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .font-pixel { font-family: var(--app-font-sans); font-weight: 800; }
+  .font-mono { font-family: var(--app-font-sans); font-variant-numeric: tabular-nums; }
   .tabular { font-variant-numeric: tabular-nums; }
+  .cx-wordmark { font-family: var(--app-font-sans); font-weight: 900; letter-spacing: -0.06em; line-height: 1; }
+  .cx-metric { font-family: var(--app-font-sans); font-weight: 800; font-size: 2.375rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .cx-panel-title { font-weight: 800; font-size: 0.9375rem; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; }
+  .cx-link { font-weight: 700; font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; }
+  .cx-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 
   /* Retired neon utilities: kept as no-ops so older markup keeps compiling. */
   .neon-glow-pink, .neon-glow-purple, .neon-glow-mint, .neon-glow-blue,
   .text-glow-pink, .text-glow-purple, .text-glow-mint { box-shadow: none; text-shadow: none; }
 
-  /* Surfaces: 1px hairline on panel, no shadows. */
-  .glass-card, .cx-panel {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: 20px;
+  /* Surfaces: panel fill inside a 2px frame. */
+  .glass-card, .cx-panel, .glass-card-glow {
+    background: hsl(var(--muted));
+    border: 2px solid hsl(var(--border));
+    border-radius: 0;
   }
-  .glass-card-glow {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: 20px;
-    transition: border-color 0.15s ease;
-  }
-  .glass-card-glow:hover { border-color: hsl(var(--input)); }
 
-  /* Small mono label: [ Label ] */
+  /* Uppercase micro label. */
   .cx-eyebrow {
-    font-family: var(--app-font-mono);
+    font-family: var(--app-font-sans);
+    font-weight: 600;
     font-size: 0.6875rem;
+    line-height: 1;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
   }
-  .cx-bracket::before { content: '[ '; }
-  .cx-bracket::after { content: ' ]'; }
+  /* The old "[ label ]" brackets are retired; the sparkle leads eyebrows instead. */
+  .cx-bracket::before, .cx-bracket::after { content: none; }
 
-  /* Live status dot with the LED ring. */
+  /* Live status: a plain 10px lime dot, the only round shape. */
   .cx-status-dot {
     display: inline-block;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 999px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
     background: hsl(var(--success));
-    box-shadow: 0 0 0 3px hsl(var(--success-tint));
+    flex-shrink: 0;
   }
 
-  /* The one inverse block per screen, with its dot grid. */
+  /* The one inverse strip or tile per screen. Flat, no pattern. */
   .tile-inverse {
     position: relative;
-    overflow: hidden;
-    border-radius: 20px;
     background: hsl(var(--inverse));
     color: hsl(var(--on-inverse));
   }
-  .tile-inverse::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image: radial-gradient(hsl(var(--dot-on-inverse)) 1px, transparent 1.2px);
-    background-size: 14px 14px;
-    opacity: 0.9;
-  }
-  .tile-inverse > * { position: relative; }
 
-  /* 1px corner ticks for featured tiles. */
   .corner-ticks { position: relative; }
-  .corner-ticks::before, .corner-ticks::after {
-    content: '';
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    pointer-events: none;
-    border: 0 solid hsl(var(--accent-text));
-  }
-  .corner-ticks::before { top: 10px; left: 10px; border-top-width: 1px; border-left-width: 1px; }
-  .corner-ticks::after { bottom: 10px; right: 10px; border-bottom-width: 1px; border-right-width: 1px; }
 
-  /* Rotated pixel sticker. Use once per screen. */
+  /* Rotated sticker: pink fill, 2px frame. Use once per screen. */
   .sticker {
     display: inline-block;
     transform: rotate(-4deg);
-    padding: 3px 8px;
-    border-radius: 6px;
-    background: hsl(var(--accent-light));
-    color: hsl(var(--accent-deep));
-    font-family: var(--app-font-pixel);
+    padding: 4px 8px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border: 2px solid hsl(var(--border));
+    font-weight: 900;
     font-size: 0.625rem;
+    line-height: 1;
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
-  /* Dot grid for empty states. */
-  .dot-grid {
-    background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1.2px);
-    background-size: 14px 14px;
-  }
+  /* Empty states: dashed frame, no pattern. */
+  .dot-grid { background: transparent; }
+}
+
+@layer utilities {
+  .tile-inverse .cx-eyebrow { color: hsl(var(--on-inverse)); }
 }

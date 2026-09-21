@@ -39,7 +39,7 @@ export function StatusBadge({ status, className }: { status: string, className?:
   }
 
   return (
-    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider", color, className)}>
+    <span className={cn("px-2 py-0.5 rounded-none text-xs font-medium uppercase tracking-wider", color, className)}>
       {status.replace('_', ' ')}
     </span>
   );

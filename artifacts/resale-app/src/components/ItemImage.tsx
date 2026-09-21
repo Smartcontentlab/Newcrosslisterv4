@@ -14,7 +14,7 @@ export default function ItemImage({ src, alt, className, iconSize = 24 }: ItemIm
 
   if (!src || failed) {
     return (
-      <div className={`flex items-center justify-center bg-muted/70 ${className ?? ''}`} data-testid="img-fallback">
+      <div className={`flex items-center justify-center bg-muted ${className ?? ''}`} data-testid="img-fallback">
         <ImageIcon className="text-border" size={iconSize} />
       </div>
     );

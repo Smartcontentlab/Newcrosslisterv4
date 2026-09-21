@@ -7,10 +7,9 @@ import {
   useListListings,
   type Item,
 } from '@workspace/api-client-react';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, Plus } from 'lucide-react';
 import QuickAddItem from '@/components/QuickAddItem';
 import PostToMarketplace from '@/components/PostToMarketplace';
-import { Sparkle } from '@/components/ui/sparkle';
 
 const CORE_PLATFORMS = ['poshmark', 'depop', 'mercari', 'ebay', 'grailed', 'etsy'];
 const MARKET_CODES: Record<string, string> = {
@@ -24,10 +23,10 @@ const money = (value: number | undefined, digits = 0) => `$${(value ?? 0).toLoca
 
 function Tile({ label, value, note }: { label: string; value: string | number; note?: string }) {
   return (
-    <div className="flex flex-col gap-3.5 rounded-[20px] border border-border bg-card p-5">
+    <div className="flex flex-col gap-2.5 border-2 border-border bg-muted p-4">
       <p className="cx-eyebrow">{label}</p>
-      <p className="font-mono text-[2.25rem] font-medium leading-none tracking-tight tabular-nums">{value}</p>
-      {note && <p className="font-mono text-xs text-ink-2">{note}</p>}
+      <p className="cx-metric">{value}</p>
+      {note && <p className="text-xs font-semibold text-ink-2">{note}</p>}
     </div>
   );
 }
@@ -78,9 +77,9 @@ export default function Dashboard() {
   if (summaryLoading) {
     return (
       <div className="space-y-6" aria-busy="true">
-        <div className="h-12 w-64 animate-pulse rounded-xl bg-muted" />
+        <div className="h-12 w-64 animate-pulse bg-muted" />
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-36 animate-pulse rounded-[20px] bg-muted" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-36 animate-pulse rounded-none bg-muted" />)}
         </div>
       </div>
     );
@@ -90,34 +89,34 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+      <div className="flex flex-col justify-between gap-4 border-b-2 border-border pb-5 md:flex-row md:items-end">
         <div className="space-y-2">
-          <p className="cx-eyebrow">{today}</p>
-          <h1 className="font-display text-[2.5rem] font-bold leading-[1.05]">Overview</h1>
+          <p className="cx-eyebrow">✦ {today}</p>
+          <h1 className="cx-display text-[2rem] sm:text-[2.625rem]">Overview</h1>
         </div>
         <div className="md:text-right">
-          <p className="font-mono text-2xl font-medium tabular-nums">{money(summary?.totalRevenue, 2)}</p>
+          <p className="text-2xl font-extrabold tabular-nums">{money(summary?.totalRevenue, 2)}</p>
           <p className="cx-eyebrow mt-1">Lifetime revenue</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Active listings" value={(summary?.activeListings ?? 0).toLocaleString()} note={`${summary?.totalInventory ?? 0} items in inventory`} />
         <Tile label="Sold this month" value={summary?.soldThisMonth ?? 0} note={`${money(summary?.totalProfit)} profit to date`} />
         <Tile label="Inventory value" value={money(summary?.inventoryValue)} note="at list price" />
-        <div className="tile-inverse flex flex-col gap-3.5 p-5">
-          <p className="font-mono text-[0.6875rem] uppercase tracking-[0.08em] text-label-on-inverse">[ Needs attention ]</p>
-          <p className="font-mono text-[2.25rem] font-medium leading-none tracking-tight tabular-nums">{String(attention).padStart(2, '0')}</p>
+        <div className="tile-inverse flex flex-col gap-2.5 border-2 border-border p-4">
+          <p className="cx-eyebrow text-on-inverse">Needs attention</p>
+          <p className="cx-metric">{String(attention).padStart(2, '0')}</p>
           {attention > 0 ? (
             <button
               type="button"
               onClick={() => (itemsNeedingPosting[0] ? setPostItem(itemsNeedingPosting[0]) : undefined)}
-              className="mt-auto inline-flex h-11 items-center gap-2 self-start rounded-full bg-accent-alt px-5 text-sm font-semibold text-inverse"
+              className="mt-auto inline-flex h-[42px] items-center gap-2.5 self-start border-2 border-foreground bg-primary px-[18px] text-xs font-extrabold uppercase tracking-[0.05em] text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-accent-hover active:scale-95"
             >
-              <Sparkle size={14} /> Review items
+              <Plus size={18} strokeWidth={3} /> Review items
             </button>
           ) : (
-            <p className="mt-auto font-mono text-xs text-on-inverse-muted">All caught up</p>
+            <p className="mt-auto text-xs font-semibold text-accent-alt">All caught up ✦</p>
           )}
         </div>
       </div>
@@ -125,17 +124,17 @@ export default function Dashboard() {
       {attention > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
           {itemsNeedingPosting.length > 0 && (
-            <button type="button" onClick={() => setPostItem(itemsNeedingPosting[0])} className="group flex items-center justify-between gap-4 rounded-[20px] border border-border bg-accent-tint p-5 text-left transition-colors hover:border-input">
+            <button type="button" onClick={() => setPostItem(itemsNeedingPosting[0])} className="group flex items-center justify-between gap-4 border-2 border-border bg-accent-tint p-5 text-left transition-colors hover:bg-card">
               <div>
-                <p className="cx-eyebrow cx-bracket text-accent-text">Suggested</p>
+                <p className="cx-eyebrow text-ink-2">✦ Suggested</p>
                 <p className="mt-2 text-[0.9375rem] font-semibold">{itemsNeedingPosting.length} {itemsNeedingPosting.length === 1 ? 'item is' : 'items are'} missing from core marketplaces</p>
                 <p className="mt-1 text-sm text-ink-2">Prepare drafts and hand them to the extension.</p>
               </div>
-              <ArrowRight className="shrink-0 text-accent-text transition-transform group-hover:translate-x-1" size={18} />
+              <ArrowRight className="shrink-0 transition-transform group-hover:translate-x-1" size={18} />
             </button>
           )}
           {ordersToShip.length > 0 && (
-            <Link href="/shipping" className="group flex items-center justify-between gap-4 rounded-[20px] border border-border bg-card p-5 transition-colors hover:border-input">
+            <Link href="/shipping" className="group flex items-center justify-between gap-4 border-2 border-border bg-muted p-5 transition-colors hover:bg-card">
               <div>
                 <p className="cx-eyebrow">Shipments due</p>
                 <p className="mt-2 text-[0.9375rem] font-semibold">{ordersToShip.length} {ordersToShip.length === 1 ? 'order awaits' : 'orders await'} fulfillment</p>
@@ -148,21 +147,20 @@ export default function Dashboard() {
       )}
 
       {showOnboarding && (
-        <section aria-label="Getting started" className="corner-ticks rounded-[20px] border border-border bg-card p-6">
+        <section aria-label="Getting started" className="border-2 border-border bg-muted p-4">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-xl font-bold">Get started</h2>
-            <span className="cx-eyebrow">{steps.filter((s) => s.done).length} of {steps.length} done</span>
-          </div>
+            <h2 className="cx-panel-title">Get started / {steps.filter((s) => s.done).length} of {steps.length}</h2>
+                      </div>
           <ol className="mt-4 grid gap-3 md:grid-cols-2">
             {steps.map((step, index) => (
-              <li key={step.title} className="flex gap-3 rounded-xl border border-border p-4">
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-xs ${step.done ? 'bg-success text-success-foreground' : 'bg-muted text-ink-2'}`}>
+              <li key={step.title} className="flex gap-3 border border-border bg-card p-3">
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center border border-border text-xs font-extrabold tabular-nums ${step.done ? 'bg-success text-success-foreground' : 'bg-muted text-ink-2'}`}>
                   {step.done ? <Check size={14} /> : index + 1}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold">{step.title}</p>
+                  <p className="text-sm font-bold">{step.title}</p>
                   <p className="mt-1 text-sm text-ink-2">{step.body}</p>
-                  {!step.done && <Link href={step.href} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline">{step.cta} <ArrowRight size={13} /></Link>}
+                  {!step.done && <Link href={step.href} className="cx-link mt-2 inline-flex items-center gap-1">{step.cta} →</Link>}
                 </div>
               </li>
             ))}
@@ -175,39 +173,40 @@ export default function Dashboard() {
       {postItem && <PostToMarketplace item={postItem} open={!!postItem} onClose={() => setPostItem(null)} />}
 
       <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-        <section aria-label="Activity" className="rounded-[20px] border border-border bg-card px-7 py-6">
-          <div className="flex items-baseline justify-between pb-3">
-            <h2 className="font-display text-xl font-bold">Activity</h2>
-            <Link href="/orders" className="text-[0.8125rem] font-medium text-accent-text hover:underline">View all</Link>
+        <section aria-label="Activity" className="flex flex-col gap-3 border-2 border-border bg-muted p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="cx-panel-title">Activity / {Math.min((recentOrders ?? []).length, 6)}</h2>
+            <Link href="/orders" className="cx-link">View all →</Link>
           </div>
           {(recentOrders ?? []).length === 0 ? (
-            <div className="dot-grid rounded-xl border border-dashed border-input p-8 text-center">
+            <div className="border border-dashed border-foreground bg-card p-8 text-center">
               <p className="font-semibold">No sales yet</p>
               <p className="mt-1 text-sm text-ink-2">Sold items will show up here with what you kept after fees.</p>
             </div>
           ) : (
             (recentOrders ?? []).slice(0, 6).map((order) => (
-              <div key={order.id} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-baseline gap-x-4 border-t border-border py-3.5">
-                <span className="font-mono text-xs text-muted-foreground">{relativeTime(order.createdAt)}</span>
-                <span className="truncate text-[0.9375rem]">Sold {order.itemTitle ?? 'item'} on {MARKET_NAMES[order.marketplace] ?? order.marketplace}</span>
-                <span className="font-mono text-xs text-accent-text tabular-nums">{money(order.salePrice, 2)}</span>
+              <div key={order.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3 border border-border bg-card p-3">
+                <span className="text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground">{relativeTime(order.createdAt)}</span>
+                <span className="truncate text-sm font-bold">Sold {order.itemTitle ?? 'item'} on {MARKET_NAMES[order.marketplace] ?? order.marketplace}</span>
+                <span className="border border-border bg-success px-2 py-1.5 text-[0.625rem] font-extrabold tabular-nums text-success-foreground">{money(order.salePrice, 2)}</span>
               </div>
             ))
           )}
         </section>
 
-        <section aria-label="Marketplaces" className="rounded-[20px] border border-border bg-card px-7 py-6">
-          <div className="flex items-baseline justify-between pb-3">
-            <h2 className="font-display text-xl font-bold">Marketplaces</h2>
-            <Link href="/connections" className="text-[0.8125rem] font-medium text-accent-text hover:underline">Manage</Link>
+        <section aria-label="Marketplaces" className="flex flex-col gap-3 border-2 border-border bg-accent-tint p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="cx-panel-title">Your marketplaces</h2>
+            <Link href="/connections" className="cx-link">Manage →</Link>
           </div>
           {marketRows.map((row) => (
-            <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 border-t border-border py-3">
-              <span className="text-[0.9375rem] font-medium">{MARKET_NAMES[row.id]}</span>
-              <span className={`inline-flex h-[26px] items-center gap-1.5 rounded-full px-2.5 font-mono text-[0.6875rem] uppercase tracking-[0.06em] ${row.live > 0 ? 'bg-success-tint text-success' : 'border border-dashed border-input text-muted-foreground'}`}>
-                <span aria-hidden="true">{row.live > 0 ? '●' : '○'}</span>{row.live > 0 ? 'Live' : 'Not listed'}
+            <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 border border-foreground bg-tile p-3">
+              <span className="text-sm font-bold">{MARKET_NAMES[row.id]}</span>
+              <span className="inline-flex items-center gap-2.5 text-[0.6875rem] font-semibold uppercase tracking-[0.08em]">
+                {row.live > 0 ? <span className="cx-status-dot" /> : <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border-2 border-muted-foreground" />}
+                {row.live > 0 ? 'Live' : 'Not listed'}
               </span>
-              <span className="w-10 text-right font-mono text-xs text-muted-foreground tabular-nums">{MARKET_CODES[row.id]} {row.live}</span>
+              <span className="w-10 text-right text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground tabular-nums">{MARKET_CODES[row.id]} {row.live}</span>
             </div>
           ))}
         </section>
