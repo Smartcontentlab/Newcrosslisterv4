@@ -24,6 +24,12 @@ Source of truth: the "Crosslister" design system (Framer, "Readable Shape"), mir
 - Shared pieces: `PageHeader`, `MarketplaceBadges` (square letter-code tiles), `ui/button` (variants: default pink, `send` lime, outline, destructive), `ui/sparkle`, `AppLayout` (248px sidebar with numbered items and an inverse status box). `lib/theme.ts` now only pins the light theme.
 - Decisions to confirm: the product keeps the name "CrossLinkOS" rather than the design file's working wordmark "LIST//SYNC"; marketplaces use letter-code tiles instead of the Etsy/Shopify/eBay logos in the design file.
 
+## Pricing and fees (Listing studio)
+- `artifacts/resale-app/src/lib/pricing.ts`: the fee maths (Poshmark $2.95 under $15 else 20%, buyer-paid $6.49 label with a $5 / $10 seller upgrade over 5 / 10 lb; Depop 0% selling fee, 3.3% + $0.45 processing on price plus shipping, optional 12% boost; Mercari 10% of price plus buyer-paid shipping), the "what do I list at to keep $X" reverse calculator, and the weight cheat sheet. Sources and check date are in the file header. Fee rules change (Mercari changes label prices Oct 19, 2026): re-check before launch and periodically.
+- `components/PricingPanel.tsx`: list price with an "AI suggestion?" button (Add suggestion / No thanks), weight with tap-to-fill "weight usuals", free-shipping and Depop-boost switches, live take-home per marketplace, and working backwards from a target. Shipping defaults to a typical $6.49 label and is editable under "Change".
+- `POST /api/ai/price-estimate` (api-server `routes/ai.ts`) now also looks up the seller's own past sales of the same brand or category and returns `yourSales` and `basis`. It is still an AI estimate, not live marketplace data. Next step for real comps: eBay Browse API (free developer key; active listings only, sold data is restricted).
+- "What I paid" moved to an optional collapsed "Private records" section. It is never sent to a marketplace and only drives profit figures.
+
 ## Screens
 Overview, Inventory, Listings (draft board), Orders, Listing studio, Shipping, Marketplaces (extension and connections), Analytics, AI assistant, Agent hub, Settings (new: profile, defaults, plan, CSV export), Help (new: quick start, draft states, FAQ, fee links), sign in, 404.
 
