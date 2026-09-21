@@ -13,6 +13,10 @@ import {
 } from "@workspace/db";
 import { enqueueDelistingTasksForSale, SUPPORTED_MARKETPLACES } from "../lib/marketplace-workflow";
 import { getAuthenticatedUser } from "../lib/auth";
+import { extractJsonObject, nimChat, nimProblem, NimError } from "../lib/nim";
+import { generateAllCopy, templateCopy, type CopyFacts, type PlatformCopy } from "../lib/listing-copy";
+import { PLAYBOOKS, PLATFORMS, TRENDS_AS_OF } from "../lib/platform-playbooks";
+import { IMAGE_DATA_URL, MAX_INLINE_IMAGE_CHARS, MAX_PHOTOS_READ, readPhotos } from "../lib/photo-read";
 
 const router: IRouter = Router();
 const itemStatus = z.enum(["draft", "active", "sold", "archived"]);
@@ -51,22 +55,6 @@ const draftRequirements: Record<string, Array<{ key: string; label: string; help
   mercari: [{ key: "description", label: "Description" }, { key: "brand", label: "Brand" }, { key: "category", label: "Category" }, { key: "condition", label: "Condition" }, { key: "price", label: "List price" }, { key: "weight", label: "Item/package weight" }, { key: "marketplaceDetails.mercariShippingMethod", label: "Shipping method" }, { key: "marketplaceDetails.mercariPayer", label: "Shipping payer" }, { key: "photos", label: "At least one photo" }],
 };
 
-function extractJson(content: string): Record<string, unknown> | null {
-  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? content;
-  const start = fenced.indexOf("{"); const end = fenced.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try { return JSON.parse(fenced.slice(start, end + 1)) as Record<string, unknown>; } catch { return null; }
-}
-async function callNim(system: string, prompt: string, maxTokens = 800) {
-  const key = process.env.NVIDIA_NIM_API_KEY;
-  if (!key) throw new Error("NVIDIA NIM is not configured");
-  const base = (process.env.NVIDIA_NIM_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
-  const model = process.env.NVIDIA_NIM_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b";
-  const response = await fetch(`${base}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, temperature: 0.35, max_tokens: maxTokens, messages: [{ role: "system", content: system }, { role: "user", content: prompt }] }) });
-  if (!response.ok) throw new Error(`NVIDIA NIM returned ${response.status}`);
-  const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return payload.choices?.[0]?.message?.content ?? "";
-}
 function itemValue(item: typeof itemsTable.$inferSelect, key: string): string | number | boolean | null {
   if (key === "photos") return item.photoRecords.length > 0 || item.photos.length > 0;
   if (key === "price") return item.price;
@@ -77,16 +65,44 @@ function itemValue(item: typeof itemsTable.$inferSelect, key: string): string | 
   }
   return (item as unknown as Record<string, string | number | boolean | null>)[key] ?? null;
 }
-function fallbackContent(item: typeof itemsTable.$inferSelect, platform: string) {
-  const descriptor = [item.condition.replaceAll("_", " "), item.brand, item.color, item.title].filter(Boolean).join(" · ");
-  const platformLine = platform === "poshmark" ? "Bundle-friendly and ready to ship." : platform === "depop" ? "Styled for discovery with clear condition details." : "Carefully packed and shipped with care.";
+const detailText = (details: Record<string, unknown>, key: string) => (typeof details[key] === "string" ? (details[key] as string) : undefined);
+/** The facts the copy writer may use, taken from a saved item. */
+function factsFromItem(item: typeof itemsTable.$inferSelect): CopyFacts {
+  const details = (item.marketplaceDetails ?? {}) as Record<string, unknown>;
   return {
-    title: [item.brand, item.color, item.title, item.size ? `Size ${item.size}` : ""].filter(Boolean).join(" ").slice(0, 80),
-    description: `${descriptor}\n\n${item.description || "Clean, accurately described resale item."}\n\nDetails: ${[item.category, item.size && `Size ${item.size}`, item.color, item.condition.replaceAll("_", " ")].filter(Boolean).join(" · ")}\n\n${platformLine}`,
-    tags: Array.from(new Set([item.brand, item.category, item.color, item.size, ...item.tags].filter((value): value is string => typeof value === "string" && value.length > 0))).slice(0, 8),
+    title: item.title, description: item.description ?? undefined, brand: item.brand ?? undefined, model: item.model ?? undefined, category: item.category ?? undefined,
+    subcategory: detailText(details, "subcategory"), department: detailText(details, "department"), size: item.size ?? undefined, color: item.color ?? undefined,
+    secondaryColor: detailText(details, "secondaryColor"), condition: item.condition, measurements: item.measurements ?? undefined, material: detailText(details, "material"),
+    pattern: detailText(details, "pattern"), fit: detailText(details, "fit"), style: detailText(details, "style"), flaws: detailText(details, "flaws"),
+    includedItems: detailText(details, "includedItems"), authenticity: detailText(details, "authenticity"), bundleInfo: detailText(details, "depopBundleInfo"),
+    originalPrice: detailText(details, "originalPrice"), tags: item.tags,
   };
 }
-function createDraftContent(item: typeof itemsTable.$inferSelect, platform: string) { return { ...fallbackContent(item, platform), usedFallback: true }; }
+type SavedCopy = { title: string; description: string; hashtags: string[] };
+/** Copy the seller wrote or approved in the studio is used as-is for drafts. */
+function savedCopyFor(item: typeof itemsTable.$inferSelect, platform: string): SavedCopy | null {
+  const all = (item.marketplaceDetails as Record<string, unknown>)?.platformCopy;
+  const entry = all && typeof all === "object" ? (all as Record<string, unknown>)[platform] : null;
+  if (!entry || typeof entry !== "object") return null;
+  const { title, description, hashtags } = entry as Record<string, unknown>;
+  if (typeof description !== "string" || !description.trim()) return null;
+  return { title: typeof title === "string" && title.trim() ? title : item.title, description, hashtags: Array.isArray(hashtags) ? hashtags.filter((tag): tag is string => typeof tag === "string") : [] };
+}
+type DraftContent = { title: string; description: string; tags: string[]; usedFallback: boolean; origin: "seller" | "ai" | "template"; reason?: string };
+/** Drafts use, in order: the seller's saved copy, fresh AI copy, or the plain template (flagged so the UI can say so). */
+async function draftContentFor(item: typeof itemsTable.$inferSelect): Promise<Record<string, DraftContent>> {
+  const facts = factsFromItem(item);
+  const missing = PLATFORMS.filter((platform) => !savedCopyFor(item, platform));
+  const generated: Record<string, PlatformCopy> = missing.length ? await generateAllCopy(facts, missing) : {};
+  const out: Record<string, DraftContent> = {};
+  for (const platform of PLATFORMS) {
+    const saved = savedCopyFor(item, platform);
+    if (saved) { out[platform] = { title: saved.title, description: saved.description, tags: saved.hashtags, usedFallback: false, origin: "seller" }; continue; }
+    const copy = generated[platform] ?? templateCopy(platform, facts);
+    out[platform] = { title: copy.title, description: copy.description, tags: copy.hashtags, usedFallback: copy.source === "template", origin: copy.source, reason: copy.reason };
+  }
+  return out;
+}
 async function ownedItem(id: number, userId: string) {
   const [item] = await db.select().from(itemsTable).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId)));
   return item;
@@ -140,34 +156,30 @@ router.patch("/workflow/items/:id", async (request, response): Promise<void> => 
 });
 type AssistFields = { title: string; description?: string | null; brand?: string | null; model?: string | null; category?: string | null; size?: string | null; color?: string | null; condition: string; measurements?: string | null; tags?: string[]; material?: string | null; flaws?: string | null };
 type AssistFocus = "all" | "title" | "tags";
-/** Suggests title / description / tags from the seller's own facts. Falls back to a plain template when the model is unavailable. */
+/**
+ * Suggests a canonical title / description / tags from the seller's own facts.
+ * If the AI cannot answer this throws, and the route reports the real reason. It never pretends a template is an AI answer.
+ */
 async function assistFromFields(item: AssistFields, focus: AssistFocus) {
   const tags = item.tags ?? [];
-  const condition = item.condition.replaceAll("_", " ");
-  const facts = [item.brand && `Brand: ${item.brand}`, item.model && `Style: ${item.model}`, item.category && `Category: ${item.category}`, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`, item.material && `Material: ${item.material}`, item.measurements && `Measurements: ${item.measurements}`, `Condition: ${condition}`, item.flaws && `Flaws: ${item.flaws}`].filter(Boolean) as string[];
-  const fallback = {
-    title: [item.brand, item.color, item.title, item.size ? `Size ${item.size}` : ""].filter(Boolean).join(" ").slice(0, 80),
-    description: [item.description?.trim() || `Pre-owned ${condition} ${item.title}.`, facts.join("\n")].filter(Boolean).join("\n\n"),
-    tags: Array.from(new Set([item.brand, item.category, item.color, item.size, ...tags].filter((value): value is string => typeof value === "string" && value.length > 0))).slice(0, 10),
-    category: item.category ?? "", color: item.color ?? "", size: item.size ?? "",
-    confidence: "Template from your entries. Review before using.", usedFallback: true,
+  const goal = focus === "title"
+    ? "Write ONE better item title: brand first (if given), then item type, then key attributes such as color, material, style or size. At most 80 characters, no emoji, no hype words, nothing that is not in the facts."
+    : focus === "tags"
+      ? "Suggest 8 to 10 short search tags a buyer would type for this item. Only tags that truly describe it."
+      : "Write a clear, honest description of 3 to 5 short sentences, plus a matching title and tags.";
+  const system = "You assist resale sellers. Return ONLY one JSON object with keys title, description, tags (array of strings), category, color, size and confidence. Use an empty string for anything you cannot support. Use only the seller's facts. Never invent measurements, flaws, brand, materials or authenticity. Do not claim you looked at photos.";
+  const facts = { title: item.title, description: item.description, brand: item.brand, model: item.model, category: item.category, size: item.size, color: item.color, material: item.material, condition: item.condition, measurements: item.measurements, flaws: item.flaws, tags };
+  const result = await nimChat({ messages: [{ role: "system", content: system }, { role: "user", content: `${goal}\nSeller facts: ${JSON.stringify(facts)}` }], maxTokens: 700, temperature: 0.35 });
+  const parsed = extractJsonObject(result.text);
+  if (!parsed) throw new NimError("The AI answered in a format the app could not read. Please try again.", "empty");
+  const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  return {
+    title: str(parsed.title).slice(0, 80) || item.title,
+    description: str(parsed.description) || item.description || "",
+    tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.replace(/^#/, "").trim()).filter(Boolean).slice(0, 10) : tags,
+    category: str(parsed.category) || item.category || "", color: str(parsed.color) || item.color || "", size: str(parsed.size) || item.size || "",
+    confidence: str(parsed.confidence) || "Seller review required", model: result.model,
   };
-  const goal = focus === "title" ? "Focus on a better title (under 80 characters, most searchable words first)." : focus === "tags" ? "Focus on 8-10 search tags a buyer would type." : "Write a clear, honest description of 3-5 short sentences plus a matching title and tags.";
-  try {
-    const content = await callNim("You assist resale sellers. Return only JSON with title, description, tags (array of strings), category, color, size, and confidence. Preserve uncertain fields as empty strings. Only use the facts given. Never invent measurements, flaws, brand or materials. Do not claim you analyzed an image.", `${goal} Seller-entered data: ${JSON.stringify({ title: item.title, description: item.description, brand: item.brand, model: item.model, category: item.category, size: item.size, color: item.color, material: item.material, condition: item.condition, measurements: item.measurements, flaws: item.flaws, tags })}`, 700);
-    const parsed = extractJson(content);
-    if (!parsed) return fallback;
-    return {
-      title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title : fallback.title,
-      description: typeof parsed.description === "string" && parsed.description.trim() ? parsed.description : fallback.description,
-      tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 10) : fallback.tags,
-      category: typeof parsed.category === "string" && parsed.category ? parsed.category : fallback.category,
-      color: typeof parsed.color === "string" && parsed.color ? parsed.color : fallback.color,
-      size: typeof parsed.size === "string" && parsed.size ? parsed.size : fallback.size,
-      confidence: typeof parsed.confidence === "string" ? parsed.confidence : "Seller review required",
-      usedFallback: false,
-    };
-  } catch { return fallback; }
 }
 const assistBody = z.object({
   title: z.string().trim().min(1), description: z.string().optional(), brand: z.string().optional(), model: z.string().optional(),
@@ -175,25 +187,67 @@ const assistBody = z.object({
   flaws: z.string().optional(), measurements: z.string().optional(), condition: condition.default("good"),
   tags: z.array(z.string()).default([]), focus: z.enum(["all", "title", "tags"]).default("all"),
 });
+const failAi = (response: import("express").Response, error: unknown) => {
+  response.status(error instanceof NimError && error.code === "not_configured" ? 503 : 502).json({ error: nimProblem(error) });
+};
 // Works straight from the form, so listing help does not need a saved item (or a database) first.
 router.post("/workflow/ai-assist", async (request, response): Promise<void> => {
   getAuthenticatedUser(response);
   const parsed = assistBody.safeParse(request.body);
-  if (!parsed.success) { response.status(400).json({ error: "Add an item title first. The co-pilot works from the facts you enter." }); return; }
+  if (!parsed.success) { response.status(400).json({ error: "Add an item title first. The AI works from the facts you enter." }); return; }
   const { focus, ...fields } = parsed.data;
-  response.json(await assistFromFields(fields, focus));
+  try { response.json(await assistFromFields(fields, focus)); } catch (error) { failAi(response, error); }
 });
 router.post("/workflow/items/:id/ai-assist", async (request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id; const item = await ownedItem(Number(request.params.id), userId);
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
-  response.json(await assistFromFields(item, "all"));
+  try { response.json(await assistFromFields(item, "all")); } catch (error) { failAi(response, error); }
+});
+
+const copyBody = z.object({
+  title: z.string().trim().min(1), description: z.string().optional(), brand: z.string().optional(), model: z.string().optional(), category: z.string().optional(),
+  subcategory: z.string().optional(), department: z.string().optional(), size: z.string().optional(), color: z.string().optional(), secondaryColor: z.string().optional(),
+  condition: condition.default("good"), measurements: z.string().optional(), material: z.string().optional(), pattern: z.string().optional(), fit: z.string().optional(),
+  style: z.string().optional(), flaws: z.string().optional(), includedItems: z.string().optional(), authenticity: z.string().optional(), bundleInfo: z.string().optional(),
+  originalPrice: z.string().optional(), tags: z.array(z.string()).default([]), platforms: z.array(marketplace).min(1).default([...PLATFORMS]),
+});
+// Per-platform copy (title, description, hashtags) written to each marketplace's own conventions. Works from the form, no saved item needed.
+router.post("/workflow/listing-copy", async (request, response): Promise<void> => {
+  getAuthenticatedUser(response);
+  const parsed = copyBody.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Add an item title first. The writer works from the facts you enter." }); return; }
+  const { platforms, ...facts } = parsed.data;
+  const copies = await generateAllCopy(facts, platforms);
+  const template = Object.values(copies).filter((copy) => copy.source === "template");
+  response.json({
+    copies, trendsAsOf: TRENDS_AS_OF,
+    playbooks: Object.fromEntries(platforms.map((platform) => [platform, { voice: PLAYBOOKS[platform].voice, sources: PLAYBOOKS[platform].sources, hashtags: PLAYBOOKS[platform].hashtags }])),
+    // If every platform fell back, the AI is down: say why once so the UI can show a clear notice.
+    aiProblem: template.length === Object.keys(copies).length ? template[0]?.reason ?? null : null,
+  });
+});
+
+const photoBody = z.object({
+  photos: z.array(z.string().max(MAX_INLINE_IMAGE_CHARS).regex(IMAGE_DATA_URL)).min(1).max(MAX_PHOTOS_READ),
+  hints: z.object({ title: z.string().optional(), brand: z.string().optional(), category: z.string().optional() }).optional(),
+});
+// "Read my photos": a vision model proposes listing facts from the photos. The seller reviews before anything is applied.
+router.post("/workflow/photo-read", async (request, response): Promise<void> => {
+  getAuthenticatedUser(response);
+  const parsed = photoBody.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Add 1 to 3 photos (JPG, PNG or WEBP). The app shrinks them before sending." }); return; }
+  try {
+    const { facts, model, photosRead } = await readPhotos(parsed.data.photos, parsed.data.hints);
+    response.json({ ...facts, model, photosRead });
+  } catch (error) { failAi(response, error); }
 });
 router.post("/workflow/items/:id/marketplace-drafts", async (request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id; const item = await ownedItem(Number(request.params.id), userId);
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
   const drafts = [];
+  const contents = await draftContentFor(item);
   for (const platform of SUPPORTED_MARKETPLACES) {
-    const content = createDraftContent(item, platform);
+    const content = contents[platform];
     const requirements = draftRequirements[platform].map((field) => ({ ...field, required: true, value: itemValue(item, field.key) }));
     const missingFields = requirements.filter((field) => field.value === null || field.value === "" || field.value === false || field.value === 0).map((field) => field.key);
     const calculatedStatus = missingFields.length === 0 ? "ready" : "draft";
@@ -204,7 +258,7 @@ router.post("/workflow/items/:id/marketplace-drafts", async (request, response):
     ));
     const status = existing && FINAL_MARKETPLACE_STATUSES.has(existing.status) ? existing.status : calculatedStatus;
     const [draft] = await db.insert(marketplaceDraftsTable).values({ userId, itemId: item.id, marketplace: platform, status, title: content.title, description: content.description, tags: content.tags, price: item.price, requiredFields: requirements, missingFields }).onConflictDoUpdate({ target: [marketplaceDraftsTable.itemId, marketplaceDraftsTable.marketplace], set: { status, title: content.title, description: content.description, tags: content.tags, price: item.price, requiredFields: requirements, missingFields } }).returning();
-    drafts.push({ ...draft, usedFallback: content.usedFallback });
+    drafts.push({ ...draft, usedFallback: content.usedFallback, copyOrigin: content.origin, copyReason: content.reason ?? null });
   }
   response.json(drafts);
 });

@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db, itemsTable, ordersTable } from "@workspace/db";
 import { getAuthenticatedUser } from "../lib/auth";
+import { extractJsonObject, nimChat, nimProblem, type NimMessage } from "../lib/nim";
+import { compsEstimate, findComps } from "../lib/comps";
 import {
   GenerateListingBody,
   GenerateListingResponse,
@@ -13,41 +15,15 @@ import {
 
 const router: IRouter = Router();
 
-type NimMessage = { role: "system" | "user" | "assistant"; content: string };
-
-type NimPayload = {
-  choices?: Array<{ message?: { content?: string } }>;
-};
-
+/** All AI calls go through the shared client (lib/nim.ts): live model list, fallbacks, readable failure reasons. */
 async function callNim(messages: NimMessage[], maxTokens = 1200): Promise<string> {
-  const apiKey = process.env.NVIDIA_NIM_API_KEY;
-  if (!apiKey) throw new Error("NVIDIA_NIM_API_KEY is not configured");
-
-  const baseUrl = (process.env.NVIDIA_NIM_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
-  const model = process.env.NVIDIA_NIM_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b";
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature: 0.2, max_tokens: maxTokens }),
-  });
-
-  if (!response.ok) {
-    const providerBody = (await response.text()).slice(0, 500);
-    throw new Error(`NVIDIA NIM returned HTTP ${response.status}${providerBody ? `: ${providerBody}` : ""}`);
-  }
-
-  const payload = await response.json() as NimPayload;
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new Error("NVIDIA NIM returned an empty response");
-  return content;
+  return (await nimChat({ messages, maxTokens, temperature: 0.2 })).text;
 }
 
 function parseJsonResponse<T>(text: string): T {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? text;
-  const start = fenced.indexOf("{");
-  const end = fenced.lastIndexOf("}");
-  if (start < 0 || end < start) throw new Error("NVIDIA NIM did not return a JSON object");
-  return JSON.parse(fenced.slice(start, end + 1)) as T;
+  const parsed = extractJsonObject(text);
+  if (!parsed) throw new Error("The AI answered in a format the app could not read. Please try again.");
+  return parsed as T;
 }
 
 function asNumber(value: unknown): number | undefined {
@@ -166,11 +142,16 @@ router.post("/ai/price-estimate", async (req, res): Promise<void> => {
   }
 
   const { title, brand, model, condition, category } = parsed.data;
+  const userId = getAuthenticatedUser(res).id;
+
+  // 1. Real comparable prices from eBay (sold prices when SoldComps is connected). No AI needed for the numbers.
+  const comps = await findComps({ title, brand: brand ?? undefined, model: model ?? undefined });
+  // 2. The seller's own past sales of similar items (same brand or category) add context and anchor the AI fallback.
+  let yourSales: { count: number; average: number; low: number; high: number } | null = null;
+  let sales: Array<{ price: number; title: string; brand: string | null; condition: string; marketplace: string }> = [];
   try {
-    // The seller's own past sales of similar items (same brand or category) anchor the estimate.
-    const userId = getAuthenticatedUser(res).id;
     const similar = [brand ? ilike(itemsTable.brand, brand.trim()) : undefined, category ? eq(itemsTable.category, category) : undefined].filter(Boolean);
-    const sales = similar.length === 0 ? [] : await db
+    sales = similar.length === 0 ? [] : await db
       .select({ price: ordersTable.salePrice, title: itemsTable.title, brand: itemsTable.brand, condition: itemsTable.condition, marketplace: ordersTable.marketplace })
       .from(ordersTable)
       .innerJoin(itemsTable, eq(ordersTable.itemId, itemsTable.id))
@@ -178,18 +159,32 @@ router.post("/ai/price-estimate", async (req, res): Promise<void> => {
       .orderBy(desc(ordersTable.createdAt))
       .limit(15);
     const salePrices = sales.map((sale) => sale.price).filter((price) => price > 0);
-    const yourSales = salePrices.length
+    yourSales = salePrices.length
       ? { count: salePrices.length, average: Number((salePrices.reduce((sum, price) => sum + price, 0) / salePrices.length).toFixed(2)), low: Math.min(...salePrices), high: Math.max(...salePrices) }
       : null;
+  } catch { /* Sales history is optional context; the suggestion still works without it. */ }
 
+  const compsInfo = { searchUrl: comps.searchUrl, query: comps.query, note: comps.note };
+  if (comps.result) {
+    const estimate = compsEstimate(comps.result);
+    res.json({
+      ...estimate,
+      reasoning: yourSales ? `${estimate.reasoning} Your own ${yourSales.count} similar sale(s) averaged $${yourSales.average.toFixed(2)}.` : estimate.reasoning,
+      yourSales,
+      comps: { ...compsInfo, source: comps.result.source, provider: comps.result.provider, count: comps.result.count, median: comps.result.median, low: comps.result.p25, high: comps.result.p75, samples: comps.result.samples },
+    });
+    return;
+  }
+
+  try {
     const raw = await callNim([
       { role: "system", content: "You are a resale pricing analyst. Return only one valid JSON object with exactly these keys: suggestedPrice, minPrice, maxPrice, confidence, reasoning. All three price fields must be numbers. Confidence must be low, medium, or high. Use conservative ranges. reasoning must be two short sentences, say this is an estimate rather than live marketplace data, and mention the seller's own sales when they are provided. If seller sales are provided, weight them heavily." },
       { role: "user", content: JSON.stringify({ title, brand, model, condition, category, sellerPastSales: sales.slice(0, 10) }) },
     ], 1400);
     const estimate = normalizePriceEstimate(parseJsonResponse(raw));
-    res.json({ ...estimate, yourSales, basis: yourSales ? `AI estimate + ${yourSales.count} of your past sales` : "AI estimate only" });
+    res.json({ ...estimate, yourSales, basis: yourSales ? `AI estimate + ${yourSales.count} of your past sales` : "AI estimate only (no eBay comps connected)", comps: { ...compsInfo, source: null, count: 0, samples: [] } });
   } catch (error) {
-    res.status(502).json({ error: error instanceof Error ? error.message : "NVIDIA NIM price estimation failed" });
+    res.status(502).json({ error: nimProblem(error), ...compsInfo });
   }
 });
 
@@ -209,7 +204,7 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
     const result = parseJsonResponse<Record<string, unknown>>(raw);
     res.json(AiChatResponse.parse({ reply: asString(result.reply, "I could not generate a response."), suggestions: asStringArray(result.suggestions) }));
   } catch (error) {
-    res.status(502).json({ error: error instanceof Error ? error.message : "NVIDIA NIM chat failed" });
+    res.status(502).json({ error: nimProblem(error) });
   }
 });
 

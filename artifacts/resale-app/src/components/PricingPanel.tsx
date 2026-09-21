@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useMemo, useState } from 'react';
+import { Check, ExternalLink, Loader2, Sparkles } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -16,11 +16,10 @@ type PriceSuggestion = {
   reasoning: string;
   basis?: string;
   yourSales?: { count: number; average: number; low: number; high: number } | null;
+  comps?: { source: 'sold' | 'active' | null; count: number; query: string; searchUrl: string; note: string; median?: number; low?: number; high?: number; samples: Array<{ title: string; price: number; endedAt?: string; url?: string }> };
 };
 
 type Props = {
-  /** Bump this number to ask for a price suggestion from outside (the co-pilot's Estimate price button). */
-  askSignal?: number;
   price: string;
   weight: string;
   cost: string;
@@ -34,13 +33,14 @@ type Props = {
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 const asNumber = (value: string) => Math.max(0, Number(value) || 0);
 
-export default function PricingPanel({ askSignal = 0, price, weight, cost, ship, item, onPrice, onWeight, onShip }: Props) {
+export default function PricingPanel({ price, weight, cost, ship, item, onPrice, onWeight, onShip }: Props) {
   const { toast } = useToast();
   const [suggestion, setSuggestion] = useState<PriceSuggestion | null>(null);
   const [loading, setLoading] = useState(false);
   const [target, setTarget] = useState('');
   const [editShip, setEditShip] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lookupUrl, setLookupUrl] = useState<string | null>(null);
 
   const listPrice = asNumber(price);
   const weightLb = asNumber(weight);
@@ -51,8 +51,9 @@ export default function PricingPanel({ askSignal = 0, price, weight, cost, ship,
 
   const askForSuggestion = async () => {
     setNotice(null);
+    setLookupUrl(null);
     if (!item.title.trim()) {
-      setNotice('Add an item title first. The AI needs to know what the item is before it can suggest a price.');
+      setNotice('Add an item title first. The price check searches eBay using your title, brand and style.');
       return;
     }
     setLoading(true);
@@ -70,7 +71,8 @@ export default function PricingPanel({ askSignal = 0, price, weight, cost, ship,
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'The AI could not suggest a price right now.');
+      if (data?.searchUrl) setLookupUrl(data.searchUrl);
+      if (!response.ok) throw new Error(data.error || 'The price check could not finish right now.');
       setSuggestion(data as PriceSuggestion);
     } catch (error) {
       setNotice(`No suggestion this time. ${error instanceof Error ? error.message : 'Please try again in a moment.'}`);
@@ -78,11 +80,6 @@ export default function PricingPanel({ askSignal = 0, price, weight, cost, ship,
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (askSignal > 0) void askForSuggestion();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [askSignal]);
 
   const acceptSuggestion = () => {
     if (!suggestion) return;
@@ -105,7 +102,7 @@ export default function PricingPanel({ askSignal = 0, price, weight, cost, ship,
             <Input type="number" min="0" step="0.01" value={price} onChange={(event) => onPrice(event.target.value)} placeholder="0.00" className="bg-card" />
             <Button type="button" variant="outline" onClick={askForSuggestion} disabled={loading} className="shrink-0">
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              AI suggestion?
+              Suggest a price
             </Button>
           </div>
         </div>
@@ -115,12 +112,17 @@ export default function PricingPanel({ askSignal = 0, price, weight, cost, ship,
         </div>
       </div>
 
-      {notice && <p role="alert" className="border-2 border-l-[10px] border-border border-l-destructive bg-warning-tint px-3 py-2 text-sm font-semibold text-foreground">{notice}</p>}
+      {notice && (
+        <div role="alert" className="border-2 border-l-[10px] border-border border-l-destructive bg-warning-tint px-3 py-2 text-sm font-semibold text-foreground">
+          <p>{notice}</p>
+          {lookupUrl && <a className="mt-1 inline-flex items-center gap-1 underline underline-offset-4" href={lookupUrl} target="_blank" rel="noreferrer">See sold prices on eBay yourself <ExternalLink size={13} /></a>}
+        </div>
+      )}
 
       {suggestion && (
         <div className="space-y-3 border-2 border-border bg-accent-tint p-4" role="status">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="cx-eyebrow">✦ AI suggestion / {suggestion.confidence} confidence</p>
+            <p className="cx-eyebrow">✦ {suggestion.comps?.source === 'sold' ? 'Recent eBay sold prices' : suggestion.comps?.source === 'active' ? 'eBay asking prices' : 'AI estimate'} / {suggestion.confidence} confidence</p>
             <p className="text-[0.625rem] font-medium uppercase tracking-[0.04em] text-ink-2">{suggestion.basis ?? 'AI estimate only'}</p>
           </div>
           <p className="cx-metric">{money(suggestion.suggestedPrice)}</p>
@@ -129,11 +131,24 @@ export default function PricingPanel({ askSignal = 0, price, weight, cost, ship,
             <p className="text-sm text-ink-2">Your {suggestion.yourSales.count} past {suggestion.yourSales.count === 1 ? 'sale' : 'sales'} of similar items averaged {money(suggestion.yourSales.average)} ({money(suggestion.yourSales.low)} to {money(suggestion.yourSales.high)}).</p>
           )}
           <p className="text-sm text-ink-2">{suggestion.reasoning}</p>
+          {suggestion.comps && suggestion.comps.samples.length > 0 && (
+            <ul className="space-y-1 border-t border-border pt-2 text-xs text-ink-2">
+              {suggestion.comps.samples.map((sample, index) => (
+                <li key={`${sample.title}-${index}`} className="flex justify-between gap-3">
+                  <span className="min-w-0 truncate">{sample.url ? <a className="underline underline-offset-4" href={sample.url} target="_blank" rel="noreferrer">{sample.title}</a> : sample.title}{sample.endedAt ? ` · ${sample.endedAt.slice(0, 10)}` : ''}</span>
+                  <span className="tabular-nums font-semibold">{money(sample.price)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={acceptSuggestion}><Check size={16} /> Add suggestion</Button>
             <Button type="button" variant="outline" onClick={() => setSuggestion(null)}>No thanks</Button>
+            {suggestion.comps?.searchUrl && <a className={buttonVariants({ variant: 'outline' })} href={suggestion.comps.searchUrl} target="_blank" rel="noreferrer">See sold comps on eBay <ExternalLink size={14} /></a>}
           </div>
-          <p className="text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground">An estimate, not live marketplace data. Check recent sold listings before you commit.</p>
+          <p className="text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            {suggestion.comps?.source === 'sold' ? 'Searched eBay for "' + suggestion.comps.query + '". Different condition, size or bundle can move the price, so glance at the samples.' : suggestion.comps?.source === 'active' ? 'Asking prices are not sold prices. Sold prices usually land lower.' : `An estimate, not live marketplace data. ${suggestion.comps?.note ?? ''} Check recent sold listings before you commit.`}
+          </p>
         </div>
       )}
 
