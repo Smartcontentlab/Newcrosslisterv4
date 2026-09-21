@@ -30,12 +30,26 @@ Source of truth: the "Crosslister" design system (Framer, "Readable Shape"), mir
 - `POST /api/ai/price-estimate` (api-server `routes/ai.ts`) now also looks up the seller's own past sales of the same brand or category and returns `yourSales` and `basis`. It is still an AI estimate, not live marketplace data. Next step for real comps: eBay Browse API (free developer key; active listings only, sold data is restricted).
 - "What I paid" moved to an optional collapsed "Private records" section. It is never sent to a marketplace and only drives profit figures.
 
+## Photo workbench: "whole item" cutout
+- `src/lib/cutout.ts` (used by `processPhoto` in `pages/listing-studio.tsx`). Problem it fixes: the cutout model (`@imgly/background-removal`, ISNet) keeps the most eye-catching object, so a white or grey garment on a light bed or floor came back as only the printed graphic. Tested with the small, medium and full model sizes: same result, so a bigger model does not help.
+- How it works: run the model, then use its answer as a hint and grow it to the real garment edge with GrabCut (OpenCV, colour-based) on a 480 px copy. If the model already covers 90% or more of the item, its result is used untouched. If GrabCut fails or swallows the frame, it falls back to the model result.
+- Measured on synthetic flat-lay tees (white on cream, grey on grey carpet, white on white, black on dark wood): share of the garment kept went from about 14-15% to 99% on the light ones; the black-on-dark case was already fine and stays untouched. On real catalogue photos a white tee that came back see-through is now solid. Not yet measured on the user's own photos.
+- Cost: OpenCV loads only when a cutout runs (about 15 MB, 3.9 MB compressed, browser-cached). The model files come from the imgly CDN at run time, as before. The output is capped at 2400 px on the long side.
+- White backdrop now adds a soft contact shadow so a white item stays visible.
+- Licence flag for the app-store plan: `@imgly/background-removal` is AGPL-3.0 (its own licence file). Fine for a private tool; before selling or shipping the app, either buy their commercial licence or swap the cutout step for a permissively licensed model. BiRefNet (MIT) gives better edges but its browser build ran out of memory in testing (224 MB fp32 model), so it would need a server-side step.
+
+## Listing help (section 02) and messages
+- Root cause of "nothing happens": the app never mounted the toast component, so every success and error message (including "add a title first") was invisible. `<Toaster />` is now mounted in `App.tsx` and styled to the design system. Any older toast in the app now shows for the first time.
+- Write description / Improve title / Suggest tags now call `POST /api/workflow/ai-assist`, which works straight from the form fields (no saved item, no database needed). If the NVIDIA model is not configured or fails, it returns a plain template built from the entries and says so. Messages also appear inline in the card.
+- Estimate price now triggers the same "AI suggestion?" flow as the price box (you choose whether to add it) instead of overwriting the list price.
+
 ## Screens
 Overview, Inventory, Listings (draft board), Orders, Listing studio, Shipping, Marketplaces (extension and connections), Analytics, AI assistant, Agent hub, Settings (new: profile, defaults, plan, CSV export), Help (new: quick start, draft states, FAQ, fee links), sign in, 404.
 
 ## Verified vs not verified
 Verified: typecheck passes for the app and API, `pnpm run build:vercel` succeeds, every screen renders at desktop and phone width and in the empty state with mocked data, `supabase/schema.sql` runs twice cleanly on Postgres 16 and the signup trigger creates profiles.
-Not verified: a real sign-up and real data against the live Supabase project, the AI endpoints with a real NVIDIA key, the Chrome extension against live Poshmark, Depop and Mercari pages (their pages change and the selectors may need tuning).
+Verified in a browser this round: listing-help buttons and messages, and the cutout on synthetic and catalogue photos (real model, real OpenCV).
+Not verified: the cutout on the user's own photos, a real sign-up and real data against the live Supabase project, the AI endpoints with a real NVIDIA key, the Chrome extension against live Poshmark, Depop and Mercari pages (their pages change and the selectors may need tuning).
 
 ## Known gaps and risks
 - `artifacts/api-server/src/lib/auth.ts` falls back to a hardcoded Supabase URL and publishable key when env vars are missing. Publishable keys are public by design but the fallback should be removed before other tenants use the app.

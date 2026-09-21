@@ -138,15 +138,55 @@ router.patch("/workflow/items/:id", async (request, response): Promise<void> => 
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
   response.json(item);
 });
+type AssistFields = { title: string; description?: string | null; brand?: string | null; model?: string | null; category?: string | null; size?: string | null; color?: string | null; condition: string; measurements?: string | null; tags?: string[]; material?: string | null; flaws?: string | null };
+type AssistFocus = "all" | "title" | "tags";
+/** Suggests title / description / tags from the seller's own facts. Falls back to a plain template when the model is unavailable. */
+async function assistFromFields(item: AssistFields, focus: AssistFocus) {
+  const tags = item.tags ?? [];
+  const condition = item.condition.replaceAll("_", " ");
+  const facts = [item.brand && `Brand: ${item.brand}`, item.model && `Style: ${item.model}`, item.category && `Category: ${item.category}`, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`, item.material && `Material: ${item.material}`, item.measurements && `Measurements: ${item.measurements}`, `Condition: ${condition}`, item.flaws && `Flaws: ${item.flaws}`].filter(Boolean) as string[];
+  const fallback = {
+    title: [item.brand, item.color, item.title, item.size ? `Size ${item.size}` : ""].filter(Boolean).join(" ").slice(0, 80),
+    description: [item.description?.trim() || `Pre-owned ${condition} ${item.title}.`, facts.join("\n")].filter(Boolean).join("\n\n"),
+    tags: Array.from(new Set([item.brand, item.category, item.color, item.size, ...tags].filter((value): value is string => typeof value === "string" && value.length > 0))).slice(0, 10),
+    category: item.category ?? "", color: item.color ?? "", size: item.size ?? "",
+    confidence: "Template from your entries. Review before using.", usedFallback: true,
+  };
+  const goal = focus === "title" ? "Focus on a better title (under 80 characters, most searchable words first)." : focus === "tags" ? "Focus on 8-10 search tags a buyer would type." : "Write a clear, honest description of 3-5 short sentences plus a matching title and tags.";
+  try {
+    const content = await callNim("You assist resale sellers. Return only JSON with title, description, tags (array of strings), category, color, size, and confidence. Preserve uncertain fields as empty strings. Only use the facts given. Never invent measurements, flaws, brand or materials. Do not claim you analyzed an image.", `${goal} Seller-entered data: ${JSON.stringify({ title: item.title, description: item.description, brand: item.brand, model: item.model, category: item.category, size: item.size, color: item.color, material: item.material, condition: item.condition, measurements: item.measurements, flaws: item.flaws, tags })}`, 700);
+    const parsed = extractJson(content);
+    if (!parsed) return fallback;
+    return {
+      title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title : fallback.title,
+      description: typeof parsed.description === "string" && parsed.description.trim() ? parsed.description : fallback.description,
+      tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 10) : fallback.tags,
+      category: typeof parsed.category === "string" && parsed.category ? parsed.category : fallback.category,
+      color: typeof parsed.color === "string" && parsed.color ? parsed.color : fallback.color,
+      size: typeof parsed.size === "string" && parsed.size ? parsed.size : fallback.size,
+      confidence: typeof parsed.confidence === "string" ? parsed.confidence : "Seller review required",
+      usedFallback: false,
+    };
+  } catch { return fallback; }
+}
+const assistBody = z.object({
+  title: z.string().trim().min(1), description: z.string().optional(), brand: z.string().optional(), model: z.string().optional(),
+  category: z.string().optional(), size: z.string().optional(), color: z.string().optional(), material: z.string().optional(),
+  flaws: z.string().optional(), measurements: z.string().optional(), condition: condition.default("good"),
+  tags: z.array(z.string()).default([]), focus: z.enum(["all", "title", "tags"]).default("all"),
+});
+// Works straight from the form, so listing help does not need a saved item (or a database) first.
+router.post("/workflow/ai-assist", async (request, response): Promise<void> => {
+  getAuthenticatedUser(response);
+  const parsed = assistBody.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Add an item title first. The co-pilot works from the facts you enter." }); return; }
+  const { focus, ...fields } = parsed.data;
+  response.json(await assistFromFields(fields, focus));
+});
 router.post("/workflow/items/:id/ai-assist", async (request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id; const item = await ownedItem(Number(request.params.id), userId);
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
-  const fallback = { title: [item.brand, item.color, item.title, item.size ? `Size ${item.size}` : ""].filter(Boolean).join(" ").slice(0, 100), description: item.description || `Pre-owned ${item.condition.replaceAll("_", " ")} ${item.title}.`, tags: Array.from(new Set([item.brand, item.category, item.color, item.size, ...item.tags].filter(Boolean))).slice(0, 10), confidence: "Needs seller review", usedFallback: true };
-  try {
-    const content = await callNim("You assist resale sellers. Return only JSON with title, description, tags, category, color, size, and confidence. Preserve uncertain fields as empty strings. Do not claim you analyzed an image when image data is not provided.", `Suggest editable listing fields from this seller-entered data: ${JSON.stringify({ title: item.title, description: item.description, brand: item.brand, category: item.category, size: item.size, color: item.color, condition: item.condition, measurements: item.measurements, tags: item.tags })}`, 700);
-    const parsed = extractJson(content);
-    response.json({ title: typeof parsed?.title === "string" ? parsed.title : fallback.title, description: typeof parsed?.description === "string" ? parsed.description : fallback.description, tags: Array.isArray(parsed?.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 10) : fallback.tags, category: typeof parsed?.category === "string" ? parsed.category : item.category, color: typeof parsed?.color === "string" ? parsed.color : item.color, size: typeof parsed?.size === "string" ? parsed.size : item.size, confidence: typeof parsed?.confidence === "string" ? parsed.confidence : "Seller review required", usedFallback: !parsed });
-  } catch { response.json(fallback); }
+  response.json(await assistFromFields(item, "all"));
 });
 router.post("/workflow/items/:id/marketplace-drafts", async (request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id; const item = await ownedItem(Number(request.params.id), userId);

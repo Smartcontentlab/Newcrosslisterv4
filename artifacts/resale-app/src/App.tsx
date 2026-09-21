@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Switch, Router as WouterRouter } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
@@ -58,6 +59,7 @@ function App() {
       <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "") || ""}>
         <AuthProvider><AuthenticatedApplication /></AuthProvider>
       </WouterRouter>
+      <Toaster />
     </QueryClientProvider>
   );
 }

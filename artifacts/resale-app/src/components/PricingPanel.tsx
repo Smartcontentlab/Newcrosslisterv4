@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,8 @@ type PriceSuggestion = {
 };
 
 type Props = {
+  /** Bump this number to ask for a price suggestion from outside (the co-pilot's Estimate price button). */
+  askSignal?: number;
   price: string;
   weight: string;
   cost: string;
@@ -32,12 +34,13 @@ type Props = {
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 const asNumber = (value: string) => Math.max(0, Number(value) || 0);
 
-export default function PricingPanel({ price, weight, cost, ship, item, onPrice, onWeight, onShip }: Props) {
+export default function PricingPanel({ askSignal = 0, price, weight, cost, ship, item, onPrice, onWeight, onShip }: Props) {
   const { toast } = useToast();
   const [suggestion, setSuggestion] = useState<PriceSuggestion | null>(null);
   const [loading, setLoading] = useState(false);
   const [target, setTarget] = useState('');
   const [editShip, setEditShip] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const listPrice = asNumber(price);
   const weightLb = asNumber(weight);
@@ -47,8 +50,9 @@ export default function PricingPanel({ price, weight, cost, ship, item, onPrice,
   const sellerPays = ship.payer === 'seller';
 
   const askForSuggestion = async () => {
+    setNotice(null);
     if (!item.title.trim()) {
-      toast({ title: 'Add a title first', description: 'The AI needs to know what the item is before it can suggest a price.' });
+      setNotice('Add an item title first. The AI needs to know what the item is before it can suggest a price.');
       return;
     }
     setLoading(true);
@@ -69,11 +73,16 @@ export default function PricingPanel({ price, weight, cost, ship, item, onPrice,
       if (!response.ok) throw new Error(data.error || 'The AI could not suggest a price right now.');
       setSuggestion(data as PriceSuggestion);
     } catch (error) {
-      toast({ title: 'No suggestion this time', description: error instanceof Error ? error.message : 'Please try again in a moment.', variant: 'destructive' });
+      setNotice(`No suggestion this time. ${error instanceof Error ? error.message : 'Please try again in a moment.'}`);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (askSignal > 0) void askForSuggestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askSignal]);
 
   const acceptSuggestion = () => {
     if (!suggestion) return;
@@ -83,7 +92,7 @@ export default function PricingPanel({ price, weight, cost, ship, item, onPrice,
   };
 
   return (
-    <div className="space-y-4 border-2 border-border bg-muted p-4 sm:p-5 md:col-span-2 xl:col-span-3">
+    <div id="pricing-panel" className="space-y-4 border-2 border-border bg-muted p-4 sm:p-5 md:col-span-2 xl:col-span-3">
       <div>
         <p className="cx-eyebrow">✦ Pricing & shipping</p>
         <h3 className="cx-panel-title mt-2">Set a price / see what you keep</h3>
@@ -105,6 +114,8 @@ export default function PricingPanel({ price, weight, cost, ship, item, onPrice,
           <Input type="number" min="0" step="0.01" value={weight} onChange={(event) => onWeight(event.target.value)} placeholder="For shipping" className="mt-2 bg-card" />
         </div>
       </div>
+
+      {notice && <p role="alert" className="border-2 border-l-[10px] border-border border-l-destructive bg-warning-tint px-3 py-2 text-sm font-semibold text-foreground">{notice}</p>}
 
       {suggestion && (
         <div className="space-y-3 border-2 border-border bg-accent-tint p-4" role="status">
