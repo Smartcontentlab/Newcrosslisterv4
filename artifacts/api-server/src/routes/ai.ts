@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, itemsTable } from "@workspace/db";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { db, itemsTable, ordersTable } from "@workspace/db";
 import { getAuthenticatedUser } from "../lib/auth";
 import {
   GenerateListingBody,
@@ -167,11 +167,27 @@ router.post("/ai/price-estimate", async (req, res): Promise<void> => {
 
   const { title, brand, model, condition, category } = parsed.data;
   try {
+    // The seller's own past sales of similar items (same brand or category) anchor the estimate.
+    const userId = getAuthenticatedUser(res).id;
+    const similar = [brand ? ilike(itemsTable.brand, brand.trim()) : undefined, category ? eq(itemsTable.category, category) : undefined].filter(Boolean);
+    const sales = similar.length === 0 ? [] : await db
+      .select({ price: ordersTable.salePrice, title: itemsTable.title, brand: itemsTable.brand, condition: itemsTable.condition, marketplace: ordersTable.marketplace })
+      .from(ordersTable)
+      .innerJoin(itemsTable, eq(ordersTable.itemId, itemsTable.id))
+      .where(and(eq(ordersTable.userId, userId), or(...(similar as NonNullable<(typeof similar)[number]>[]))))
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(15);
+    const salePrices = sales.map((sale) => sale.price).filter((price) => price > 0);
+    const yourSales = salePrices.length
+      ? { count: salePrices.length, average: Number((salePrices.reduce((sum, price) => sum + price, 0) / salePrices.length).toFixed(2)), low: Math.min(...salePrices), high: Math.max(...salePrices) }
+      : null;
+
     const raw = await callNim([
-      { role: "system", content: "You are a resale pricing analyst. Return only one valid JSON object with exactly these keys: suggestedPrice, minPrice, maxPrice, confidence, reasoning. All three price fields must be numbers. Confidence must be low, medium, or high. Use conservative ranges and state that actual sold comparables should be checked." },
-      { role: "user", content: JSON.stringify({ title, brand, model, condition, category }) },
+      { role: "system", content: "You are a resale pricing analyst. Return only one valid JSON object with exactly these keys: suggestedPrice, minPrice, maxPrice, confidence, reasoning. All three price fields must be numbers. Confidence must be low, medium, or high. Use conservative ranges. reasoning must be two short sentences, say this is an estimate rather than live marketplace data, and mention the seller's own sales when they are provided. If seller sales are provided, weight them heavily." },
+      { role: "user", content: JSON.stringify({ title, brand, model, condition, category, sellerPastSales: sales.slice(0, 10) }) },
     ], 1400);
-    res.json(normalizePriceEstimate(parseJsonResponse(raw)));
+    const estimate = normalizePriceEstimate(parseJsonResponse(raw));
+    res.json({ ...estimate, yourSales, basis: yourSales ? `AI estimate + ${yourSales.count} of your past sales` : "AI estimate only" });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "NVIDIA NIM price estimation failed" });
   }

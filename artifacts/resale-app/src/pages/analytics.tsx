@@ -1,69 +1,126 @@
-import { useGetMonthlyRevenue, useGetTopCategories } from '@workspace/api-client-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from 'recharts';
+import {
+  useGetDashboardSummary,
+  useGetMarketplaceBreakdown,
+  useGetMonthlyRevenue,
+  useGetTopCategories,
+} from '@workspace/api-client-react';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { PageHeader } from '@/components/PageHeader';
+
+const money = (value: number | undefined, digits = 0) =>
+  `$${(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+
+const AXIS = { fontSize: 11, fontFamily: "'Nunito', system-ui, sans-serif", fontWeight: 600, fill: 'hsl(var(--muted-foreground))' } as const;
+
+type TooltipEntry = { name?: string; value?: number; color?: string };
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-none border border-border bg-card px-3 py-2">
+      <p className="cx-eyebrow mb-1">{label}</p>
+      {payload.map((entry, i) => (
+        <p key={i} className="font-semibold text-xs tabular-nums" style={{ color: entry.color }}>
+          {entry.name}: {money(entry.value)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="flex flex-col gap-3 border-2 border-border bg-muted p-5">
+      <p className="cx-eyebrow">{label}</p>
+      <p className="cx-metric">{value}</p>
+      {note && <p className="font-semibold text-xs text-ink-2">{note}</p>}
+    </div>
+  );
+}
 
 export default function Analytics() {
-  const { data: monthlyRevenue, isLoading: revLoad } = useGetMonthlyRevenue();
-  const { data: topCategories, isLoading: catLoad } = useGetTopCategories();
+  const { data: summary, isLoading: sumLoad } = useGetDashboardSummary();
+  const { data: monthly, isLoading: revLoad } = useGetMonthlyRevenue();
+  const { data: categories, isLoading: catLoad } = useGetTopCategories();
+  const { data: markets } = useGetMarketplaceBreakdown();
 
-  if (revLoad || catLoad) return <div className="h-64 bg-white/5 rounded-xl animate-pulse" />;
+  if (sumLoad || revLoad || catLoad) {
+    return <div className="h-64 animate-pulse rounded-none bg-muted" aria-busy="true" />;
+  }
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="glass-card p-3 rounded-lg border-border/50 shadow-xl bg-black/90">
-          <p className="font-pixel text-[10px] text-muted-foreground mb-2 uppercase">{label}</p>
-          {payload.map((entry: any, i: number) => (
-            <p key={i} className="font-sans text-sm font-bold" style={{ color: entry.color }}>
-              {entry.name}: ${entry.value.toFixed(0)}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
+  const empty = !monthly?.length && !categories?.length;
+  const maxMarket = Math.max(1, ...(markets ?? []).map((m) => m.totalRevenue));
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex items-end justify-between border-b border-border/50 pb-4">
-        <div>
-          <h1 className="font-pixel text-xl tracking-wide uppercase text-foreground mb-2">Analytics</h1>
-          <p className="text-xs font-sans text-muted-foreground uppercase tracking-widest">BUSINESS HEALTH METRICS</p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader label="Business health" title="Analytics" description="Revenue, profit and where your sales come from. Figures update as you record sales." />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Tile label="Lifetime revenue" value={money(summary?.totalRevenue)} />
+        <Tile label="Lifetime profit" value={money(summary?.totalProfit)} note="after fees and shipping" />
+        <Tile label="Avg sale price" value={money(summary?.avgSalePrice, 2)} />
+        <Tile label="Sell-through" value={`${Math.round((summary?.sellThroughRate ?? 0) * 100)}%`} note="sold vs. listed" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass-card p-6 rounded-xl border border-border/50">
-          <h2 className="font-sans text-sm font-bold text-muted-foreground uppercase tracking-widest mb-6">Revenue vs Profit</h2>
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyRevenue} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="month" stroke="#666" fontSize={10} fontFamily="Press Start 2P" tickLine={false} axisLine={false} dy={10} />
-                <YAxis stroke="#666" fontSize={10} fontFamily="'Nunito', sans-serif" tickFormatter={v => `$${v}`} tickLine={false} axisLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={3} dot={false} activeDot={{ r: 4, fill: "hsl(var(--primary))" }} />
-                <Line type="monotone" dataKey="profit" stroke="hsl(var(--accent))" strokeWidth={3} dot={false} activeDot={{ r: 4, fill: "hsl(var(--accent))" }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      {empty ? (
+        <div className="dot-grid border-2 border-dashed border-input bg-card p-12 text-center">
+          <p className="text-[0.9375rem] font-extrabold">Nothing to chart yet</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-ink-2">Record your first sale on the Orders page and your revenue, profit and category charts will appear here.</p>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <section className="border-2 border-border bg-muted p-6" aria-label="Revenue versus profit">
+            <div className="mb-4 flex items-baseline justify-between">
+              <h2 className="text-[0.9375rem] font-extrabold">Revenue vs profit</h2>
+              <span className="flex items-center gap-3 font-semibold text-[0.6875rem] uppercase tracking-[0.06em] text-ink-2">
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary" />Revenue</span>
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-foreground" />Profit</span>
+              </span>
+            </div>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthly} margin={{ top: 5, right: 8, left: -12, bottom: 0 }}>
+                  <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="month" tick={AXIS} tickLine={false} axisLine={false} dy={8} />
+                  <YAxis tick={AXIS} tickFormatter={(v) => `$${v}`} tickLine={false} axisLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Line type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="profit" name="Profit" stroke="hsl(var(--foreground))" strokeWidth={2.5} strokeDasharray="0" dot={false} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
 
-        <div className="glass-card p-6 rounded-xl border border-border/50">
-          <h2 className="font-sans text-sm font-bold text-muted-foreground uppercase tracking-widest mb-6">Top Categories</h2>
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topCategories} layout="vertical" margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                <XAxis type="number" stroke="#666" fontSize={10} fontFamily="'Nunito', sans-serif" tickFormatter={v => `$${v}`} tickLine={false} axisLine={false} />
-                <YAxis dataKey="category" type="category" stroke="#666" fontSize={10} fontFamily="Press Start 2P" width={90} tickLine={false} axisLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="totalRevenue" name="Revenue" fill="hsl(var(--secondary))" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <section className="border-2 border-border bg-muted p-6" aria-label="Top categories">
+            <h2 className="mb-4 text-[0.9375rem] font-extrabold">Top categories</h2>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categories} layout="vertical" margin={{ top: 5, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" tick={AXIS} tickFormatter={(v) => `$${v}`} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="category" type="category" tick={AXIS} width={96} tickLine={false} axisLine={false} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                  <Bar dataKey="totalRevenue" name="Revenue" fill="hsl(var(--primary))" radius={0} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
         </div>
-      </div>
+      )}
+
+      {(markets?.length ?? 0) > 0 && (
+        <section className="border-2 border-border bg-muted px-7 py-6" aria-label="Sales by marketplace">
+          <h2 className="pb-3 text-[0.9375rem] font-extrabold">Sales by marketplace</h2>
+          {markets!.map((m) => (
+            <div key={m.marketplace} className="grid grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-x-4 border-t border-border py-3">
+              <span className="text-[0.9375rem] font-medium capitalize">{m.marketplace}</span>
+              <div className="h-2 overflow-hidden rounded-none bg-muted" role="img" aria-label={`${money(m.totalRevenue)} revenue`}>
+                <div className="h-full rounded-none bg-primary" style={{ width: `${Math.max(4, (m.totalRevenue / maxMarket) * 100)}%` }} />
+              </div>
+              <span className="w-32 text-right font-semibold text-xs tabular-nums text-ink-2">{money(m.totalRevenue)} · {m.totalSales} sold</span>
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   );
 }

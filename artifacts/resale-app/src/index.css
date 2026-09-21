@@ -1,7 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@800&family=Nunito:wght@500;600;700;800;900&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import './styles/glitch.css';
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -24,10 +23,28 @@
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-ink-2: hsl(var(--ink-2));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-tint: hsl(var(--accent-tint));
+  --color-accent-text: hsl(var(--accent-text));
+  --color-accent-light: hsl(var(--accent-light));
+  --color-accent-hover: hsl(var(--accent-hover));
+  --color-accent-deep: hsl(var(--accent-deep));
+  --color-accent-alt: hsl(var(--accent-alt));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-danger-tint: hsl(var(--danger-tint));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-success-tint: hsl(var(--success-tint));
+  --color-warning: hsl(var(--warning));
+  --color-warning-tint: hsl(var(--warning-tint));
+  --color-inverse: hsl(var(--inverse));
+  --color-on-inverse: hsl(var(--on-inverse));
+  --color-on-inverse-muted: hsl(var(--on-inverse-muted));
+  --color-label-on-inverse: hsl(var(--label-on-inverse));
+  --color-dot-on-inverse: hsl(var(--dot-on-inverse));
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
@@ -38,116 +55,170 @@
   --color-sidebar-ring: hsl(var(--sidebar-ring));
   --font-sans: var(--app-font-sans);
   --font-mono: var(--app-font-mono);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --font-display: var(--app-font-display);
+  --font-pixel: var(--app-font-pixel);
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 }
 
+/* Crosslister design system (Framer "Readable Shape", synced 2026-09-21).
+   Light theme only. Square corners, 2px near-black frames, no shadows.
+   Values are HSL triplets of the hex tokens in the design system. */
 :root {
-  --background: 242 39% 5%;
-  --foreground: 252 35% 96%;
-  --border: 247 32% 21%;
-  --input: 242 34% 10%;
-  --ring: 267 96% 70%;
-  --card: 240 34% 8%;
-  --card-foreground: 252 35% 96%;
-  --card-border: 247 32% 21%;
-  --popover: 242 38% 7%;
-  --popover-foreground: 252 35% 96%;
-  --popover-border: 247 32% 25%;
-  --primary: 267 96% 70%;
-  --primary-foreground: 244 40% 7%;
-  --secondary: 250 32% 16%;
-  --secondary-foreground: 252 35% 96%;
-  --muted: 244 30% 12%;
-  --muted-foreground: 244 19% 65%;
-  --accent: 187 100% 70%;
-  --accent-foreground: 244 40% 7%;
-  --destructive: 350 100% 72%;
-  --destructive-foreground: 244 40% 7%;
-  --sidebar: 242 40% 6%;
-  --sidebar-foreground: 252 35% 96%;
-  --sidebar-border: 247 32% 18%;
-  --sidebar-primary: 267 96% 70%;
-  --sidebar-primary-foreground: 244 40% 7%;
-  --sidebar-accent: 247 35% 14%;
-  --sidebar-accent-foreground: 252 35% 96%;
-  --sidebar-ring: 267 96% 70%;
-  --app-font-sans: 'Inter', sans-serif;
-  --app-font-mono: 'DM Mono', monospace;
-  --radius: 0.8rem;
-  --neon-pink: 305 100% 76%;
-  --neon-purple: 267 96% 70%;
-  --neon-mint: 159 70% 67%;
-  --neon-blue: 187 100% 70%;
+  --background: 37 31% 95%;           /* ground #F6F3EE */
+  --foreground: 0 0% 9%;              /* ink #161616 */
+  --card: 40 100% 99%;                /* card #FFFDF9: rows and fields inside a panel */
+  --card-foreground: 0 0% 9%;
+  --card-border: 0 0% 9%;
+  --popover: 40 100% 99%;
+  --popover-foreground: 0 0% 9%;
+  --popover-border: 0 0% 9%;
+  --border: 0 0% 9%;                  /* grid-line #161616 */
+  --input: 0 0% 9%;
+  --ring: 0 0% 9%;
+  --primary: 329 82% 78%;             /* Signal Pink #F59AC9: fills only, ink text on it */
+  --primary-foreground: 0 0% 9%;
+  --secondary: 38 22% 90%;            /* panel #ECE8E1 */
+  --secondary-foreground: 0 0% 9%;
+  --muted: 38 22% 90%;                /* panel #ECE8E1 */
+  --muted-foreground: 30 7% 35%;      /* muted #5E5852 */
+  --ink-2: 30 6% 25%;                 /* ink-2 #45413D */
+  --accent: 38 22% 90%;               /* hover surface = panel */
+  --accent-foreground: 0 0% 9%;
+  --accent-tint: 330 42% 91%;         /* accent-tint #F1DDE7: the one washed panel per screen */
+  --accent-text: 0 0% 9%;             /* pink is 1.8:1 as text, so "accent text" is ink */
+  --accent-light: 329 82% 78%;
+  --accent-deep: 0 0% 9%;
+  --accent-alt: 329 82% 78%;          /* pink on the inverse strip */
+  --accent-hover: 326 100% 72%;       /* #FF70C2 */
+  --destructive: 3 71% 41%;           /* danger #b3261e */
+  --destructive-foreground: 0 0% 100%;
+  --danger-tint: 5 79% 95%;
+  --success: 73 74% 42%;              /* Status Lime #98B91C: live dot, Send fill */
+  --success-foreground: 0 0% 9%;
+  --success-tint: 71 55% 85%;
+  --warning: 39 100% 27%;             /* #8a5a00 */
+  --warning-tint: 40 100% 92%;
+  --inverse: 0 0% 9%;
+  --on-inverse: 37 31% 95%;
+  --on-inverse-muted: 37 12% 72%;
+  --label-on-inverse: 37 12% 72%;
+  --dot-on-inverse: 0 0% 25%;
+  --sidebar: 37 31% 95%;
+  --sidebar-foreground: 0 0% 9%;
+  --sidebar-border: 0 0% 9%;
+  --sidebar-primary: 329 82% 78%;
+  --sidebar-primary-foreground: 0 0% 9%;
+  --sidebar-accent: 38 22% 90%;
+  --sidebar-accent-foreground: 0 0% 9%;
+  --sidebar-ring: 0 0% 9%;
+  --app-font-display: 'Fira Sans', 'Nunito', system-ui, sans-serif;
+  --app-font-sans: 'Nunito', system-ui, sans-serif;
+  --app-font-mono: 'Nunito', system-ui, sans-serif;   /* no monospace in this system; numerals use tabular figures */
+  --app-font-pixel: 'Nunito', system-ui, sans-serif;
+  --radius: 0px;
 }
-
-.dark { color-scheme: dark; }
 
 @layer base {
   * { @apply border-border; }
-  html { background: hsl(var(--background)); }
+  html { background: hsl(var(--background)); color-scheme: light; }
   body {
     @apply font-sans antialiased bg-background text-foreground;
-    position: relative;
+    font-weight: 500;
     min-width: 320px;
     overflow-x: hidden;
-    background-image:
-      radial-gradient(circle at 72% -10%, hsl(var(--primary) / 0.18), transparent 28rem),
-      radial-gradient(circle at 0% 100%, hsl(var(--accent) / 0.06), transparent 26rem),
-      linear-gradient(hsl(var(--background)), hsl(var(--background)));
   }
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.25;
-    background-image: linear-gradient(hsl(var(--foreground) / 0.025) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground) / 0.025) 1px, transparent 1px);
-    background-size: 32px 32px;
-    mask-image: linear-gradient(to bottom, black, transparent 80%);
-  }
-  ::selection { background: hsl(var(--primary) / 0.35); color: hsl(var(--foreground)); }
-  ::-webkit-scrollbar { width: 7px; height: 7px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.55); }
+  /* Panel titles: uppercase Nunito 800. The page headline uses .cx-display. */
+  h1, h2, h3 { font-family: var(--app-font-sans); }
+  h2 { text-transform: uppercase; letter-spacing: 0.02em; font-weight: 800; }
+  ::selection { background: hsl(var(--primary)); color: hsl(var(--foreground)); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--muted)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--foreground)); border: 2px solid hsl(var(--muted)); }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 }
 
 @layer utilities {
-  .font-pixel { font-family: 'Press Start 2P', monospace; }
-  .font-mono { font-family: 'DM Mono', monospace; }
-  .neon-glow-pink { box-shadow: 0 0 14px hsl(var(--neon-pink) / 0.25); }
-  .neon-glow-purple { box-shadow: 0 0 14px hsl(var(--neon-purple) / 0.28); }
-  .neon-glow-mint { box-shadow: 0 0 14px hsl(var(--neon-mint) / 0.24); }
-  .neon-glow-blue { box-shadow: 0 0 14px hsl(var(--neon-blue) / 0.24); }
-  .text-glow-pink { text-shadow: 0 0 10px hsl(var(--neon-pink) / 0.55); }
-  .text-glow-purple { text-shadow: 0 0 10px hsl(var(--neon-purple) / 0.55); }
-  .text-glow-mint { text-shadow: 0 0 10px hsl(var(--neon-mint) / 0.45); }
-  .glass-card {
-    background: linear-gradient(145deg, hsl(var(--card) / 0.94), hsl(242 32% 6% / 0.9));
-    backdrop-filter: blur(16px);
-    border: 1px solid hsl(var(--border));
+  /* Type styles from the design system. */
+  .cx-display { font-family: var(--app-font-display); font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
+  .font-display { font-family: var(--app-font-sans); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .font-pixel { font-family: var(--app-font-sans); font-weight: 800; }
+  .font-mono { font-family: var(--app-font-sans); font-variant-numeric: tabular-nums; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  .cx-wordmark { font-family: var(--app-font-sans); font-weight: 900; letter-spacing: -0.06em; line-height: 1; }
+  .cx-metric { font-family: var(--app-font-sans); font-weight: 800; font-size: 2.375rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .cx-panel-title { font-weight: 800; font-size: 0.9375rem; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; }
+  .cx-link { font-weight: 700; font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; }
+  .cx-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Retired neon utilities: kept as no-ops so older markup keeps compiling. */
+  .neon-glow-pink, .neon-glow-purple, .neon-glow-mint, .neon-glow-blue,
+  .text-glow-pink, .text-glow-purple, .text-glow-mint { box-shadow: none; text-shadow: none; }
+
+  /* Surfaces: panel fill inside a 2px frame. */
+  .glass-card, .cx-panel, .glass-card-glow {
+    background: hsl(var(--muted));
+    border: 2px solid hsl(var(--border));
+    border-radius: 0;
   }
-  .glass-card-glow {
-    background: linear-gradient(145deg, hsl(var(--card) / 0.96), hsl(242 32% 6% / 0.9));
-    backdrop-filter: blur(16px);
-    border: 1px solid hsl(var(--border));
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+
+  /* Uppercase micro label. */
+  .cx-eyebrow {
+    font-family: var(--app-font-sans);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
   }
-  .glass-card-glow:hover {
-    border-color: hsl(var(--primary) / 0.55);
-    box-shadow: 0 12px 40px hsl(267 96% 20% / 0.22);
-    transform: translateY(-1px);
+  /* The old "[ label ]" brackets are retired; the sparkle leads eyebrows instead. */
+  .cx-bracket::before, .cx-bracket::after { content: none; }
+
+  /* Live status: a plain 10px lime dot, the only round shape. */
+  .cx-status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: hsl(var(--success));
+    flex-shrink: 0;
   }
-  .cx-panel {
+
+  /* The one inverse strip or tile per screen. Flat, no pattern. */
+  .tile-inverse {
     position: relative;
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--card) / 0.88);
-    box-shadow: inset 0 1px 0 hsl(var(--foreground) / 0.035), 0 18px 45px hsl(242 40% 2% / 0.28);
+    background: hsl(var(--inverse));
+    color: hsl(var(--on-inverse));
   }
-  .cx-eyebrow { font-family: 'DM Mono', monospace; font-size: 0.64rem; letter-spacing: 0.18em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
-  .cx-status-dot { width: 0.45rem; height: 0.45rem; border-radius: 999px; background: hsl(var(--accent)); box-shadow: 0 0 10px hsl(var(--accent) / 0.75); }
+
+  .corner-ticks { position: relative; }
+
+  /* Rotated sticker: pink fill, 2px frame. Use once per screen. */
+  .sticker {
+    display: inline-block;
+    transform: rotate(-4deg);
+    padding: 4px 8px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border: 2px solid hsl(var(--border));
+    font-weight: 900;
+    font-size: 0.625rem;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Empty states: dashed frame, no pattern. */
+  .dot-grid { background: transparent; }
+}
+
+@layer utilities {
+  .tile-inverse .cx-eyebrow { color: hsl(var(--on-inverse)); }
 }

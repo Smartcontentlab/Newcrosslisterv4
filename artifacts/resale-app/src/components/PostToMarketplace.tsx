@@ -29,7 +29,7 @@ const PLATFORMS: Platform[] = [
   {
     id: 'poshmark',
     label: 'Poshmark',
-    color: 'text-pink-400',
+    color: 'text-foreground',
     glowColor: '255,45,120',
     url: 'https://poshmark.com/create-listing',
     icon: '♥',
@@ -38,7 +38,7 @@ const PLATFORMS: Platform[] = [
   {
     id: 'depop',
     label: 'Depop',
-    color: 'text-red-400',
+    color: 'text-destructive',
     glowColor: '248,113,113',
     url: 'https://www.depop.com/sell/',
     icon: '★',
@@ -47,7 +47,7 @@ const PLATFORMS: Platform[] = [
   {
     id: 'mercari',
     label: 'Mercari',
-    color: 'text-blue-400',
+    color: 'text-foreground',
     glowColor: '96,165,250',
     url: 'https://www.mercari.com/sell/',
     icon: '✦',
@@ -56,7 +56,7 @@ const PLATFORMS: Platform[] = [
   {
     id: 'ebay',
     label: 'eBay',
-    color: 'text-yellow-400',
+    color: 'text-warning',
     glowColor: '250,204,21',
     url: 'https://www.ebay.com/sell',
     icon: '◆',
@@ -65,7 +65,7 @@ const PLATFORMS: Platform[] = [
   {
     id: 'grailed',
     label: 'Grailed',
-    color: 'text-purple-400',
+    color: 'text-foreground',
     glowColor: '192,132,252',
     url: 'https://www.grailed.com/sell',
     icon: '✧',
@@ -74,7 +74,7 @@ const PLATFORMS: Platform[] = [
   {
     id: 'etsy',
     label: 'Etsy',
-    color: 'text-orange-400',
+    color: 'text-warning',
     glowColor: '251,146,60',
     url: 'https://www.etsy.com/sell',
     icon: '◇',
@@ -94,10 +94,10 @@ function CopyField({ label, value, mono = false }: { label: string; value: strin
   return (
     <div className="space-y-1.5 group">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-pixel text-muted-foreground uppercase tracking-widest">{label}</span>
+        <span className="text-[10px] font-pixel text-muted-foreground">{label}</span>
         <button
           onClick={copy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-sans font-bold transition-all border border-transparent hover:bg-white/10 opacity-0 group-hover:opacity-100"
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-sans font-bold transition-all border border-transparent hover:bg-muted opacity-0 group-hover:opacity-100"
           style={copied ? { color: '#00FFD1', opacity: 1 } : { color: '#aaa' }}
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -105,7 +105,7 @@ function CopyField({ label, value, mono = false }: { label: string; value: strin
         </button>
       </div>
       <div
-        className="w-full rounded-lg px-4 py-3 text-sm font-sans text-foreground cursor-text select-all transition-all hover:bg-white/5 border border-white/5"
+        className="w-full rounded-none px-4 py-3 text-sm font-sans text-foreground cursor-text select-all transition-all hover:bg-muted border border-border"
         style={{
           background: 'rgba(0,0,0,0.2)',
           fontFamily: mono ? '"Spline Sans Mono", monospace' : undefined,
@@ -229,12 +229,12 @@ export default function PostToMarketplace({ item, open, onClose, initialPosted }
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="max-w-4xl h-[85vh] p-0 gap-0 overflow-hidden bg-background border-border shadow-2xl flex flex-col sm:flex-row"
+        className="max-w-4xl h-[85vh] p-0 gap-0 overflow-hidden bg-background border-border  flex flex-col sm:flex-row"
       >
         {/* Sidebar */}
-        <div className="w-full sm:w-56 border-b sm:border-b-0 sm:border-r border-border bg-black/20 flex flex-col shrink-0">
-          <div className="p-4 border-b border-border/50">
-            <h2 className="font-pixel text-xs text-muted-foreground uppercase tracking-widest mb-2">Posting Flow</h2>
+        <div className="w-full sm:w-56 border-b sm:border-b-0 sm:border-r border-border bg-muted flex flex-col shrink-0">
+          <div className="p-4 border-b border-border">
+            <h2 className="font-pixel text-xs text-muted-foreground mb-2">Posting Flow</h2>
             <p className="font-sans font-bold text-sm text-foreground truncate" title={item.title}>{item.title}</p>
           </div>
           
@@ -247,14 +247,14 @@ export default function PostToMarketplace({ item, open, onClose, initialPosted }
                 <button
                   key={platform.id}
                   onClick={() => switchPlatform(platform)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md text-left transition-all ${
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-none text-left transition-all ${
                     isActive 
-                      ? 'bg-white/10 text-foreground font-bold shadow-sm' 
-                      : 'hover:bg-white/5 text-muted-foreground font-medium'
+                      ? 'bg-muted text-foreground font-bold ' 
+                      : 'hover:bg-muted text-muted-foreground font-medium'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs ${isDone ? 'text-accent' : platform.color}`}>
+                    <span className={`text-xs ${isDone ? 'text-foreground' : platform.color}`}>
                       {isDone ? '♥' : platform.icon}
                     </span>
                     <span className="text-sm font-sans">{platform.label}</span>
@@ -265,14 +265,14 @@ export default function PostToMarketplace({ item, open, onClose, initialPosted }
             })}
           </div>
 
-          <div className="p-4 border-t border-border/50 bg-black/30">
+          <div className="p-4 border-t border-border bg-muted">
             <div className="flex items-center justify-between text-xs font-sans font-bold">
               <span className="text-muted-foreground">Progress</span>
-              <span className="text-accent">{posted.size} / {PLATFORMS.length}</span>
+              <span className="text-foreground">{posted.size} / {PLATFORMS.length}</span>
             </div>
-            <div className="h-1.5 bg-black rounded-full mt-2 overflow-hidden">
+            <div className="h-1.5 bg-black rounded-none mt-2 overflow-hidden">
               <div 
-                className="h-full bg-accent transition-all duration-500" 
+                className="h-full bg-success transition-all duration-500" 
                 style={{ width: `${(posted.size / PLATFORMS.length) * 100}%` }}
               />
             </div>
@@ -283,37 +283,37 @@ export default function PostToMarketplace({ item, open, onClose, initialPosted }
         <div className="flex-1 flex flex-col overflow-hidden relative">
           {allDone ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 animate-in zoom-in-95 duration-500">
-              <div className="w-24 h-24 rounded-full bg-accent/10 flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(0,255,209,0.2)]">
-                <CheckCircle2 size={48} className="text-accent" />
+              <div className="w-24 h-24 rounded-none bg-success-tint flex items-center justify-center mb-6">
+                <CheckCircle2 size={48} className="text-foreground" />
               </div>
-              <h2 className="font-pixel text-xl text-accent text-glow-mint mb-2">Omnipresent</h2>
+              <h2 className="font-pixel text-xl text-foreground  mb-2">Omnipresent</h2>
               <p className="font-sans text-muted-foreground text-center mb-8">
                 This item is live across all platforms. Wait for the offers to roll in.
               </p>
               <button
                 onClick={() => onClose()}
-                className="px-6 py-2.5 rounded-lg bg-white/5 border border-white/10 font-sans font-bold hover:bg-white/10 transition-colors"
+                className="px-6 py-2.5 rounded-none bg-muted border border-border font-sans font-bold hover:bg-muted transition-colors"
               >
                 Close Flow
               </button>
             </div>
           ) : isGenerating && !currentData ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8">
-              <Loader2 className="animate-spin text-primary mb-4" size={32} />
-              <p className="font-pixel text-xs text-primary animate-pulse">
+              <Loader2 className="animate-spin text-foreground mb-4" size={32} />
+              <p className="font-pixel text-xs text-foreground animate-pulse">
                 Optimizing for {activePlatform.label}...
               </p>
             </div>
           ) : isPosted ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/5">
-              <CheckCircle2 size={40} className="text-accent mb-4" />
+            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-success-tint">
+              <CheckCircle2 size={40} className="text-foreground mb-4" />
               <p className="font-sans font-bold text-lg mb-2">Live on {activePlatform.label}</p>
               <button
                 onClick={() => {
                   const nextPlatform = PLATFORMS.find(p => !posted.has(p.id));
                   if (nextPlatform) switchPlatform(nextPlatform);
                 }}
-                className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground font-sans font-bold hover:bg-accent/90 transition-colors"
+                className="mt-4 flex items-center gap-2 px-4 py-2 rounded-none bg-success text-success-foreground font-sans font-bold hover:bg-success-tint transition-colors"
               >
                 Next Platform <ArrowRight size={16} />
               </button>
@@ -321,13 +321,13 @@ export default function PostToMarketplace({ item, open, onClose, initialPosted }
           ) : currentData ? (
             <>
               {/* Header inside content */}
-              <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between shrink-0 bg-background/95 backdrop-blur z-10">
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0 bg-card  z-10">
                 <h3 className="font-sans font-bold text-lg flex items-center gap-2" style={{ color: `rgb(${activePlatform.glowColor})` }}>
                   {activePlatform.icon} {activePlatform.label} Listing
                 </h3>
                 <button
                   onClick={openPlatform}
-                  className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-sans font-bold transition-all shadow-sm"
+                  className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-sans font-bold transition-all "
                   style={{
                     background: `rgba(${activePlatform.glowColor},0.15)`,
                     color: `rgb(${activePlatform.glowColor})`,
@@ -363,14 +363,14 @@ export default function PostToMarketplace({ item, open, onClose, initialPosted }
                   )}
                 </div>
 
-                <div className="rounded-lg p-4 bg-white/5 border border-white/10 mt-8">
+                <div className="rounded-none p-4 bg-muted border border-border mt-8">
                   <p className="font-sans font-bold text-xs text-muted-foreground uppercase tracking-wider mb-2">
                     {activePlatform.label} Algorithm Tips
                   </p>
                   <ul className="space-y-1.5">
                     {activePlatform.tips.map((tip, i) => (
                       <li key={i} className="text-sm font-sans text-foreground flex items-start gap-2">
-                        <span className="text-primary opacity-70">▸</span> {tip}
+                        <span className="text-foreground opacity-70">▸</span> {tip}
                       </li>
                     ))}
                   </ul>
@@ -378,14 +378,14 @@ export default function PostToMarketplace({ item, open, onClose, initialPosted }
               </div>
 
               {/* Action Footer */}
-              <div className="p-4 border-t border-border/50 bg-black/20 shrink-0 flex items-center justify-between">
+              <div className="p-4 border-t border-border bg-muted shrink-0 flex items-center justify-between">
                 <p className="text-xs font-sans text-muted-foreground max-w-[200px] sm:max-w-none">
                   Paste the fields into {activePlatform.label}, then verify.
                 </p>
                 <button
                   onClick={markAsPosted}
                   disabled={!openedUrl || createListing.isPending}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-sans font-bold transition-all disabled:opacity-50 hover:-translate-y-0.5"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-none font-sans font-bold transition-all disabled:opacity-50 hover:-translate-y-0.5"
                   style={{
                     background: openedUrl ? 'hsl(var(--primary))' : 'rgba(255,255,255,0.05)',
                     color: openedUrl ? 'hsl(var(--primary-foreground))' : '#888',

@@ -77,6 +77,7 @@
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
     "@supabase/supabase-js": "^2.112.3",
+    "@techstark/opencv-js": "5.0.0-release.1",
     "onnxruntime-web": "1.21.0-dev.20250206-d981b153d3"
   }
 }

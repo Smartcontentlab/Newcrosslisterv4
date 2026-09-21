@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, buyCandidatesTable, type BuyCandidateComp } from "@workspace/db";
@@ -28,7 +28,7 @@ const candidateSchema = scanSchema.extend({
   comps: z.array(compSchema).max(3),
 });
 
-function unavailable(response: Parameters<IRouter["post"]>[1]) {
+function unavailable(response: Response) {
   response.status(502).json({
     error: "Sold comps are unavailable",
     code: "SOLD_COMPS_UNAVAILABLE",
@@ -60,11 +60,14 @@ router.post("/buy-scanner/candidates", async (request, response): Promise<void> 
     return;
   }
   const userId = getAuthenticatedUser(response).id;
+  // `condition` is accepted by the scan schema but is not persisted on buy_candidates.
+  const { condition: _condition, ...fields } = parsed.data;
   const [candidate] = await db.insert(buyCandidatesTable).values({
-    ...parsed.data,
-    brand: parsed.data.brand || null,
-    category: parsed.data.category || null,
-    comps: parsed.data.comps as BuyCandidateComp[],
+    ...fields,
+    userId,
+    brand: fields.brand || null,
+    category: fields.category || null,
+    comps: fields.comps as BuyCandidateComp[],
   }).returning();
   response.status(201).json(candidate);
 });
