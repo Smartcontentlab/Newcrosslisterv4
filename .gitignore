@@ -47,3 +47,12 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Vercel build outputs
+/public
+/serverless
+
+# local secrets (never commit)
+.env
+.env.*
+!.env.example

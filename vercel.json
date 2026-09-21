@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "pnpm run build:vercel",
+  "outputDirectory": "public",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "env": {
+    "VITE_SUPABASE_URL": "https://wxtwjuqajceahzxyquzm.supabase.co",
+    "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK",
+    "SUPABASE_URL": "https://wxtwjuqajceahzxyquzm.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK"
+  },
+  "functions": {
+    "api/[[...path]].js": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

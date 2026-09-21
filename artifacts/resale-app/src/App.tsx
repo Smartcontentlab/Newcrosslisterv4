@@ -14,6 +14,8 @@ import AiAssistant from "@/pages/ai-assistant";
 import AgentHub from "@/pages/agent";
 import ListingStudio from "@/pages/listing-studio";
 import Connections from "@/pages/connections";
+import SettingsPage from "@/pages/settings";
+import Help from "@/pages/help";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -33,6 +35,8 @@ function WorkspaceRoutes() {
       <Route path="/ai-assistant"><AppLayout><AiAssistant /></AppLayout></Route>
       <Route path="/agent"><AppLayout><AgentHub /></AppLayout></Route>
       <Route path="/connections"><AppLayout><Connections /></AppLayout></Route>
+      <Route path="/settings"><AppLayout><SettingsPage /></AppLayout></Route>
+      <Route path="/help"><AppLayout><Help /></AppLayout></Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -43,7 +47,7 @@ function AuthenticatedApplication() {
   useEffect(() => { queryClient.clear(); }, [user?.id]);
 
   if (!ready) {
-    return <main className="flex min-h-[100dvh] items-center justify-center bg-background text-sm text-muted-foreground"><span className="cx-status-dot mr-3" />Initializing secure workspace…</main>;
+    return <main className="flex min-h-[100dvh] items-center justify-center bg-background font-mono text-sm text-muted-foreground" role="status"><span className="cx-status-dot mr-3" />Initializing secure workspace…</main>;
   }
   return user ? <WorkspaceRoutes /> : <AuthPage />;
 }
