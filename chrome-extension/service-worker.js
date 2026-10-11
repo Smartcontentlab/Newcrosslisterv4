@@ -1,4 +1,4 @@
-const CROSS_LINK_ORIGIN = 'https://crosslinkos.vercel.app';
+const CROSS_LINK_ORIGIN = 'https://newcrosslisterv4000.vercel.app';
 const MARKETPLACES = ['poshmark', 'depop', 'mercari'];
 
 const startUrls = {

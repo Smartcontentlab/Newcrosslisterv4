@@ -148,7 +148,7 @@ export default function Connections() {
             </li>
           ))}
         </ol>
-        <p className="mt-4 text-xs leading-5 text-muted-foreground">Preview deployments and local dev servers are not recognized by the extension. It connects to the production app at crosslinkos.vercel.app only.</p>
+        <p className="mt-4 text-xs leading-5 text-muted-foreground">Preview deployments and local dev servers are not recognized by the extension. It connects to the production app at newcrosslisterv4000.vercel.app only.</p>
       </section>
 
       <section aria-label="More marketplaces" className="border-2 border-border bg-muted px-7 py-6">
