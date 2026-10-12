@@ -22,12 +22,40 @@ function platformFromUrl(value) {
 }
 
 async function getState() {
-  const result = await chrome.storage.session.get(['queue', 'connections', 'lastHandoffAt']);
+  const result = await chrome.storage.session.get(['queue', 'connections', 'lastHandoffAt', 'photosByItem']);
   return {
     queue: Array.isArray(result.queue) ? result.queue : [],
     connections: result.connections && typeof result.connections === 'object' ? result.connections : {},
     lastHandoffAt: result.lastHandoffAt,
+    photosByItem: result.photosByItem && typeof result.photosByItem === 'object' ? result.photosByItem : {},
   };
+}
+
+const PHOTO_BUDGET_BYTES = 7_000_000;
+const MAX_PHOTOS_PER_ITEM = 8;
+
+/**
+ * Photos arrive once per item. They are kept out of the per-draft records so an
+ * item queued for all three marketplaces is not stored three times, and the set
+ * is trimmed to stay inside the session-storage quota.
+ */
+function sanitizePhotos(photosByItem) {
+  const result = {};
+  if (!photosByItem || typeof photosByItem !== 'object') return result;
+  let budget = PHOTO_BUDGET_BYTES;
+  for (const [itemId, photos] of Object.entries(photosByItem)) {
+    if (!Array.isArray(photos)) continue;
+    const kept = [];
+    for (const photo of photos.slice(0, MAX_PHOTOS_PER_ITEM)) {
+      if (typeof photo !== 'string' || !photo.startsWith('data:image/')) continue;
+      const size = Math.ceil(((photo.length - photo.indexOf(',') - 1) * 3) / 4);
+      if (size > budget) break;
+      budget -= size;
+      kept.push(photo);
+    }
+    if (kept.length) result[itemId] = kept;
+  }
+  return result;
 }
 
 async function publishToCrossLinkOS(message) {
@@ -55,8 +83,9 @@ async function queueDrafts(payload) {
     receivedAt: new Date().toISOString(),
   }));
   if (!drafts.length) throw new Error('No valid ready P/D/M drafts were selected.');
-  await chrome.storage.session.set({ queue: drafts, lastHandoffAt: new Date().toISOString() });
-  return { count: drafts.length };
+  const photosByItem = sanitizePhotos(payload.photosByItem);
+  await chrome.storage.session.set({ queue: drafts, photosByItem, lastHandoffAt: new Date().toISOString() });
+  return { count: drafts.length, photoItems: Object.keys(photosByItem).length };
 }
 
 async function updateQueueEntry(draftId, patch) {
@@ -124,7 +153,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!tab?.id) throw new Error('No active tab found.');
       const platform = platformFromUrl(tab.url ?? '');
       if (platform !== draft.marketplace) throw new Error(`Open the ${draft.marketplace} listing form first, then choose Fill draft.`);
-      const result = await chrome.tabs.sendMessage(tab.id, { type: 'FILL_DRAFT', draft });
+      const { photosByItem } = await getState();
+      const photos = Array.isArray(photosByItem[String(draft.itemId)]) ? photosByItem[String(draft.itemId)] : [];
+      const result = await chrome.tabs.sendMessage(tab.id, { type: 'FILL_DRAFT', draft: { ...draft, photos } });
       const status = result?.ok ? 'prefilled' : 'needs_attention';
       await updateQueueEntry(draft.draftId, { state: status, lastAttemptAt: new Date().toISOString(), result: result?.message ?? '' });
       await publishToCrossLinkOS({ type: 'FILL_STATUS', update: { draftId: draft.draftId, status } });

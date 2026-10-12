@@ -47,6 +47,35 @@ function setNativeValue(element, value) {
   element.blur();
 }
 
+function dataUrlToFile(dataUrl, name) {
+  const separator = dataUrl.indexOf(',');
+  const type = /:(.*?);/.exec(dataUrl.slice(0, separator))?.[1] ?? 'image/jpeg';
+  const binary = atob(dataUrl.slice(separator + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new File([bytes], name, { type });
+}
+
+/**
+ * Puts the handed-off photos into the form's file input. The seller still sees
+ * every photo in the marketplace's own preview and can remove or reorder them;
+ * nothing is saved or published here.
+ */
+function attachPhotos(photos) {
+  if (!Array.isArray(photos) || !photos.length) return null;
+  const input = document.querySelector("input[type='file'][accept*='image' i]") ?? document.querySelector("input[type='file']");
+  if (!input) return { ok: false, count: 0 };
+  const selection = input.multiple ? photos : photos.slice(0, 1);
+  const transfer = new DataTransfer();
+  selection.forEach((photo, index) => {
+    try { transfer.items.add(dataUrlToFile(photo, `listing-photo-${index + 1}.jpg`)); } catch { /* Skip a photo this page refuses. */ }
+  });
+  if (!transfer.files.length) return { ok: false, count: 0 };
+  input.files = transfer.files;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  return { ok: true, count: transfer.files.length };
+}
+
 function sessionState() {
   const loginMarker = document.querySelector("input[type='password'], a[href*='login' i], a[href*='signin' i]");
   const formMarker = document.querySelector("textarea, input[placeholder*='price' i], input[aria-label*='price' i]");
@@ -72,7 +101,12 @@ function fillDraft(draft) {
     try { setNativeValue(tagElement, draft.tags.join(', ')); filled.push('tags'); } catch { /* Tags are optional and platform widgets vary. */ }
   }
   if (missing.length) return { ok: false, message: `Could not find ${missing.join(', ')}. Wait for the listing form to fully load and try again. No save or publish action was taken.`, filled };
-  const photoNote = draft.photoNotice ? ` ${draft.photoNotice}` : '';
+  const photoResult = attachPhotos(draft.photos);
+  const photoNote = !photoResult
+    ? ' No photos were sent with this draft.'
+    : photoResult.ok
+      ? ` Attached ${photoResult.count} photo(s) — check them in the form.`
+      : ' Photos could not be attached here; add them by hand in this form.';
   return { ok: true, message: `Filled ${filled.join(', ')}. Review all fields, select platform-specific category/shipping details, and manually save or publish when ready.${photoNote}`, filled };
 }
 
