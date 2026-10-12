@@ -10,8 +10,8 @@ type SupabaseAuthUser = {
   email?: string | null;
 };
 
-const defaultSupabaseUrl = "https://wxtwjuqajceahzxyquzm.supabase.co";
-const defaultSupabasePublishableKey = "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK";
+// Deliberately no fallback project: an unset variable must surface as
+// "not configured", not as calls to a Supabase project that may be gone.
 
 function getBearerToken(request: Request): string | null {
   const header = request.header("authorization");
@@ -37,8 +37,8 @@ export const requireAuth: RequestHandler = async (
     return;
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL ?? defaultSupabaseUrl;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? defaultSupabasePublishableKey;
+  const supabaseUrl = process.env.SUPABASE_URL?.trim();
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY?.trim();
   if (!supabaseUrl || !publishableKey) {
     response.status(503).json({ error: "Authentication is not configured" });
     return;

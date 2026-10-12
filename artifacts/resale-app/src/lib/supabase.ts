@@ -1,16 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 
-const defaultSupabaseUrl = "https://wxtwjuqajceahzxyquzm.supabase.co";
-const defaultSupabasePublishableKey = "sb_publishable_6RIIuYhv8ZvU9di1F2ltsQ_c4kEL8DK";
-
-const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? defaultSupabaseUrl;
-const supabasePublishableKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ?? defaultSupabasePublishableKey;
+// No baked-in project: a stale default points the app at a Supabase project that
+// may no longer exist, and the seller sees "Failed to fetch" instead of being told
+// the deployment is missing its VITE_SUPABASE_* variables.
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ?? "";
+const supabasePublishableKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ?? "";
 
 export const authConfigurationReady = Boolean(supabaseUrl && supabasePublishableKey);
 
 export const supabase = createClient(
-  supabaseUrl ?? "https://configuration-required.invalid",
-  supabasePublishableKey ?? "configuration-required",
+  supabaseUrl || "https://configuration-required.invalid",
+  supabasePublishableKey || "configuration-required",
   {
     auth: {
       persistSession: true,
