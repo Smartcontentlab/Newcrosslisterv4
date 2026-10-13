@@ -66,9 +66,31 @@ export type CutoutResult = { blob: Blob; grown: boolean };
  * Returns the photo with everything except the item made transparent.
  * `grown` is true when the model only found part of the item and it had to be extended.
  */
-export async function cutOutWholeItem(source: Blob): Promise<CutoutResult> {
+/**
+ * The model is about 40 MB and arrives as many chunks from the vendor's CDN on
+ * first use. One dropped chunk rejects the whole call, which is why the first
+ * attempt in a session so often failed and a manual retry then worked — by then
+ * the earlier chunks were cached. Retrying here keeps that from reaching the
+ * seller, and each attempt starts closer to a complete cache.
+ */
+async function runModel(source: Blob): Promise<Blob> {
   const { removeBackground } = await import('@imgly/background-removal');
-  const modelBlob = await removeBackground(source, { device: 'cpu', model: 'isnet_quint8', output: { format: 'image/png' } });
+  const options = { device: 'cpu', model: 'isnet_quint8', output: { format: 'image/png' } } as const;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await removeBackground(source, options);
+    } catch (error) {
+      lastError = error;
+      // Give a flaky connection a moment before asking for the missing chunks again.
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('The background model could not be loaded');
+}
+
+export async function cutOutWholeItem(source: Blob): Promise<CutoutResult> {
+  const modelBlob = await runModel(source);
 
   const original = await loadImage(source);
   const modelImage = await loadImage(modelBlob);

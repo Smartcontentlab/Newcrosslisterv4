@@ -39,7 +39,7 @@ const MARKETPLACES = ['poshmark', 'depop', 'mercari'] as const;
 const MAX_PHOTOS = 8;
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const BACKGROUND_REMOVAL_TIMEOUT_MS = 120_000;
+const BACKGROUND_REMOVAL_TIMEOUT_MS = 180_000;
 
 type Marketplace = (typeof MARKETPLACES)[number];
 type Condition = (typeof CONDITIONS)[number]['value'];
@@ -194,7 +194,7 @@ export default function ListingStudio() {
       toast({ title: backgroundStyle === 'white' ? 'White-background photo ready' : 'Textured flat-lay photo ready', description: grown ? 'The whole item is kept, not just the print. Check the edges, and use the revert button for the original if needed.' : 'Preview it below; you can revert to the original at any time.' });
     } catch (error) {
       setPhotos((current) => current.map((photo) => photo.id === photoId ? { ...photo, processingStatus: 'failed' } : photo));
-      toast({ title: 'Background removal failed', description: error instanceof Error ? error.message : 'Please retry or use the original image.', variant: 'destructive' });
+      toast({ title: 'Background removal failed', description: `${error instanceof Error ? error.message : 'The model could not be loaded.'} This was already retried, so keep the original photo for now.`, variant: 'destructive' });
     }
   };
 
