@@ -13,16 +13,24 @@ if (!connectionString) {
 }
 
 /**
- * Supabase only accepts TLS connections. node-postgres does not enable TLS from
- * a connection string unless it carries `sslmode`, so turn it on explicitly when
- * the URL is silent. Certificates are still verified — Supabase's pooler uses a
- * publicly trusted CA — so this adds encryption without weakening it.
+ * Supabase only accepts TLS connections, and node-postgres does not enable TLS
+ * from a connection string unless it carries `sslmode`.
+ *
+ * Its pooler presents a certificate from Supabase's own CA, which is not in
+ * Node's trust store, so full verification fails with "self-signed certificate
+ * in certificate chain". Encrypting without verifying the chain is what
+ * `sslmode=require` means and is Supabase's documented default for pooled
+ * connections. To verify properly, put Supabase's CA certificate (Project
+ * Settings → Database → SSL configuration) in DATABASE_CA_CERT.
  */
+const caCertificate = process.env.DATABASE_CA_CERT?.trim();
 const urlSetsSslMode = /[?&]sslmode=/i.test(connectionString);
 
 export const pool = new Pool({
   connectionString,
-  ...(urlSetsSslMode ? {} : { ssl: true }),
+  ...(urlSetsSslMode
+    ? {}
+    : { ssl: caCertificate ? { ca: caCertificate } : { rejectUnauthorized: false } }),
 });
 
 /**
