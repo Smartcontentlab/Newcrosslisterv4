@@ -23,3 +23,10 @@ drop policy if exists "item photos: owner can delete" on storage.objects;
 create policy "item photos: owner can delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'item-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Storage only deletes (and updates) files the user can also select, so owners need
+-- this too; without it a delete reports success and removes nothing.
+drop policy if exists "item photos: owner can list" on storage.objects;
+create policy "item photos: owner can list" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'item-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
