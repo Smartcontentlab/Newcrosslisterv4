@@ -7,6 +7,8 @@
  * square 1280 x 1280 image both Poshmark and Depop display (both crop to 1:1).
  */
 
+import { supabase } from '@/lib/supabase';
+
 /** Square listing photo size used by Poshmark and Depop. */
 export const LISTING_PHOTO_EDGE = 1280;
 /** Share of the square the item may fill, leaving even breathing room around it. */
@@ -17,6 +19,8 @@ export const SAVE_BUDGET_BYTES = 4_000_000;
 function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    // Stored photos come from Supabase Storage; without this the canvas is tainted.
+    if (/^https?:/i.test(source)) image.crossOrigin = 'anonymous';
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error('Could not read the photo'));
     image.src = source;
@@ -122,4 +126,47 @@ export async function squareListingPhoto(foreground: Blob, style: 'white' | 'tex
 /** Size of a JSON request body in bytes. */
 export function bodyBytes(body: unknown): number {
   return new Blob([JSON.stringify(body)]).size;
+}
+
+// ------------------------------------------------------------- storage
+
+const PHOTO_BUCKET = 'item-photos';
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const separator = dataUrl.indexOf(',');
+  const type = /:(.*?);/.exec(dataUrl.slice(0, separator))?.[1] ?? 'image/jpeg';
+  const binary = atob(dataUrl.slice(separator + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type });
+}
+
+/**
+ * Uploads a prepared photo to Supabase Storage under the seller's own folder and
+ * returns its public URL. If storage is unavailable it returns the photo as-is,
+ * so the item still saves the old way instead of losing the photo.
+ */
+export async function storePhoto(dataUrl: string): Promise<string> {
+  try {
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user.id;
+    if (!userId) return dataUrl;
+    const path = `${userId}/${crypto.randomUUID()}.jpg`;
+    const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, dataUrlToBlob(dataUrl), { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+    if (error) { console.warn('Photo storage upload failed; keeping the photo inline.', error.message); return dataUrl; }
+    return supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+  } catch (error) {
+    console.warn('Photo storage upload failed; keeping the photo inline.', error);
+    return dataUrl;
+  }
+}
+
+/** Deletes stored photo files (best effort); inline photos are skipped. */
+export async function removeStoredPhotos(urls: Array<string | null | undefined>): Promise<void> {
+  const marker = `/storage/v1/object/public/${PHOTO_BUCKET}/`;
+  const paths = urls.filter((url): url is string => typeof url === 'string' && url.includes(marker))
+    .map((url) => decodeURIComponent(url.slice(url.indexOf(marker) + marker.length).split('?')[0]));
+  if (!paths.length) return;
+  const { error } = await supabase.storage.from(PHOTO_BUCKET).remove(paths);
+  if (error) console.warn('Could not delete stored photos', error.message);
 }

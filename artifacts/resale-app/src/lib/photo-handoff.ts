@@ -19,6 +19,7 @@ export type PreparedPhotos = { photos: string[]; skipped: number };
 function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    if (/^https?:/i.test(source)) image.crossOrigin = 'anonymous'; // stored photos
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error('Could not read a listing photo'));
     image.src = source;
@@ -52,7 +53,7 @@ function byteLength(dataUrl: string): number {
  * dropped so the caller can say so instead of silently losing them.
  */
 export async function preparePhotosForHandoff(sources: string[]): Promise<PreparedPhotos> {
-  const usable = sources.filter((source) => typeof source === 'string' && source.startsWith('data:image/'));
+  const usable = sources.filter((source) => typeof source === 'string' && (source.startsWith('data:image/') || /^https:\/\//i.test(source)));
   const considered = usable.slice(0, MAX_PHOTOS);
   let skipped = usable.length - considered.length;
   if (!considered.length) return { photos: [], skipped };

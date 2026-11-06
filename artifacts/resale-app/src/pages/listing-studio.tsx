@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/PageHeader';
 import { cutOutWholeItem } from '@/lib/cutout';
-import { bodyBytes, SAVE_BUDGET_BYTES, shrinkPhoto, squareListingPhoto } from '@/lib/listing-photos';
+import { bodyBytes, SAVE_BUDGET_BYTES, shrinkPhoto, squareListingPhoto, storePhoto } from '@/lib/listing-photos';
 import PricingPanel from '@/components/PricingPanel';
 import { initialShip, takeHome, type ShipAssumptions } from '@/lib/pricing';
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react';
@@ -149,7 +149,7 @@ export default function ListingStudio() {
     if (selected.length !== imageFiles.length) toast({ title: 'Some photos were skipped', description: 'Use JPG, PNG, or WEBP files that are 12 MB or smaller.', variant: 'destructive' });
     const available = Math.max(0, MAX_PHOTOS - photos.length);
     if (!available) { toast({ title: 'Photo limit reached', description: `A listing can include up to ${MAX_PHOTOS} photos.` }); return; }
-    const records = await Promise.all(imageFiles.slice(0, available).map(async (file) => ({ id: crypto.randomUUID(), original: await shrinkPhoto(file, 1080, 0.78), active: 'original' as const, processingStatus: 'original' as const, name: file.name, createdAt: new Date().toISOString() })));
+    const records = await Promise.all(imageFiles.slice(0, available).map(async (file) => ({ id: crypto.randomUUID(), original: await storePhoto(await shrinkPhoto(file, 1080, 0.78)), active: 'original' as const, processingStatus: 'original' as const, name: file.name, createdAt: new Date().toISOString() })));
     if (imageFiles.length > available) toast({ title: 'Photo limit reached', description: `Only the first ${available} selected photo(s) were added.` });
     setPhotos((current) => [...current, ...records]);
   };
@@ -164,7 +164,7 @@ export default function ListingStudio() {
         cutOutWholeItem(source),
         new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Background removal took too long. Keep the original photo or try again on a faster connection.')), BACKGROUND_REMOVAL_TIMEOUT_MS)),
       ]);
-      const processed = await squareListingPhoto(foreground, backgroundStyle);
+      const processed = await storePhoto(await squareListingPhoto(foreground, backgroundStyle));
       setPhotos((current) => current.map((photo) => photo.id === photoId ? { ...photo, processed, active: 'processed', processingStatus: 'processed', backgroundStyle } : photo));
       toast({ title: backgroundStyle === 'white' ? 'White-background photo ready' : 'Textured flat-lay photo ready', description: grown ? 'The whole item is kept, not just the print. Check the edges, and use the revert button for the original if needed.' : 'Preview it below; you can revert to the original at any time.' });
     } catch (error) {
@@ -190,8 +190,8 @@ export default function ListingStudio() {
       if (bodyBytes(body) > SAVE_BUDGET_BYTES) {
         const smaller = await Promise.all(photos.map(async (photo) => ({
           ...photo,
-          original: await shrinkPhoto(photo.original, 960, 0.72),
-          processed: photo.processed ? await shrinkPhoto(photo.processed, 1024, 0.75) : photo.processed,
+          original: photo.original.startsWith('data:') ? await shrinkPhoto(photo.original, 960, 0.72) : photo.original,
+          processed: photo.processed?.startsWith('data:') ? await shrinkPhoto(photo.processed, 1024, 0.75) : photo.processed,
         })));
         body.photoRecords = smaller;
         if (bodyBytes(body) > SAVE_BUDGET_BYTES) throw new Error('These photos are too large to save together. Remove a photo or two and save again.');

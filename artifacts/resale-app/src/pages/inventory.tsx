@@ -28,6 +28,7 @@ import { MarketplaceBadges, marketplaceName } from '@/components/MarketplaceBadg
 import { PageHeader } from '@/components/PageHeader';
 import { Sparkle } from '@/components/ui/sparkle';
 import { apiFetch } from '@/lib/supabase';
+import { removeStoredPhotos } from '@/lib/listing-photos';
 
 const CORE_PLATFORMS = ['poshmark', 'depop', 'mercari'] as const;
 type DelistingTask = { id: number; itemId: number; itemTitle: string; marketplace: string; status: 'pending' | 'in_progress' | 'completed' | 'failed'; note: string | null };
@@ -105,6 +106,9 @@ export default function Inventory() {
   };
 
   const runDelete = async (ids: number[]) => {
+    // Stored photo files are not removed by the database delete, so clear them first.
+    const doomed = (items ?? []).filter((item) => ids.includes(item.id)) as Array<{ photos?: string[]; photoRecords?: Array<{ original?: string; processed?: string | null }> }>;
+    await removeStoredPhotos(doomed.flatMap((item) => [...(item.photos ?? []), ...(item.photoRecords ?? []).flatMap((photo) => [photo.original, photo.processed])]));
     const results = await Promise.allSettled(ids.map((id) => deleteItem.mutateAsync({ id })));
     const failed = results.filter((r) => r.status === 'rejected').length;
     refresh();
