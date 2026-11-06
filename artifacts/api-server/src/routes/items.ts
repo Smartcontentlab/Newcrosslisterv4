@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, ilike, type SQL } from "drizzle-orm";
-import { db, itemsTable, listingsTable } from "@workspace/db";
+import { db, delistingTasksTable, itemsTable, listingsTable, marketplaceDraftsTable } from "@workspace/db";
 import {
   CreateItemBody,
   CreateItemResponse,
@@ -143,6 +143,11 @@ router.delete("/items/:id", async (request, response): Promise<void> => {
     response.status(404).json({ error: "Item not found" });
     return;
   }
+  // These tables reference the item by id without a foreign key, so remove them here.
+  await Promise.all([
+    db.delete(marketplaceDraftsTable).where(and(eq(marketplaceDraftsTable.itemId, item.id), eq(marketplaceDraftsTable.userId, userId))),
+    db.delete(delistingTasksTable).where(and(eq(delistingTasksTable.itemId, item.id), eq(delistingTasksTable.userId, userId))),
+  ]);
   response.sendStatus(204);
 });
 
