@@ -16,7 +16,12 @@ async function post(model: string, messages: NimMessage[], temperature: number, 
   return fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
+    body: JSON.stringify({
+      model, messages, temperature, max_tokens: maxTokens,
+      // Nemotron "thinks" first by default and can spend the whole token budget on
+      // it, leaving an empty answer. These requests want short, direct output.
+      ...(/nemotron/i.test(model) ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+    }),
   });
 }
 
