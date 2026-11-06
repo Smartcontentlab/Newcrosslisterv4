@@ -1,3 +1,4 @@
+import { nimChat, type NimMessage } from "../lib/nim";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db, itemsTable, ordersTable } from "@workspace/db";
@@ -13,33 +14,8 @@ import {
 
 const router: IRouter = Router();
 
-type NimMessage = { role: "system" | "user" | "assistant"; content: string };
-
-type NimPayload = {
-  choices?: Array<{ message?: { content?: string } }>;
-};
-
 async function callNim(messages: NimMessage[], maxTokens = 1200): Promise<string> {
-  const apiKey = process.env.NVIDIA_NIM_API_KEY;
-  if (!apiKey) throw new Error("NVIDIA_NIM_API_KEY is not configured");
-
-  const baseUrl = (process.env.NVIDIA_NIM_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
-  const model = process.env.NVIDIA_NIM_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b";
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature: 0.2, max_tokens: maxTokens }),
-  });
-
-  if (!response.ok) {
-    const providerBody = (await response.text()).slice(0, 500);
-    throw new Error(`NVIDIA NIM returned HTTP ${response.status}${providerBody ? `: ${providerBody}` : ""}`);
-  }
-
-  const payload = await response.json() as NimPayload;
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new Error("NVIDIA NIM returned an empty response");
-  return content;
+  return nimChat(messages, { temperature: 0.2, maxTokens });
 }
 
 function parseJsonResponse<T>(text: string): T {

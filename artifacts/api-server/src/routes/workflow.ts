@@ -1,3 +1,4 @@
+import { nimChat } from "../lib/nim";
 import { Router, type IRouter } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -58,14 +59,7 @@ function extractJson(content: string): Record<string, unknown> | null {
   try { return JSON.parse(fenced.slice(start, end + 1)) as Record<string, unknown>; } catch { return null; }
 }
 async function callNim(system: string, prompt: string, maxTokens = 800) {
-  const key = process.env.NVIDIA_NIM_API_KEY;
-  if (!key) throw new Error("NVIDIA NIM is not configured");
-  const base = (process.env.NVIDIA_NIM_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
-  const model = process.env.NVIDIA_NIM_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b";
-  const response = await fetch(`${base}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, temperature: 0.35, max_tokens: maxTokens, messages: [{ role: "system", content: system }, { role: "user", content: prompt }] }) });
-  if (!response.ok) throw new Error(`NVIDIA NIM returned ${response.status}`);
-  const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return payload.choices?.[0]?.message?.content ?? "";
+  return nimChat([{ role: "system", content: system }, { role: "user", content: prompt }], { temperature: 0.35, maxTokens });
 }
 function itemValue(item: typeof itemsTable.$inferSelect, key: string): string | number | boolean | null {
   if (key === "photos") return item.photoRecords.length > 0 || item.photos.length > 0;
