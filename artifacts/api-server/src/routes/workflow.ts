@@ -77,11 +77,19 @@ function itemValue(item: typeof itemsTable.$inferSelect, key: string): string | 
   }
   return (item as unknown as Record<string, string | number | boolean | null>)[key] ?? null;
 }
+/** Brand, color and size are added only when the seller's own title doesn't already say them. */
+function draftTitle(item: { title: string; brand?: string | null; color?: string | null; size?: string | null }) {
+  const loose = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const has = (value: string | null | undefined) => Boolean(value) && loose(item.title).includes(loose(value as string));
+  const prefix = [item.brand, item.color].filter((value) => value && !has(value));
+  const suffix = item.size && !new RegExp(`\\bsize\\s*${item.size.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(item.title) ? `Size ${item.size}` : "";
+  return [...prefix, item.title, suffix].filter(Boolean).join(" ").slice(0, 80);
+}
 function fallbackContent(item: typeof itemsTable.$inferSelect, platform: string) {
   const descriptor = [item.condition.replaceAll("_", " "), item.brand, item.color, item.title].filter(Boolean).join(" · ");
   const platformLine = platform === "poshmark" ? "Bundle-friendly and ready to ship." : platform === "depop" ? "Styled for discovery with clear condition details." : "Carefully packed and shipped with care.";
   return {
-    title: [item.brand, item.color, item.title, item.size ? `Size ${item.size}` : ""].filter(Boolean).join(" ").slice(0, 80),
+    title: draftTitle(item),
     description: `${descriptor}\n\n${item.description || "Clean, accurately described resale item."}\n\nDetails: ${[item.category, item.size && `Size ${item.size}`, item.color, item.condition.replaceAll("_", " ")].filter(Boolean).join(" · ")}\n\n${platformLine}`,
     tags: Array.from(new Set([item.brand, item.category, item.color, item.size, ...item.tags].filter((value): value is string => typeof value === "string" && value.length > 0))).slice(0, 8),
   };
@@ -146,7 +154,7 @@ async function assistFromFields(item: AssistFields, focus: AssistFocus) {
   const condition = item.condition.replaceAll("_", " ");
   const facts = [item.brand && `Brand: ${item.brand}`, item.model && `Style: ${item.model}`, item.category && `Category: ${item.category}`, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`, item.material && `Material: ${item.material}`, item.measurements && `Measurements: ${item.measurements}`, `Condition: ${condition}`, item.flaws && `Flaws: ${item.flaws}`].filter(Boolean) as string[];
   const fallback = {
-    title: [item.brand, item.color, item.title, item.size ? `Size ${item.size}` : ""].filter(Boolean).join(" ").slice(0, 80),
+    title: draftTitle(item),
     description: [item.description?.trim() || `Pre-owned ${condition} ${item.title}.`, facts.join("\n")].filter(Boolean).join("\n\n"),
     tags: Array.from(new Set([item.brand, item.category, item.color, item.size, ...tags].filter((value): value is string => typeof value === "string" && value.length > 0))).slice(0, 10),
     category: item.category ?? "", color: item.color ?? "", size: item.size ?? "",
