@@ -1,11 +1,18 @@
 {
   "manifest_version": 3,
   "name": "CrossLinkOS Draft Fill",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Fills every field of an open Poshmark or Depop listing form (basic fields on Mercari) from your CrossLinkOS drafts. You press Post yourself.",
   "minimum_chrome_version": "114",
-  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "tabs"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabs"
+  ],
   "host_permissions": [
+    "https://crosslinkos.vercel.app/*",
     "https://newcrosslisterv4000.vercel.app/*",
     "https://*.poshmark.com/*",
     "https://*.depop.com/*",
@@ -23,17 +30,31 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://newcrosslisterv4000.vercel.app/*"],
-      "js": ["crosslinkos-bridge.js"],
+      "matches": [
+        "https://crosslinkos.vercel.app/*",
+        "https://newcrosslisterv4000.vercel.app/*"
+      ],
+      "js": [
+        "crosslinkos-bridge.js"
+      ],
       "run_at": "document_start"
     },
     {
-      "matches": ["https://*.poshmark.com/*", "https://*.depop.com/*", "https://*.mercari.com/*"],
-      "js": ["marketplace-content.js"],
+      "matches": [
+        "https://*.poshmark.com/*",
+        "https://*.depop.com/*",
+        "https://*.mercari.com/*"
+      ],
+      "js": [
+        "marketplace-content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "externally_connectable": {
-    "matches": ["https://newcrosslisterv4000.vercel.app/*"]
+    "matches": [
+      "https://crosslinkos.vercel.app/*",
+      "https://newcrosslisterv4000.vercel.app/*"
+    ]
   }
 }

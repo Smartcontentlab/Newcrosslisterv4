@@ -19,7 +19,7 @@ The script is safe to run again if you are unsure whether it worked.
 
 ## 2. Check the Vercel environment variables
 
-Vercel dashboard -> project `newcrosslisterv4000` -> Settings -> Environment Variables. These must exist for Production and Preview:
+Vercel dashboard -> project `crosslinkos` -> Settings -> Environment Variables. These must exist for Production and Preview:
 
 | Name | What it is |
 | --- | --- |
@@ -36,19 +36,19 @@ The two `VITE_` values are baked in at build time, so after changing them you mu
 ## 3. Let people sign in (Supabase Auth)
 
 1. Supabase -> **Authentication** -> **URL Configuration**.
-2. Set **Site URL** to `https://newcrosslisterv4000.vercel.app`.
-3. Add `https://newcrosslisterv4000.vercel.app/**` under **Redirect URLs**.
+2. Set **Site URL** to `https://crosslinkos.vercel.app`.
+3. Add `https://crosslinkos.vercel.app/**` under **Redirect URLs**.
 4. If you want to skip email confirmation while testing: **Authentication** -> **Sign In / Providers** -> **Email** -> turn off **Confirm email**. Turn it back on before inviting other people.
 
 ## 4. Install the Chrome extension
 
-1. Sign in at https://newcrosslisterv4000.vercel.app and open **Marketplaces**.
+1. Sign in at https://crosslinkos.vercel.app and open **Marketplaces**.
 2. Click **Download extension** (a zip). Unzip it somewhere permanent.
 3. In Chrome open `chrome://extensions`, switch on **Developer mode** (top right).
 4. Click **Load unpacked** and pick the unzipped folder.
 5. Reload the CrossLinkOS tab. The Marketplaces page should now say the extension is connected.
 
-The extension only talks to `newcrosslisterv4000.vercel.app`. Preview links and localhost are ignored on purpose.
+The extension only talks to `crosslinkos.vercel.app` (and the older `newcrosslisterv4000.vercel.app`). Preview links and localhost are ignored on purpose.
 
 ## 5. Run it locally (optional)
 

@@ -1,4 +1,5 @@
-const CROSS_LINK_ORIGIN = 'https://newcrosslisterv4000.vercel.app';
+// The live app, plus the older address in case that deployment is repaired.
+const CROSS_LINK_ORIGINS = ['https://crosslinkos.vercel.app', 'https://newcrosslisterv4000.vercel.app'];
 const MARKETPLACES = ['poshmark', 'depop', 'mercari'];
 
 const startUrls = {
@@ -69,7 +70,7 @@ function sanitizeDetails(details) {
 }
 
 async function publishToCrossLinkOS(message) {
-  const tabs = await chrome.tabs.query({ url: `${CROSS_LINK_ORIGIN}/*` });
+  const tabs = await chrome.tabs.query({ url: CROSS_LINK_ORIGINS.map((origin) => `${origin}/*`) });
   await Promise.all(tabs.map(async (tab) => {
     if (tab.id) {
       try { await chrome.tabs.sendMessage(tab.id, message); } catch { /* The bridge is not loaded in this tab yet. */ }
