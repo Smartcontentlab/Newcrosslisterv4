@@ -25,7 +25,7 @@ Vercel dashboard -> project `crosslinkos` -> Settings -> Environment Variables. 
 | --- | --- |
 | `DATABASE_URL` | Supabase -> Project Settings -> Database -> Connection string (pooled, "Transaction" mode) |
 | `NVIDIA_NIM_API_KEY` | key from build.nvidia.com (free tier) |
-| `NVIDIA_NIM_MODEL` | `meta/llama-3.3-70b-instruct` |
+| `NVIDIA_NIM_MODEL` | `nvidia/nemotron-3.5-lightning-30b-a3b` |
 | `SUPABASE_URL` | Supabase -> Project Settings -> Data API -> Project URL |
 | `SUPABASE_PUBLISHABLE_KEY` | Supabase -> Project Settings -> API Keys -> publishable key |
 | `VITE_SUPABASE_URL` | same as `SUPABASE_URL` |

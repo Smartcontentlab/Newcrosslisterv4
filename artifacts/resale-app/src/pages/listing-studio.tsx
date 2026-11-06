@@ -280,7 +280,7 @@ export default function ListingStudio() {
     setChatInput('');
     setIsChatting(true);
     try {
-      const response = await apiFetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, context: { item: { ...form, photoCount: photos.length }, pricing: proceeds.map(({ platform, net, profit }) => ({ platform, net, profit })) } }) });
+      const response = await apiFetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, context: JSON.stringify({ item: { ...form, photoCount: photos.length }, pricing: proceeds.map(({ platform, net, profit }) => ({ platform, net, profit })) }) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'The co-pilot could not answer right now.');
       setChat((current) => [...current, { role: 'assistant', text: data.reply, suggestions: data.suggestions }]);
