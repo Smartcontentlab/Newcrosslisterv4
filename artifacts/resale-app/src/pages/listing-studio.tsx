@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/PageHeader';
 import { cutOutWholeItem } from '@/lib/cutout';
+import { bodyBytes, SAVE_BUDGET_BYTES, shrinkPhoto, squareListingPhoto } from '@/lib/listing-photos';
 import PricingPanel from '@/components/PricingPanel';
 import { initialShip, takeHome, type ShipAssumptions } from '@/lib/pricing';
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react';
@@ -108,31 +109,6 @@ const initialMarketplaceDetails: MarketplaceDetails = {
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 const safeNumber = (value: string) => Math.max(0, Number(value) || 0);
 
-function toDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-function createBackdrop(foreground: Blob, style: 'white' | 'textured_slate'): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const image = new Image(); const objectUrl = URL.createObjectURL(foreground);
-    image.onload = () => {
-      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
-      const context = canvas.getContext('2d');
-      if (!context) { URL.revokeObjectURL(objectUrl); reject(new Error('Canvas is unavailable')); return; }
-      const finish = () => { const longSide = Math.max(canvas.width, canvas.height); context.shadowColor = 'rgba(30, 24, 20, 0.28)'; context.shadowBlur = Math.round(longSide * 0.014); context.shadowOffsetY = Math.round(longSide * 0.006); /* soft contact shadow so white items stay visible on the white backdrop */ context.drawImage(image, 0, 0, canvas.width, canvas.height); context.shadowColor = 'transparent'; canvas.toBlob((result) => { URL.revokeObjectURL(objectUrl); if (!result) { reject(new Error('Could not create the processed image')); return; } resolve(result); }, 'image/png'); };
-      if (style === 'white') { context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); finish(); return; }
-      const texture = new Image(); texture.onload = () => { context.drawImage(texture, 0, 0, canvas.width, canvas.height); finish(); }; texture.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not load the textured backdrop')); }; texture.src = '/textured-slate-flatlay.png';
-    };
-    image.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not read the processed image')); };
-    image.src = objectUrl;
-  });
-}
-
 function statusLabel(status: string) {
   return ({ draft: 'Needs details', ready: 'Needs posted', prefilled: 'Prefilled — review', draft_saved: 'Draft saved', published: 'Live', sold: 'Sold', delisted: 'Delisted', needs_attention: 'Needs attention' } as Record<string, string>)[status] ?? status;
 }
@@ -162,7 +138,6 @@ export default function ListingStudio() {
   const [salePrice, setSalePrice] = useState('');
   const [isMarkingSold, setIsMarkingSold] = useState(false);
 
-  const activePhotos = useMemo(() => photos.map((photo) => photo.active === 'processed' && photo.processed ? photo.processed : photo.original), [photos]);
   const proceeds = useMemo(() => takeHome(safeNumber(form.price), ship, safeNumber(form.weight), safeNumber(form.cost)).map((row) => ({ platform: row.platform, net: row.net, profit: row.profit })), [ship, form.cost, form.price, form.weight]);
 
   const update = <K extends keyof CanonicalForm>(key: K, value: CanonicalForm[K]) => setForm((current) => ({ ...current, [key]: value }));
@@ -174,7 +149,7 @@ export default function ListingStudio() {
     if (selected.length !== imageFiles.length) toast({ title: 'Some photos were skipped', description: 'Use JPG, PNG, or WEBP files that are 12 MB or smaller.', variant: 'destructive' });
     const available = Math.max(0, MAX_PHOTOS - photos.length);
     if (!available) { toast({ title: 'Photo limit reached', description: `A listing can include up to ${MAX_PHOTOS} photos.` }); return; }
-    const records = await Promise.all(imageFiles.slice(0, available).map(async (file) => ({ id: crypto.randomUUID(), original: await toDataUrl(file), active: 'original' as const, processingStatus: 'original' as const, name: file.name, createdAt: new Date().toISOString() })));
+    const records = await Promise.all(imageFiles.slice(0, available).map(async (file) => ({ id: crypto.randomUUID(), original: await shrinkPhoto(file, 1080, 0.78), active: 'original' as const, processingStatus: 'original' as const, name: file.name, createdAt: new Date().toISOString() })));
     if (imageFiles.length > available) toast({ title: 'Photo limit reached', description: `Only the first ${available} selected photo(s) were added.` });
     setPhotos((current) => [...current, ...records]);
   };
@@ -189,7 +164,7 @@ export default function ListingStudio() {
         cutOutWholeItem(source),
         new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Background removal took too long. Keep the original photo or try again on a faster connection.')), BACKGROUND_REMOVAL_TIMEOUT_MS)),
       ]);
-      const processed = await toDataUrl(await createBackdrop(foreground, backgroundStyle));
+      const processed = await squareListingPhoto(foreground, backgroundStyle);
       setPhotos((current) => current.map((photo) => photo.id === photoId ? { ...photo, processed, active: 'processed', processingStatus: 'processed', backgroundStyle } : photo));
       toast({ title: backgroundStyle === 'white' ? 'White-background photo ready' : 'Textured flat-lay photo ready', description: grown ? 'The whole item is kept, not just the print. Check the edges, and use the revert button for the original if needed.' : 'Preview it below; you can revert to the original at any time.' });
     } catch (error) {
@@ -207,10 +182,23 @@ export default function ListingStudio() {
       category: form.category || undefined, size: form.size || undefined, color: form.color || undefined, measurements: form.measurements || undefined,
       sku: form.sku || undefined, notes: form.notes || undefined, sourceLocation: form.sourceLocation || undefined, sourceUrl: form.sourceUrl || undefined,
       price: safeNumber(form.price), cost: safeNumber(form.cost), weight: form.weight ? safeNumber(form.weight) : undefined,
-      tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean), photos: activePhotos, photoRecords: photos, marketplaceDetails,
+      tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean), photos: [] as string[], photoRecords: photos, marketplaceDetails, // the server derives the shown photos from photoRecords
     };
     try {
+      // Vercel refuses requests over 4.5 MB. Photos saved before resizing existed can
+      // push an item over, so shrink them once more and retry before giving up.
+      if (bodyBytes(body) > SAVE_BUDGET_BYTES) {
+        const smaller = await Promise.all(photos.map(async (photo) => ({
+          ...photo,
+          original: await shrinkPhoto(photo.original, 960, 0.72),
+          processed: photo.processed ? await shrinkPhoto(photo.processed, 1024, 0.75) : photo.processed,
+        })));
+        body.photoRecords = smaller;
+        if (bodyBytes(body) > SAVE_BUDGET_BYTES) throw new Error('These photos are too large to save together. Remove a photo or two and save again.');
+        setPhotos(smaller);
+      }
       const response = await apiFetch(itemId ? `/api/workflow/items/${itemId}` : '/api/workflow/items', { method: itemId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (response.status === 413) throw new Error('These photos are too large to save together. Remove a photo or two and save again.');
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.fieldErrors ? 'Please review the listing fields.' : data.error || 'Could not save the listing');
       setItemId(data.id);

@@ -99,11 +99,19 @@ router.get("/workflow/items", async (_request, response): Promise<void> => {
   const items = await db.select().from(itemsTable).where(eq(itemsTable.userId, userId)).orderBy(desc(itemsTable.updatedAt));
   response.json(items);
 });
+/**
+ * The app sends each photo once, in photoRecords; the flat photos list (the version
+ * each photo currently shows) is derived here, so a save carries no duplicate copies.
+ */
+function withActivePhotos<T extends { photos?: string[]; photoRecords?: Array<{ original: string; processed?: string | null; active: "original" | "processed" }> }>(data: T): T {
+  if (!data.photoRecords?.length) return data;
+  return { ...data, photos: data.photoRecords.map((photo) => (photo.active === "processed" && photo.processed ? photo.processed : photo.original)) };
+}
 router.post("/workflow/items", async (request, response): Promise<void> => {
   const parsed = canonicalItemBody.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: parsed.error.flatten() }); return; }
   const userId = getAuthenticatedUser(response).id;
-  const [item] = await db.insert(itemsTable).values({ ...parsed.data, userId, sourceUrl: parsed.data.sourceUrl || null }).returning();
+  const [item] = await db.insert(itemsTable).values({ ...withActivePhotos(parsed.data), userId, sourceUrl: parsed.data.sourceUrl || null }).returning();
   response.status(201).json(item);
 });
 /** One row per physical item; Poshmark, Depop, and Mercari drafts are nested for compact status chips. */
@@ -136,7 +144,7 @@ router.patch("/workflow/items/:id", async (request, response): Promise<void> => 
   const parsed = patchCanonicalItemBody.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: parsed.error.flatten() }); return; }
   const userId = getAuthenticatedUser(response).id; const id = Number(request.params.id);
-  const [item] = await db.update(itemsTable).set({ ...parsed.data, sourceUrl: parsed.data.sourceUrl || null }).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId))).returning();
+  const [item] = await db.update(itemsTable).set({ ...withActivePhotos(parsed.data), sourceUrl: parsed.data.sourceUrl || null }).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId))).returning();
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
   response.json(item);
 });
