@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CrossLinkOS Draft Fill",
-  "version": "0.1.0",
-  "description": "Locally fills reviewable CrossLinkOS resale drafts in open Poshmark, Depop, and Mercari listing forms. It never saves or publishes a listing.",
+  "version": "0.2.0",
+  "description": "Fills every field of an open Poshmark or Depop listing form (basic fields on Mercari) from your CrossLinkOS drafts. You press Post yourself.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage", "tabs"],
   "host_permissions": [

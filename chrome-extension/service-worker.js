@@ -58,6 +58,16 @@ function sanitizePhotos(photosByItem) {
   return result;
 }
 
+/** Brand, size, condition, category and the like: short strings only. */
+function sanitizeDetails(details) {
+  const result = {};
+  if (!details || typeof details !== 'object') return result;
+  for (const [key, value] of Object.entries(details).slice(0, 40)) {
+    if (/^[A-Za-z0-9_.]{1,40}$/.test(key) && (typeof value === 'string' || typeof value === 'number')) result[key] = String(value).slice(0, 200);
+  }
+  return result;
+}
+
 async function publishToCrossLinkOS(message) {
   const tabs = await chrome.tabs.query({ url: `${CROSS_LINK_ORIGIN}/*` });
   await Promise.all(tabs.map(async (tab) => {
@@ -77,6 +87,7 @@ async function queueDrafts(payload) {
     description: draft.description.slice(0, 5000),
     tags: Array.isArray(draft.tags) ? draft.tags.filter((tag) => typeof tag === 'string').slice(0, 25) : [],
     price: Number(draft.price),
+    details: sanitizeDetails(draft.details),
     photoCount: Number(draft.photoCount) || 0,
     photoNotice: typeof draft.photoNotice === 'string' ? draft.photoNotice.slice(0, 240) : '',
     state: 'ready',

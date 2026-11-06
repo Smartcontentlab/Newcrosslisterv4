@@ -15,8 +15,8 @@ import { preparePhotosForHandoff } from '@/lib/photo-handoff';
 const MARKETPLACES = ['poshmark', 'depop', 'mercari'] as const;
 type Marketplace = (typeof MARKETPLACES)[number];
 type DraftStatus = 'draft' | 'ready' | 'prefilled' | 'draft_saved' | 'published' | 'sold' | 'delisted' | 'needs_attention';
-type Draft = { id: number; marketplace: Marketplace; status: DraftStatus; title: string | null; description: string | null; tags: string[]; price: number; missingFields: string[]; externalUrl?: string | null; externalListingId?: string | null; updatedAt: string; };
-type BoardItem = { item: { id: number; title: string; brand?: string | null; category?: string | null; size?: string | null; sku?: string | null; condition: string; price: number; photos: string[]; photoRecords?: Array<{ original: string; processed?: string | null; active: 'original' | 'processed' }>; updatedAt: string; }; drafts: Draft[]; };
+type Draft = { id: number; marketplace: Marketplace; status: DraftStatus; title: string | null; description: string | null; tags: string[]; price: number; missingFields: string[]; requiredFields?: Array<{ key: string; value?: string | number | boolean | null }>; externalUrl?: string | null; externalListingId?: string | null; updatedAt: string; };
+type BoardItem = { item: { id: number; title: string; brand?: string | null; category?: string | null; size?: string | null; color?: string | null; weight?: number | null; sku?: string | null; condition: string; price: number; marketplaceDetails?: Record<string, unknown> | null; photos: string[]; photoRecords?: Array<{ original: string; processed?: string | null; active: 'original' | 'processed' }>; updatedAt: string; }; drafts: Draft[]; };
 type SelectedDraft = { row: BoardItem; draft: Draft | null; marketplace: Marketplace } | null;
 
 const statusMeta: Record<DraftStatus, { label: string; className: string; summary: string }> = {
@@ -29,6 +29,17 @@ const statusMeta: Record<DraftStatus, { label: string; className: string; summar
   delisted: { label: 'Delisted', className: 'border-muted-foreground/35 bg-muted text-muted-foreground', summary: 'You confirmed this remaining-platform listing was removed.' },
   needs_attention: { label: 'Needs attention', className: 'border-destructive bg-destructive/10 text-destructive', summary: 'This platform draft needs your review before it can move forward.' },
 };
+
+/** Everything the extension can fill beyond the copy: the item's own fields, overlaid with this platform's saved values. */
+function handoffDetails(row: BoardItem, draft: Draft): Record<string, string> {
+  const details: Record<string, string> = {};
+  const put = (key: string, value: unknown) => { if (value !== null && value !== undefined && String(value).trim() !== '') details[key] = String(value).trim(); };
+  put('brand', row.item.brand); put('category', row.item.category); put('size', row.item.size); put('color', row.item.color);
+  put('condition', row.item.condition); put('weight', row.item.weight); put('sku', row.item.sku);
+  for (const [key, value] of Object.entries(row.item.marketplaceDetails ?? {})) if (typeof value !== 'object') put(key, value);
+  for (const field of draft.requiredFields ?? []) if (!['title', 'description', 'price', 'photos'].includes(field.key)) put(field.key.replace(/^marketplaceDetails\./, ''), field.value);
+  return details;
+}
 
 function photoFor(row: BoardItem) {
   const record = row.item.photoRecords?.[0];
@@ -75,7 +86,7 @@ export default function Listings() {
   const readySelections = useMemo(() => selectedRows.flatMap((row) => row.drafts.filter((draft) => draft.status === 'ready').map((draft) => ({ itemId: row.item.id, draftId: draft.id, marketplace: draft.marketplace }))), [selectedRows]);
   const extensionHandoffDrafts = useMemo(() => selectedRows.flatMap((row) => row.drafts.filter((draft) => draft.status === 'ready').map((draft) => {
     const photoCount = row.item.photoRecords?.length ?? row.item.photos?.length ?? 0;
-    return { itemId: row.item.id, draftId: draft.id, marketplace: draft.marketplace, title: draft.title ?? row.item.title, description: draft.description ?? '', tags: draft.tags, price: draft.price, photoCount, photoNotice: photoCount ? `${photoCount} photo(s) are sent with this handoff. Check them in the marketplace form before saving.` : 'This item has no photos yet.' };
+    return { itemId: row.item.id, draftId: draft.id, marketplace: draft.marketplace, title: draft.title ?? row.item.title, description: draft.description ?? '', tags: draft.tags, price: draft.price, details: handoffDetails(row, draft), photoCount, photoNotice: photoCount ? `${photoCount} photo(s) are sent with this handoff. Check them in the marketplace form before saving.` : 'This item has no photos yet.' };
   })), [selectedRows]);
   const toggleRow = (itemId: number) => setSelectedItemIds((current) => { const next = new Set(current); if (next.has(itemId)) next.delete(itemId); else next.add(itemId); return next; });
 

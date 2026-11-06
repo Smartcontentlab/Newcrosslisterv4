@@ -1,8 +1,8 @@
 # CrossLinkOS Draft Fill — Local Chrome Extension
 
-CrossLinkOS Draft Fill is a **personal, unpacked Chrome extension** for the CrossLinkOS workflow. It receives seller-selected Poshmark, Depop, and Mercari copy from the authenticated CrossLinkOS Draft Board, fills selected fields in an already-open marketplace listing form, and then stops. It does **not** click Save, List, Publish, Submit, or any equivalent final action.
+CrossLinkOS Draft Fill is a **personal, unpacked Chrome extension** for the CrossLinkOS workflow. It receives seller-selected Poshmark, Depop, and Mercari drafts from the authenticated CrossLinkOS Draft Board, fills the already-open marketplace listing form, and then stops so you can review it and press Post yourself. It does **not** click Save, List, Publish, Submit, or any equivalent final action.
 
-> **Privacy boundary:** Marketplace passwords, MFA codes, and cookies are never collected, copied, or stored. The temporary queue lives in Chrome extension session memory and is cleared when Chrome restarts, when the extension reloads, or when the seller clears it. Listing photos are not copied into the extension; the seller uploads them manually in the marketplace listing form.
+> **Privacy boundary:** Marketplace passwords, MFA codes, and cookies are never collected, copied, or stored. The temporary queue lives in Chrome extension session memory and is cleared when Chrome restarts, when the extension reloads, or when the seller clears it. Listing photos are passed once per item and attached to the form's photo picker, where you can still reorder or remove them.
 
 ## Install for personal use
 
@@ -23,7 +23,7 @@ The extension uses Chrome’s Manifest V3 Side Panel API, which requires Chrome 
 4. Open the marketplace yourself and sign in directly in the normal Chrome tab.
 5. Open that platform’s **new listing** form. Chrome’s CrossLinkOS side panel will show the appropriate queued draft.
 6. Select **Fill draft in this form**. The extension fills visible title, description, price, and tag fields where the marketplace exposes compatible controls.
-7. Review every field, upload photos manually, complete marketplace-specific category, condition, shipping, and policy fields, and then decide whether to **save the marketplace draft** or **publish**.
+7. Read the side panel's report: it lists anything it couldn't fill (for example a size the marketplace doesn't offer). Finish those by hand, review everything, then decide whether to **save the marketplace draft** or **publish**.
 8. Back in CrossLinkOS, use the platform chip to confirm **Draft saved** or **Live**. CrossLinkOS does not infer either state from the field-fill action.
 
 ## What the extension can and cannot do
@@ -32,8 +32,10 @@ The extension uses Chrome’s Manifest V3 Side Panel API, which requires Chrome 
 | --- | --- |
 | Marketplace sign-in | The seller signs in directly on each marketplace. The extension may inspect the visible local page to report a high-level signed-in, signed-out, or unknown status. |
 | Draft queue | The queue is held only in `chrome.storage.session`, not synced across Chrome profiles or stored by CrossLinkOS. Chrome documents that this storage is memory-backed and cleared when the extension reloads or Chrome restarts. [Chrome Storage API](https://developer.chrome.com/docs/extensions/reference/api/storage) |
-| Field prefill | Fills title, description, price, and tag fields when the marketplace page exposes a compatible field. It uses native input/change events to help React-style forms register edits. |
-| Photos | Not copied or uploaded by this extension. The seller manually uploads photos in the marketplace form. |
+| Poshmark | Fills title, description, department and category, subcategory, size, condition, brand (picked from Poshmark's list), up to 2 colors, up to 3 style tags, and price. It also fills the Listing Price pop-up: original price, and Automate Offers from your Smart Sell setting (off, minimum price, or floor %). Mapped against the live form in Nov 2026. |
+| Depop | Depop has no title field, so the title goes on the description's first line, followed by your tags as up to 5 hashtags. Also fills category (under the right department), brand, condition, up to 2 colors, size, material, source, age, style, quantity, SKU and price. Shipping stays on Depop's default; check the package size. Mapped against the live form in Nov 2026. |
+| Mercari | Title, description, price and tags only. Mercari blocks its sell form until the account finishes government-ID verification, so the full mapping is still to do. |
+| Photos | Attached to the form's photo picker when the handoff included them. Check them before posting. |
 | Marketplace drafts | A successful fill means **Prefilled — review** only. It does not mean a marketplace draft is saved. |
 | Publish / submit | Never automated. The seller manually saves or publishes after review. |
 | Cookies / credentials | Never requested, read, or stored. |
