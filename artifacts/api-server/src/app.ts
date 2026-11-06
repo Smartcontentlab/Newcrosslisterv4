@@ -26,8 +26,9 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Item photos travel in the request body; Vercel itself caps requests at 4.5 MB.
+app.use(express.json({ limit: "4.5mb" }));
+app.use(express.urlencoded({ extended: true, limit: "4.5mb" }));
 
 app.use("/api", router);
 
@@ -50,6 +51,12 @@ app.use((error: Error & { code?: string; cause?: unknown }, _request: express.Re
     "request failed",
   );
   if (response.headersSent) return;
+  // Body-parser errors (too large, malformed JSON) carry their own 4xx status.
+  const status = (error as { status?: number }).status;
+  if (status && status >= 400 && status < 500) {
+    response.status(status).json({ error: status === 413 ? "This request is too large. Remove a photo or two and try again." : error.message });
+    return;
+  }
   response.status(500).json({ error: "Internal server error" });
 });
 
