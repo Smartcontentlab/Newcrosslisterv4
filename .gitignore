@@ -56,3 +56,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# AI test output
+artifacts/api-server/tests/.out
