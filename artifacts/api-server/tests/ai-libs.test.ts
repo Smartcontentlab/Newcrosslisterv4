@@ -24,7 +24,7 @@ await test("nim: retired configured model is ignored, live model used", async ()
   assert.equal(r.text, "hello");
   const used = calls.filter((c) => c.body).map((c) => c.body.model);
   assert.ok(!used.includes("meta/llama-3.3-70b-instruct"), "must not send retired model");
-  assert.equal(used[0], "google/gemma-4-31b-it");
+  assert.equal(used[0], "nvidia/nemotron-3.5-lightning-30b-a3b", "first choice is the model verified to answer");
   delete process.env.NVIDIA_NIM_MODEL;
 });
 await test("nim: configured live model goes first", async () => {
