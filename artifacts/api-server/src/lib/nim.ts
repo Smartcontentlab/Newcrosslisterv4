@@ -37,11 +37,15 @@ const TEXT_PREFERENCE = [
   "google/gemma-3-12b-it",
 ];
 /** Models that accept pictures. */
+// NVIDIA keeps listing some retired vision models (Nov 2026: llama-3.2 vision and
+// phi-3-vision answer 404 "Function not found"), so current models go first.
 const VISION_PREFERENCE = [
+  "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "google/gemma-3-12b-it",
+  "google/gemma-4-31b-it",
+  "google/gemma-3-4b-it",
   "meta/llama-3.2-90b-vision-instruct",
   "meta/llama-3.2-11b-vision-instruct",
-  "google/gemma-4-31b-it",
-  "google/gemma-3-12b-it",
   "microsoft/phi-3-vision-128k-instruct",
 ];
 
