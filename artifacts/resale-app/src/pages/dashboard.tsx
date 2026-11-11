@@ -10,6 +10,7 @@ import {
 import { ArrowRight, Check, Plus } from 'lucide-react';
 import QuickAddItem from '@/components/QuickAddItem';
 import PostToMarketplace from '@/components/PostToMarketplace';
+import { PageHeader } from '@/components/PageHeader';
 
 const CORE_PLATFORMS = ['poshmark', 'depop', 'mercari', 'ebay', 'grailed', 'etsy'];
 const MARKET_CODES: Record<string, string> = {
@@ -65,6 +66,7 @@ export default function Dashboard() {
     (listings ?? []).filter((l) => l.status === 'active').forEach((l) => counts.set(l.marketplace, (counts.get(l.marketplace) ?? 0) + 1));
     return CORE_PLATFORMS.map((id) => ({ id, live: counts.get(id) ?? 0 }));
   }, [listings]);
+  const liveChannels = marketRows.filter((row) => row.live > 0).length;
 
   const steps = [
     { done: (items?.length ?? 0) > 0, title: 'Add your first item', body: 'Photos, price and what you paid. It takes about a minute.', href: '/listing-studio', cta: 'Open listing studio' },
@@ -89,16 +91,17 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 border-b-2 border-border pb-5 md:flex-row md:items-end">
-        <div className="space-y-2">
-          <p className="cx-eyebrow">✦ {today}</p>
-          <h1 className="cx-display text-[2rem] sm:text-[2.625rem]">Overview</h1>
-        </div>
-        <div className="md:text-right">
-          <p className="text-2xl font-extrabold tabular-nums">{money(summary?.totalRevenue, 2)}</p>
-          <p className="cx-eyebrow mt-1">Lifetime revenue</p>
-        </div>
-      </div>
+      <PageHeader
+        label={today}
+        title="Overview"
+        badge={liveChannels > 0 ? `${liveChannels} live ${liveChannels === 1 ? 'channel' : 'channels'}` : undefined}
+        actions={
+          <div className="md:text-right">
+            <p className="text-2xl font-extrabold tabular-nums">{money(summary?.totalRevenue, 2)}</p>
+            <p className="cx-eyebrow mt-1">Lifetime revenue</p>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Active listings" value={(summary?.activeListings ?? 0).toLocaleString()} note={`${summary?.totalInventory ?? 0} items in inventory`} />
@@ -111,7 +114,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => (itemsNeedingPosting[0] ? setPostItem(itemsNeedingPosting[0]) : undefined)}
-              className="mt-auto inline-flex h-[42px] items-center gap-2.5 self-start border-2 border-foreground bg-primary px-[18px] text-xs font-extrabold uppercase tracking-[0.05em] text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-accent-hover active:scale-95"
+              className="mt-auto inline-flex h-[42px] items-center gap-2.5 self-start border-2 border-on-inverse bg-primary px-[18px] text-xs font-extrabold uppercase tracking-[0.05em] text-primary-foreground transition-[background-color,transform] duration-150 hover:bg-accent-hover active:scale-95"
             >
               <Plus size={18} strokeWidth={3} /> Review items
             </button>
@@ -184,13 +187,18 @@ export default function Dashboard() {
               <p className="mt-1 text-sm text-ink-2">Sold items will show up here with what you kept after fees.</p>
             </div>
           ) : (
-            (recentOrders ?? []).slice(0, 6).map((order) => (
-              <div key={order.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3 border border-border bg-card p-3">
-                <span className="text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground">{relativeTime(order.createdAt)}</span>
-                <span className="truncate text-sm font-bold">Sold {order.itemTitle ?? 'item'} on {MARKET_NAMES[order.marketplace] ?? order.marketplace}</span>
-                <span className="border border-border bg-success px-2 py-1.5 text-[0.625rem] font-extrabold tabular-nums text-success-foreground">{money(order.salePrice, 2)}</span>
-              </div>
-            ))
+            <>
+              {(recentOrders ?? []).slice(0, 6).map((order) => (
+                <div key={order.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3 border border-border bg-card p-3">
+                  <span className="text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground">{relativeTime(order.createdAt)}</span>
+                  <span className="truncate text-sm font-bold">Sold {order.itemTitle ?? 'item'} on {MARKET_NAMES[order.marketplace] ?? order.marketplace}</span>
+                  <span className="border border-border bg-success px-2 py-1.5 text-[0.625rem] font-extrabold tabular-nums text-success-foreground">{money(order.salePrice, 2)}</span>
+                </div>
+              ))}
+              {(recentOrders ?? []).length < 4 && (
+                <p className="border border-dashed border-foreground bg-card p-3 text-center text-xs font-semibold text-ink-2">Sold items land here with what you kept after fees.</p>
+              )}
+            </>
           )}
         </section>
 
@@ -200,15 +208,18 @@ export default function Dashboard() {
             <Link href="/connections" className="cx-link">Manage →</Link>
           </div>
           {marketRows.map((row) => (
-            <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 border border-foreground bg-tile p-3">
+            <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 border border-border bg-card p-3">
               <span className="text-sm font-bold">{MARKET_NAMES[row.id]}</span>
-              <span className="inline-flex items-center gap-2.5 text-[0.6875rem] font-semibold uppercase tracking-[0.08em]">
-                {row.live > 0 ? <span className="cx-status-dot" /> : <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border-2 border-muted-foreground" />}
+              <span className={`inline-flex items-center gap-2.5 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] ${row.live > 0 ? '' : 'text-muted-foreground'}`}>
+                {row.live > 0 ? <span className="cx-status-dot" aria-hidden="true" /> : <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border-2 border-muted-foreground" aria-hidden="true" />}
                 {row.live > 0 ? 'Live' : 'Not listed'}
               </span>
-              <span className="w-10 text-right text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground tabular-nums">{MARKET_CODES[row.id]} {row.live}</span>
+              <span className="w-11 text-right text-[0.625rem] font-medium uppercase tracking-[0.04em] text-muted-foreground tabular-nums">{MARKET_CODES[row.id]} {row.live}</span>
             </div>
           ))}
+          <Link href="/listings" className="mt-auto inline-flex h-[42px] items-center justify-center gap-2 border-2 border-border bg-inverse px-[18px] text-xs font-extrabold uppercase tracking-[0.05em] text-on-inverse transition-colors hover:bg-ink-2">
+            Prepare drafts <ArrowRight size={15} aria-hidden="true" />
+          </Link>
         </section>
       </div>
     </div>

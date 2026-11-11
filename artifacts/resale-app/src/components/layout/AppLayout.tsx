@@ -86,14 +86,14 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <Link href="/" onClick={onNavigate} className="cx-wordmark px-0 pb-4 pt-1 text-xl">
-        CrossLinkOS
+      <Link href="/" onClick={onNavigate} className="cx-wordmark px-3 pb-4 pt-1 text-xl" aria-label="CrossLinkOS home">
+        CROSSLINK<span className="text-destructive" aria-hidden="true">//</span>OS
       </Link>
 
       <nav aria-label="Main" className="flex flex-1 flex-col gap-1 overflow-y-auto">
-        <p className="cx-eyebrow pb-1.5 pt-3">Browse</p>
+        <p className="cx-eyebrow px-3 pb-1.5 pt-3"><span aria-hidden="true">✦ </span>Browse</p>
         {browseItems.map((item) => <NavLink key={item.path} item={item} location={location} onNavigate={onNavigate} />)}
-        <p className="cx-eyebrow pb-1.5 pt-3">Tools</p>
+        <p className="cx-eyebrow px-3 pb-1.5 pt-4"><span aria-hidden="true">✦ </span>Tools</p>
         {toolItems.map((item) => <NavLink key={item.path} item={item} location={location} onNavigate={onNavigate} />)}
       </nav>
 
@@ -138,7 +138,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b-2 border-border bg-background px-4 lg:hidden">
-        <Link href="/" className="cx-wordmark text-xl">CrossLinkOS</Link>
+        <Link href="/" className="cx-wordmark text-xl" aria-label="CrossLinkOS home">CROSSLINK<span className="text-destructive" aria-hidden="true">//</span>OS</Link>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
