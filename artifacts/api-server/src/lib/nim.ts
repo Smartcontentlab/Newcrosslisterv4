@@ -24,34 +24,39 @@ export class NimError extends Error {
 }
 
 /** Instruction-following models that return clean JSON, best first. Only names present in NVIDIA's live list are used. */
+// NVIDIA's model list includes models this account cannot call: they answer 404
+// "Function not found" (mistral-large-2, llama-3.1-nemotron-70b) or hang past the
+// attempt limit (gemma-4-31b). Verified live 2026-11-11: models that answer go first.
 const TEXT_PREFERENCE = [
+  "nvidia/nemotron-3.5-lightning-30b-a3b",
+  "nvidia/nemotron-nano-3-30b-a3b",
+  "openai/gpt-oss-20b",
+  "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/llama-3.1-nemotron-51b-instruct",
+  "mistralai/mistral-large",
   "mistralai/mistral-large-2-instruct",
   "nvidia/llama-3.1-nemotron-70b-instruct",
   "google/gemma-4-31b-it",
-  "nvidia/nemotron-3.5-lightning-30b-a3b",
-  "nvidia/nemotron-nano-3-30b-a3b",
-  "mistralai/mistral-large",
-  "nvidia/llama-3.1-nemotron-51b-instruct",
-  "openai/gpt-oss-20b",
-  "nvidia/nemotron-3-super-120b-a12b",
   "google/gemma-3-12b-it",
 ];
 /** Models that accept pictures. */
-// NVIDIA keeps listing some retired vision models (Nov 2026: llama-3.2 vision and
-// phi-3-vision answer 404 "Function not found"), so current models go first.
+// Verified live 2026-11-11: llama-3.2-90b-vision answers (in about 20 s, so vision
+// gets a longer attempt limit); nemotron-3.5-super-vl is listed but slower. gemma-3-12b,
+// gemma-3-4b and phi-3-vision are listed but answer 404 "Function not found".
 const VISION_PREFERENCE = [
-  "nvidia/nemotron-3.5-super-vl-120b-a12b",
-  "google/gemma-3-12b-it",
-  "google/gemma-4-31b-it",
-  "google/gemma-3-4b-it",
   "meta/llama-3.2-90b-vision-instruct",
+  "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "meta/llama-3.2-11b-vision-instruct",
+  "google/gemma-4-31b-it",
+  "google/gemma-3-12b-it",
+  "google/gemma-3-4b-it",
   "microsoft/phi-3-vision-128k-instruct",
 ];
 
 const BASE = () => (process.env.NVIDIA_NIM_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
 const ATTEMPT_MS = 22_000;
-const TOTAL_MS = 50_000; // Vercel function limit is 60s (vercel.json)
+const VISION_ATTEMPT_MS = 42_000; // vision models take ~20 s on a photo; 22 s cut the working one off
+const TOTAL_MS = 55_000; // Vercel function limit is 60s (vercel.json)
 const MAX_ATTEMPTS = 4;
 
 let liveModels: { at: number; ids: Set<string> } | null = null;
@@ -117,7 +122,7 @@ export async function nimChat(options: { messages: NimMessage[]; maxTokens?: num
           // it, leaving an empty answer. These requests want short, direct output.
           ...(/nemotron/i.test(model) ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         }),
-        signal: AbortSignal.timeout(Math.min(ATTEMPT_MS, remaining)),
+        signal: AbortSignal.timeout(Math.min(options.kind === "vision" ? VISION_ATTEMPT_MS : ATTEMPT_MS, remaining)),
       });
       if (response.status === 401 || response.status === 403) {
         throw new NimError("NVIDIA rejected the AI key (NVIDIA_NIM_API_KEY). Create a new key at build.nvidia.com and update it in Vercel.", "auth", response.status);
