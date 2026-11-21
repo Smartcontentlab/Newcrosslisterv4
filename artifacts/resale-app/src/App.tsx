@@ -14,6 +14,7 @@ import Analytics from "@/pages/analytics";
 import AiAssistant from "@/pages/ai-assistant";
 import AgentHub from "@/pages/agent";
 import ListingStudio from "@/pages/listing-studio";
+import BulkImport from "@/pages/bulk-import";
 import Connections from "@/pages/connections";
 import SettingsPage from "@/pages/settings";
 import Help from "@/pages/help";
@@ -29,6 +30,7 @@ function WorkspaceRoutes() {
       <Route path="/"><AppLayout><Dashboard /></AppLayout></Route>
       <Route path="/inventory"><AppLayout><Inventory /></AppLayout></Route>
       <Route path="/listing-studio"><AppLayout><ListingStudio /></AppLayout></Route>
+      <Route path="/bulk-import"><AppLayout><BulkImport /></AppLayout></Route>
       <Route path="/listings"><AppLayout><Listings /></AppLayout></Route>
       <Route path="/orders"><AppLayout><Orders /></AppLayout></Route>
       <Route path="/shipping"><AppLayout><Shipping /></AppLayout></Route>
