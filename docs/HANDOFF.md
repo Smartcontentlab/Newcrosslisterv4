@@ -60,6 +60,13 @@ Source of truth: the "Crosslister" design system (Framer, "Readable Shape"), mir
 - Not verified: live SoldComps and eBay responses (no keys in the build environment); the code follows their published docs and is tested against mocks of those shapes. eBay's Marketplace Insights (real sold data) is restricted to approved partners, which is why SoldComps is used.
 - Risk to know: SoldComps is a small third-party service. If it disappears, the eBay Browse fallback and the eBay link keep the feature useful.
 
+## Bulk import (v7)
+- Page `/bulk-import` (button on Inventory). The seller picks a price sheet as CSV and the photo folder (or its ZIP, read in the browser with `fflate`, or loose photos). Each sheet row becomes one item saved with status `draft` through `POST /api/workflow/items`; optionally `POST /api/workflow/items/:id/marketplace-drafts` runs right after so the extension can fill Poshmark/Depop at once. Nothing is posted.
+- Matching and mapping live in `src/lib/bulk-import.ts` (pure, tested by `pnpm --filter @workspace/resale-app run test`): headers are matched loosely (#, Title, Description, Brand, Category, Subcategory, Department, Size, Color, Condition, Suggested price, Original price, Checks before posting, Price basis); photos belong to the item whose number starts their folder name ("01 Navy Cargo Pants/…") or a loose file name ("01_front.jpg"); natural file-name order, cover first, max 8, an "Originals" sub-folder is skipped unless it is all there is.
+- The sheet's title and description are saved as the seller's own copy for every marketplace (`marketplaceDetails.platformCopy`), so drafts use the text word for word and need no AI. "Checks before posting" and "Price basis" go to private notes. SKU is `IMPmmdd-##`.
+- Photos are resized and stored exactly like the Listing studio (`shrinkPhoto` 1080 px, then `storePhoto` to Supabase Storage, inline fallback). Rows run one by one; a failed row can be retried without duplicating the rows that already saved (on the same page visit).
+- Not verified: a real import against the live Supabase project and Storage (no sign-in in the build environment); the page was typechecked and built, not clicked through.
+
 ## Listing help history (v5)
 - Root cause of "nothing happens" in v4: the app never mounted the toast component, so every message was invisible. `<Toaster />` is mounted in `App.tsx` and styled to the design system.
 

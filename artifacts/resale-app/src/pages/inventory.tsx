@@ -14,7 +14,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { Archive, CheckCircle2, ClipboardCheck, ExternalLink, LayoutGrid, Loader2, Plus, Rows3, Search, Trash2, X } from 'lucide-react';
+import { Archive, CheckCircle2, ClipboardCheck, ExternalLink, LayoutGrid, Loader2, Plus, Rows3, Search, Trash2, Upload, X } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
@@ -197,6 +197,7 @@ export default function Inventory() {
         actions={(
           <>
             <Link href="/listing-studio" className="inline-flex h-11 items-center gap-2 rounded-none border border-foreground px-5 text-xs font-extrabold uppercase tracking-[0.05em] transition-colors hover:bg-muted"><ExternalLink size={15} /> Listing studio</Link>
+            <Link href="/bulk-import" className="inline-flex h-11 items-center gap-2 rounded-none border border-foreground px-5 text-xs font-extrabold uppercase tracking-[0.05em] transition-colors hover:bg-muted"><Upload size={15} /> Bulk import</Link>
             <button type="button" onClick={() => setIsAddOpen(true)} data-testid="button-add-item" className="inline-flex h-11 items-center gap-2 rounded-none bg-primary border-2 border-foreground hover:bg-accent-hover px-5 text-xs font-extrabold uppercase tracking-[0.05em] text-primary-foreground transition-colors "><Plus size={16} /> Quick add</button>
           </>
         )}
