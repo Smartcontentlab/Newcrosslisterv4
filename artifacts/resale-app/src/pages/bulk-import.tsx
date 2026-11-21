@@ -135,7 +135,7 @@ export default function BulkImportPage() {
             <label className={button}><FolderOpen size={15} /> Choose folder<input type="file" multiple className="sr-only" onChange={pickPhotos} {...{ webkitdirectory: '', directory: '' }} /></label>
             <label className={button}><Upload size={15} /> Choose ZIP or photos<input type="file" multiple accept=".zip,application/zip,image/jpeg,image/png,image/webp" className="sr-only" onChange={pickPhotos} /></label>
           </div>
-          <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={useOriginals} onChange={(event) => setUseOriginals(event.target.checked)} disabled={running} /><span>Use the original camera photos from each item's Originals folder when it has one. They keep every label, tag, flaw and backdrop that edits can remove.</span></label>
+          <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={useOriginals} onChange={(event) => setUseOriginals(event.target.checked)} disabled={running} /><span>Use the original camera photos from each item's Originals folder in place of the matching edited photos. They keep the hanger, backdrop, labels and flaws that edits can remove. Close-ups with no original are kept.</span></label>
           {readingPhotos ? <p className="mt-3 flex items-center gap-2 text-sm"><Loader2 size={14} className="animate-spin" /> Reading photos…</p> : photos.length > 0 && <p className="mt-3 text-sm">{photos.length} photos found for {groups.size} items</p>}
         </section>
       </div>
