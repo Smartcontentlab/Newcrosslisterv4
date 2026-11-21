@@ -55,23 +55,27 @@ test("price: common spellings", () => {
   assert.equal(parsePrice("TBD"), 0);
 });
 test("photos: number comes from the item folder, then a loose file name", () => {
+  assert.equal(photoNumber("VibeHuntingSF_Listing_Batch(1)/05_Nasty_Gal_Floral_Halter_Dress/Originals/IMG_0504.jpeg"), "05");
   assert.equal(photoNumber("VibeHuntingSF Listing Photos/01 Navy Cargo Pants/08_Tape_Metric_Start.jpg"), "01");
   assert.equal(photoNumber("VibeHuntingSF Listing Photos/14 Black Crushed Velvet Dress/Originals/IMG_2231.jpg"), "14");
   assert.equal(photoNumber("07_front.jpg"), "07");
   assert.equal(photoNumber("IMG_0042.jpg"), "");
   assert.equal(photoNumber("Photos/IMG_0042.jpg"), "");
 });
-test("photos: grouped in natural order, originals left out, capped at eight", () => {
+test("photos: natural order, originals preferred unless turned off, capped at eight", () => {
   const files = [
     "P/02 Pullover/10_Back.jpg", "P/02 Pullover/2_Hood.jpg", "P/02 Pullover/01_Front_Cover.jpg", "P/02 Pullover/Originals/IMG_1.jpg",
     "P/02 Pullover/notes.txt", "P/02 Pullover/._01_Front_Cover.jpg",
     "P/03 Jeans/Originals/IMG_9.jpg",
     ...Array.from({ length: 11 }, (_, i) => `P/05 Dress/${String(i + 1).padStart(2, "0")}.jpg`),
   ].map((path) => ({ path }));
-  const groups = groupPhotos(files);
-  assert.deepEqual(groups.get("02")!.map((f) => f.path.split("/").pop()), ["01_Front_Cover.jpg", "2_Hood.jpg", "10_Back.jpg"]);
-  assert.deepEqual(groups.get("03")!.map((f) => f.path.split("/").pop()), ["IMG_9.jpg"], "originals used when nothing else");
-  assert.equal(groups.get("05")!.length, MAX_IMPORT_PHOTOS);
+  const edited = groupPhotos(files, false);
+  assert.deepEqual(edited.get("02")!.map((f) => f.path.split("/").pop()), ["01_Front_Cover.jpg", "2_Hood.jpg", "10_Back.jpg"]);
+  assert.deepEqual(edited.get("03")!.map((f) => f.path.split("/").pop()), ["IMG_9.jpg"], "originals used when nothing else");
+  assert.equal(edited.get("05")!.length, MAX_IMPORT_PHOTOS);
+  const originals = groupPhotos(files);
+  assert.deepEqual(originals.get("02")!.map((f) => f.path.split("/").pop()), ["IMG_1.jpg"], "originals preferred by default");
+  assert.equal(originals.get("05")!.length, MAX_IMPORT_PHOTOS, "edited photos used when an item has no originals");
 });
 test("item body: draft status, seller copy for each marketplace, checks in private notes", () => {
   const { rows } = rowsFromCsv(SHEET);

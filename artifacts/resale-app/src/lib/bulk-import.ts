@@ -9,7 +9,8 @@
  *   Condition | Suggested price | Original price | Checks before posting | Price basis
  * Only "#" and "Title" are required. Photos are matched to a row by the number at the
  * start of their folder name ("01 Navy Cargo Pants/01_Front_Cover.jpg") or, for loose
- * files, at the start of the file name ("01-02.jpg"). Photos keep file-name order.
+ * files, at the start of the file name ("01-02.jpg"). Photos keep file-name order, and an
+ * item's unedited "Originals" photos are used when it has them (see groupPhotos).
  */
 
 export type ImportCondition = 'new' | 'like_new' | 'good' | 'fair' | 'poor';
@@ -157,10 +158,12 @@ export type PhotoRef = { path: string; size?: number };
 
 /**
  * Groups photos by item number, in natural file-name order, at most eight per item.
- * Files in an "Originals" sub-folder are left out (they are the unedited camera files)
- * unless an item has no other photos.
+ * An item's "Originals" sub-folder holds the unedited camera photos. By default those
+ * are used whenever an item has them, because edits can remove labels, tags, flaws or
+ * the backdrop that buyers should see; the edited photos are used only for items
+ * without originals. Pass preferOriginals = false to use the edited photos instead.
  */
-export function groupPhotos<T extends PhotoRef>(files: T[]): Map<string, T[]> {
+export function groupPhotos<T extends PhotoRef>(files: T[], preferOriginals = true): Map<string, T[]> {
   const byNumber = new Map<string, { main: T[]; originals: T[] }>();
   for (const file of files) {
     if (!IMAGE_FILE.test(file.path) || /(^|\/)\._/.test(file.path)) continue;
@@ -174,7 +177,9 @@ export function groupPhotos<T extends PhotoRef>(files: T[]): Map<string, T[]> {
   const name = (file: T) => file.path.split('/').pop() ?? file.path;
   const result = new Map<string, T[]>();
   for (const [number, bucket] of byNumber) {
-    const chosen = (bucket.main.length ? bucket.main : bucket.originals).sort((a, b) => collator.compare(name(a), name(b)));
+    const first = preferOriginals ? bucket.originals : bucket.main;
+    const fallback = preferOriginals ? bucket.main : bucket.originals;
+    const chosen = (first.length ? first : fallback).sort((a, b) => collator.compare(name(a), name(b)));
     result.set(number, chosen.slice(0, MAX_IMPORT_PHOTOS));
   }
   return result;
