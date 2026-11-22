@@ -9,7 +9,8 @@
  *   Condition | Suggested price | Original price | Checks before posting | Price basis
  * Only "#" and "Title" are required. Photos are matched to a row by the number at the
  * start of their folder name ("01 Navy Cargo Pants/01_Front_Cover.jpg") or, for loose
- * files, at the start of the file name ("01-02.jpg"). Photos keep file-name order.
+ * files, at the start of the file name ("01-02.jpg"). Photos keep file-name order, and an
+ * item's unedited "Originals" photos replace the matching edited ones (see groupPhotos).
  */
 
 export type ImportCondition = 'new' | 'like_new' | 'good' | 'fair' | 'poor';
@@ -157,10 +158,15 @@ export type PhotoRef = { path: string; size?: number };
 
 /**
  * Groups photos by item number, in natural file-name order, at most eight per item.
- * Files in an "Originals" sub-folder are left out (they are the unedited camera files)
- * unless an item has no other photos.
+ * An item's "Originals" sub-folder holds unedited camera photos numbered like the
+ * edited set ("01_IMG_0469.jpeg" is the camera file behind "01_Front_Cover.jpg").
+ * By default each original takes the place of the edited photo with the same number,
+ * because edits can remove the hanger, backdrop, wrinkles, labels or flaws that buyers
+ * should see; edited photos with no original (label and tape close-ups) are kept, and
+ * originals with no edited partner are added in order. Pass preferOriginals = false to
+ * use the edited photos only.
  */
-export function groupPhotos<T extends PhotoRef>(files: T[]): Map<string, T[]> {
+export function groupPhotos<T extends PhotoRef>(files: T[], preferOriginals = true): Map<string, T[]> {
   const byNumber = new Map<string, { main: T[]; originals: T[] }>();
   for (const file of files) {
     if (!IMAGE_FILE.test(file.path) || /(^|\/)\._/.test(file.path)) continue;
@@ -174,7 +180,29 @@ export function groupPhotos<T extends PhotoRef>(files: T[]): Map<string, T[]> {
   const name = (file: T) => file.path.split('/').pop() ?? file.path;
   const result = new Map<string, T[]>();
   for (const [number, bucket] of byNumber) {
-    const chosen = (bucket.main.length ? bucket.main : bucket.originals).sort((a, b) => collator.compare(name(a), name(b)));
+    const byName = (a: T, b: T) => collator.compare(name(a), name(b));
+    const main = [...bucket.main].sort(byName);
+    const originals = [...bucket.originals].sort(byName);
+    let chosen: T[];
+    if (!main.length) chosen = originals;
+    else if (!preferOriginals || !originals.length) chosen = main;
+    else {
+      const slot = (file: T) => /^(\d{1,3})/.exec(name(file))?.[1]?.replace(/^0+(?=\d)/, '') ?? '';
+      const originalBySlot = new Map<string, T>();
+      const unslotted: T[] = [];
+      for (const file of originals) {
+        const key = slot(file);
+        if (key && !originalBySlot.has(key)) originalBySlot.set(key, file); else unslotted.push(file);
+      }
+      const used = new Set<T>();
+      chosen = main.map((file) => {
+        const original = originalBySlot.get(slot(file));
+        if (!original) return file;
+        used.add(original);
+        return original;
+      });
+      chosen.push(...originals.filter((file) => !used.has(file)));
+    }
     result.set(number, chosen.slice(0, MAX_IMPORT_PHOTOS));
   }
   return result;

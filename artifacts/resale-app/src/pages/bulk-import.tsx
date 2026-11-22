@@ -34,10 +34,11 @@ export default function BulkImportPage() {
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [readingPhotos, setReadingPhotos] = useState(false);
   const [makeDrafts, setMakeDrafts] = useState(true);
+  const [useOriginals, setUseOriginals] = useState(true);
   const [state, setState] = useState<Record<string, RowState>>({});
   const [running, setRunning] = useState(false);
 
-  const groups = useMemo(() => groupPhotos(photos), [photos]);
+  const groups = useMemo(() => groupPhotos(photos, useOriginals), [photos, useOriginals]);
   const done = rows.filter((row) => state[row.number]?.status === 'done').length;
   const toCreate = rows.filter((row) => state[row.number]?.status !== 'done');
 
@@ -129,11 +130,12 @@ export default function BulkImportPage() {
         <section className={panel} aria-label="Photos">
           <p className="cx-eyebrow cx-bracket">02 / photos</p>
           <h2 className="mt-2 text-[0.9375rem] font-extrabold">Choose the photo folder or its ZIP</h2>
-          <p className="mt-1 text-sm text-ink-2">Each item's photos sit in a folder that starts with its number, like "01 Navy Cargo Pants". The cover is the first file by name. Up to 8 photos per item; an Originals folder is skipped.</p>
+          <p className="mt-1 text-sm text-ink-2">Each item's photos sit in a folder that starts with its number, like "01 Navy Cargo Pants". The cover is the first file by name. Up to 8 photos per item.</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <label className={button}><FolderOpen size={15} /> Choose folder<input type="file" multiple className="sr-only" onChange={pickPhotos} {...{ webkitdirectory: '', directory: '' }} /></label>
             <label className={button}><Upload size={15} /> Choose ZIP or photos<input type="file" multiple accept=".zip,application/zip,image/jpeg,image/png,image/webp" className="sr-only" onChange={pickPhotos} /></label>
           </div>
+          <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={useOriginals} onChange={(event) => setUseOriginals(event.target.checked)} disabled={running} /><span>Use the original camera photos from each item's Originals folder in place of the matching edited photos. They keep the hanger, backdrop, labels and flaws that edits can remove. Close-ups with no original are kept.</span></label>
           {readingPhotos ? <p className="mt-3 flex items-center gap-2 text-sm"><Loader2 size={14} className="animate-spin" /> Reading photos…</p> : photos.length > 0 && <p className="mt-3 text-sm">{photos.length} photos found for {groups.size} items</p>}
         </section>
       </div>
