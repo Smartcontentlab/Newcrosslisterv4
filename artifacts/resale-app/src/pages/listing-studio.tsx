@@ -3,7 +3,7 @@ import { cutOutWholeItem } from '@/lib/cutout';
 import { bodyBytes, SAVE_BUDGET_BYTES, shrinkPhoto, squareListingPhoto, storePhoto } from '@/lib/listing-photos';
 import { photoForVision } from '@/lib/downscale';
 import PricingPanel from '@/components/PricingPanel';
-import { initialShip, takeHome, type ShipAssumptions } from '@/lib/pricing';
+import { estimateWeight, initialShip, takeHome, type ShipAssumptions } from '@/lib/pricing';
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -289,10 +289,17 @@ export default function ListingStudio() {
       else (detailPatch as Record<string, string>)[key] = value;
     }
     if (!count) { setPhotoNotice({ tone: 'error', text: 'Tick at least one field to apply.' }); return; }
+    // No scale needed: an empty weight gets the typical packed weight for this kind of item.
+    const weightGuess = form.weight.trim() ? null : estimateWeight({
+      title: formPatch.title ?? form.title, model: formPatch.model ?? form.model, category: formPatch.category ?? form.category,
+      subcategory: (detailPatch as Record<string, string>).subcategory ?? marketplaceDetails.subcategory,
+    });
+    if (weightGuess) formPatch.weight = String(weightGuess.fill);
     setForm((current) => ({ ...current, ...formPatch }));
     setMarketplaceDetails((current) => ({ ...current, ...detailPatch }));
     setPhotoResult(null);
-    setPhotoNotice({ tone: 'info', text: `${count} field${count === 1 ? '' : 's'} filled in below. Check them against the item, then continue.` });
+    const weightNote = weightGuess ? ` Weight set to ${weightGuess.fill} lb, the usual for ${weightGuess.label.toLowerCase()}. Change it if the item is unusually heavy.` : '';
+    setPhotoNotice({ tone: 'info', text: `${count} field${count === 1 ? '' : 's'} filled in below.${weightNote} Check them against the item, then continue.` });
     window.requestAnimationFrame(() => document.getElementById('listing-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 

@@ -100,13 +100,48 @@ export function listPriceFor(target: number, ship: ShipAssumptions, weightLb: nu
  */
 export const WEIGHT_USUALS: { label: string; range: string; fill: number }[] = [
   { label: 'Tee / tank', range: '0.3–0.5', fill: 0.4 },
+  { label: 'Leggings / activewear', range: '0.4–0.7', fill: 0.6 },
+  { label: 'Shorts / skirt', range: '0.4–0.8', fill: 0.6 },
   { label: 'Long sleeve / polo / button-up', range: '0.4–0.6', fill: 0.5 },
   { label: 'Sweater', range: '0.5–1', fill: 0.75 },
   { label: 'Dress', range: '0.6–0.9', fill: 0.75 },
-  { label: 'Jeans', range: '1–2', fill: 1.5 },
+  { label: 'Jeans / pants', range: '1–2', fill: 1.5 },
   { label: 'Hoodie / sweatshirt', range: '1–1.5', fill: 1.25 },
   { label: 'Jacket / coat', range: '1.5–3', fill: 2 },
+  { label: 'Small accessory', range: '0.2–0.5', fill: 0.4 },
+  { label: 'Bag / purse', range: '1–2', fill: 1.5 },
   { label: 'Sandals / heels', range: '0.6–1.2', fill: 1 },
   { label: 'Sneakers (boxed)', range: '1.8–2.5', fill: 2.3 },
   { label: 'Boots (boxed)', range: '1.8–4.4', fill: 3 },
 ];
+
+/**
+ * Picks a typical packed weight from words in the item's title, model/style, category and subcategory,
+ * for sellers without a scale. Checks the most specific words first and returns null when nothing matches,
+ * so an unknown item is never given a made-up number. Leans to the top of each range: a label that is too
+ * light can bring an extra charge from the marketplace, one that is slightly heavy costs little.
+ */
+const WEIGHT_RULES: Array<{ label: string; words: RegExp }> = [
+  { label: 'Boots (boxed)', words: /\bboots?\b|booties|bootie/ },
+  { label: 'Sneakers (boxed)', words: /sneaker|trainer|running shoe|\bshoes?\b|air force|jordan|\bdunks?\b|loafer|clog/ },
+  { label: 'Sandals / heels', words: /sandal|\bheels?\b|\bpumps?\b|slide|flip.?flop|mule|flats?\b/ },
+  { label: 'Bag / purse', words: /\bbags?\b|purse|handbag|tote|backpack|crossbody|clutch|satchel|wallet/ },
+  { label: 'Jacket / coat', words: /jacket|coat|parka|puffer|blazer|vest|windbreaker|anorak|trench/ },
+  { label: 'Hoodie / sweatshirt', words: /hoodie|sweatshirt|crewneck|pullover|fleece|quarter.?zip|half.?zip|sweatpant|jogger/ },
+  { label: 'Leggings / activewear', words: /legging|tights|yoga|workout|athletic|activewear|sports? bra|bike short|joggers? set|align|bandier|lululemon|alo\b/ },
+  { label: 'Jeans / pants', words: /jeans?\b|denim|trouser|\bpants?\b|cargo|chino|overall/ },
+  { label: 'Sweater', words: /sweater|cardigan|knit|turtleneck/ },
+  { label: 'Dress', words: /dress|romper|jumpsuit|gown/ },
+  { label: 'Shorts / skirt', words: /shorts?\b|skirt|skort/ },
+  { label: 'Long sleeve / polo / button-up', words: /long.?sleeve|polo|button.?(up|down)|blouse|shirt\b|flannel/ },
+  { label: 'Tee / tank', words: /\btees?\b|t-?shirt|tank|cami|crop top|\btop\b|bodysuit|jersey/ },
+  { label: 'Small accessory', words: /hat|\bcap\b|beanie|scarf|belt|sunglasses|jewelry|necklace|bracelet|earring|\bring\b|socks?|gloves?|hair clip|scrunchie/ },
+];
+
+export function estimateWeight(item: { title?: string; model?: string; category?: string; subcategory?: string }): { label: string; fill: number } | null {
+  const text = [item.subcategory, item.model, item.title, item.category].filter(Boolean).join(' ').toLowerCase();
+  if (!text) return null;
+  const rule = WEIGHT_RULES.find((entry) => entry.words.test(text));
+  const usual = rule && WEIGHT_USUALS.find((entry) => entry.label === rule.label);
+  return usual ? { label: usual.label, fill: usual.fill } : null;
+}
