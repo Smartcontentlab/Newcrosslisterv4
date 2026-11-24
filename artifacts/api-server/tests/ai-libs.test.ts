@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { nimChat, resetNimState, NimError, cleanModelText, extractJsonObject } from "../src/lib/nim";
 import { finishCopy, templateCopy, generatePlatformCopy, cleanHashtags, guardBody, allowedStatusTags, type CopyFacts } from "../src/lib/listing-copy";
+import { titleCase } from "../src/lib/title-case";
 import { buildQuery, summarize, findComps, resetCompsCache, compsEstimate } from "../src/lib/comps";
 import { normalizePhotoFacts, mergePhotoFacts, readPhotos } from "../src/lib/photo-read";
 import { relevantTrends } from "../src/lib/platform-playbooks";
@@ -85,7 +86,7 @@ await test("copy: finishCopy composes per platform and enforces limits", () => {
   assert.ok(p.description.endsWith("#vintage #denim #levis")); assert.ok(!p.hashtags.includes("gucci"));
   assert.ok(!/\n#vintage #denim\n/.test(p.description.split("\n\n#")[0]));
   const d = finishCopy("depop", jeans, { ...raw, title: "levi's 501 straight jeans 30x32 y2k" }, "m", [])!;
-  assert.ok(d.description.startsWith("levi's 501 straight jeans 30x32 y2k\n\n")); assert.ok(d.limits.description === 1000);
+  assert.ok(d.description.startsWith("Levi's 501 Straight Jeans 30x32 Y2K\n\n"), d.description.slice(0, 60)); assert.ok(d.limits.description === 1000);
   const long = finishCopy("mercari", jeans, { title: "t", body: Array.from({ length: 80 }, (_, i) => `Line ${i} about the jeans and their condition.`).join("\n"), hashtags: [] }, "m", [])!;
   assert.ok(long.description.length <= 1000); assert.ok(long.warnings.includes("Shortened to fit the length limit."));
   assert.equal(finishCopy("mercari", jeans, { title: "", body: "" }, "m", []), null);
@@ -167,7 +168,7 @@ await test("photo: normalize + merge", () => {
   const b = normalizePhotoFacts({ title: "Nike black hoodie", brand: "Nike", category: "Weird", size: "M", flaws: ["Pilling", "stain on cuff"], unsure: ["material"] });
   assert.equal(a.category, "Clothing"); assert.equal(b.category, "");
   const m = mergePhotoFacts([a, b]);
-  assert.equal(m.title, "Black hoodie"); assert.equal(m.brand, "Nike"); assert.equal(m.size, "M"); assert.equal(m.category, "Clothing");
+  assert.equal(m.title, "Black Hoodie"); assert.equal(m.brand, "Nike"); assert.equal(m.size, "M"); assert.equal(m.category, "Clothing");
   assert.deepEqual(m.flaws, ["pilling", "stain on cuff"]); assert.deepEqual(m.unsure, ["material"]);
 });
 await test("photo: readPhotos sends one image per request, vision model, merges; partial failure ok", async () => {
@@ -178,6 +179,15 @@ await test("photo: readPhotos sends one image per request, vision model, merges;
   const chats = calls.filter((c) => c.body);
   assert.ok(chats.every((c) => Array.isArray(c.body.messages[1].content) && c.body.messages[1].content.filter((p: any) => p.type === "image_url").length === 1));
   assert.ok(chats.some((c) => c.body.model === "meta/llama-3.2-11b-vision-instruct")); assert.ok(r.photosRead >= 2); assert.equal(r.facts.color, "red");
+});
+
+await test("titles: every word capitalized, deliberate casing and sizes kept", () => {
+  assert.equal(titleCase("Bandier green leggings"), "Bandier Green Leggings");
+  assert.equal(titleCase("vintage levi's 501 jeans size 32"), "Vintage Levi's 501 Jeans Size 32");
+  assert.equal(titleCase("high-waisted black/white midi skirt"), "High-Waisted Black/White Midi Skirt");
+  assert.equal(titleCase("J.Crew emilie striped cardigan xl"), "J.Crew Emilie Striped Cardigan XL");
+  assert.equal(titleCase("nwt patagonia fleece 3t y2k"), "NWT Patagonia Fleece 3T Y2K");
+  assert.equal(titleCase("jeans 32x30"), "Jeans 32x30");
 });
 
 globalThis.fetch = realFetch;

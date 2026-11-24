@@ -3,6 +3,7 @@ import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db, itemsTable, ordersTable } from "@workspace/db";
 import { getAuthenticatedUser } from "../lib/auth";
 import { extractJsonObject, nimChat, nimProblem, type NimMessage } from "../lib/nim";
+import { titleCase } from "../lib/title-case";
 import { compsEstimate, findComps } from "../lib/comps";
 import {
   GenerateListingBody,
@@ -120,7 +121,7 @@ router.post("/ai/generate-listing", async (req, res): Promise<void> => {
     ], 1400);
     const result = parseJsonResponse<Record<string, unknown>>(raw);
     const normalized = GenerateListingResponse.parse({
-      title: asString(result.title, item.title).slice(0, 80),
+      title: titleCase(asString(result.title, item.title)).slice(0, 80),
       description: asString(result.description, item.description ?? `Resale listing for ${item.title}.`),
       tags: asStringArray(result.tags),
       keywords: asStringArray(result.keywords),

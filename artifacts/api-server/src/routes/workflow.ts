@@ -15,6 +15,7 @@ import { enqueueDelistingTasksForSale, SUPPORTED_MARKETPLACES } from "../lib/mar
 import { getAuthenticatedUser } from "../lib/auth";
 import { extractJsonObject, nimChat, nimProblem, NimError } from "../lib/nim";
 import { generateAllCopy, templateCopy, type CopyFacts, type PlatformCopy } from "../lib/listing-copy";
+import { titleCase } from "../lib/title-case";
 import { PLAYBOOKS, PLATFORMS, TRENDS_AS_OF } from "../lib/platform-playbooks";
 import { IMAGE_DATA_URL, MAX_INLINE_IMAGE_CHARS, MAX_PHOTOS_READ, readPhotos } from "../lib/photo-read";
 
@@ -182,7 +183,7 @@ async function assistFromFields(item: AssistFields, focus: AssistFocus) {
   if (!parsed) throw new NimError("The AI answered in a format the app could not read. Please try again.", "empty");
   const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   return {
-    title: str(parsed.title).slice(0, 80) || item.title,
+    title: titleCase(str(parsed.title)).slice(0, 80) || item.title,
     description: str(parsed.description) || item.description || "",
     tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.replace(/^#/, "").trim()).filter(Boolean).slice(0, 10) : tags,
     category: str(parsed.category) || item.category || "", color: str(parsed.color) || item.color || "", size: str(parsed.size) || item.size || "",

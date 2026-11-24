@@ -51,7 +51,7 @@ await t("photo-read: validates images; returns merged facts", async () => {
   assert.equal((await post("/api/workflow/photo-read", { photos: ["data:image/jpeg;base64," + "A".repeat(170_100)] })).status, 400);
   nim((b) => { assert.ok(b.messages[1].content.some((p: any) => p.type === "image_url")); return json({ choices: [{ message: { content: '{"title":"Red cotton tee","brand":"","category":"Clothing","color":"red","flaws":[],"unsure":["brand"]}' } }] }); });
   const r = await post("/api/workflow/photo-read", { photos: ["data:image/jpeg;base64,AAAA", "data:image/png;base64,BBBB"] });
-  assert.equal(r.status, 200); assert.equal(r.json.title, "Red cotton tee"); assert.equal(r.json.photosRead, 2); assert.deepEqual(r.json.unsure, ["brand"]);
+  assert.equal(r.status, 200); assert.equal(r.json.title, "Red Cotton Tee"); assert.equal(r.json.photosRead, 2); assert.deepEqual(r.json.unsure, ["brand"]);
   nim(() => json({}, 503)); resetNimState();
   const f = await post("/api/workflow/photo-read", { photos: ["data:image/jpeg;base64,AAAA"] }); assert.equal(f.status, 502);
 });

@@ -1,3 +1,4 @@
+import { titleCase } from "./title-case";
 import { extractJsonObject, nimChat } from "./nim";
 
 /**
@@ -41,7 +42,7 @@ const list = (value: unknown) => (Array.isArray(value) ? value.map(text).filter(
 export function normalizePhotoFacts(raw: Record<string, unknown>): PhotoFacts {
   const facts = empty();
   for (const key of STRING_FIELDS) facts[key] = text(raw[key]);
-  facts.title = facts.title.slice(0, 80);
+  facts.title = titleCase(facts.title).slice(0, 80);
   const match = PHOTO_CATEGORIES.find((category) => category.toLowerCase() === facts.category.toLowerCase());
   facts.category = match ?? "";
   facts.flaws = list(raw.flaws);

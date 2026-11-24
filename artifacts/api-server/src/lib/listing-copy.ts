@@ -1,3 +1,4 @@
+import { titleCase } from "./title-case";
 import { extractJsonObject, nimChat, nimProblem } from "./nim";
 import { PLAYBOOKS, PLATFORMS, relevantTrends, seasonWords, WATCHED_BRANDS, TRENDS_AS_OF, type Platform } from "./platform-playbooks";
 
@@ -77,9 +78,9 @@ function tidyTitle(raw: string, limit: number): string {
   let title = raw.replace(/[#*_`"“”]/g, "").replace(/\s+/g, " ").trim();
   const letters = title.replace(/[^a-z]/gi, "");
   if (letters.length > 8 && letters.replace(/[^A-Z]/g, "").length / letters.length > 0.7) {
-    title = title.toLowerCase().replace(/\b([a-z])/g, (_, c: string) => c.toUpperCase());
+    title = title.toLowerCase();
   }
-  return cutAtWord(title, limit);
+  return cutAtWord(titleCase(title), limit);
 }
 
 const CLAIM_PATTERNS: Array<{ re: RegExp; label: string }> = [
