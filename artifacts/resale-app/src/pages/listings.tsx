@@ -95,7 +95,7 @@ export default function Listings() {
     try {
       const response = await apiFetch(`/api/workflow/marketplace-drafts/${draftId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not update this platform draft');
+      if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Could not update this platform draft. Refresh the page and try again.');
       await queryClient.invalidateQueries({ queryKey: ['workflow', 'draft-board'] });
       if (selectedDraft?.draft?.id === draftId) setSelectedDraft((current) => current ? { ...current, draft: data } : current);
       toast({ title: 'Platform state updated', description: statusMeta[data.status as DraftStatus]?.summary ?? 'The status was saved.' });

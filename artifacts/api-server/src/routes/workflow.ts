@@ -278,8 +278,18 @@ router.get("/workflow/items/:id/marketplace-drafts", async (request, response): 
   response.json(await db.select().from(marketplaceDraftsTable).where(and(eq(marketplaceDraftsTable.itemId, itemId), eq(marketplaceDraftsTable.userId, userId))));
 });
 router.patch("/workflow/marketplace-drafts/:id", async (request, response): Promise<void> => {
-  const parsed = z.object({ status: marketplaceDraftStatus.optional(), title: z.string().optional(), description: z.string().optional(), tags: z.array(z.string()).optional(), price: z.number().min(0).optional(), externalListingId: z.string().optional(), externalUrl: z.string().url().optional().or(z.literal("")) }).safeParse(request.body);
-  if (!parsed.success) { response.status(400).json({ error: parsed.error.flatten() }); return; }
+  // Links copied from a marketplace app often lack https://, so add it rather than rejecting the whole update.
+  const body = { ...(request.body ?? {}) };
+  if (typeof body.externalUrl === "string") {
+    const link = body.externalUrl.trim();
+    body.externalUrl = link && !/^https?:\/\//i.test(link) ? `https://${link}` : link;
+  }
+  const parsed = z.object({ status: marketplaceDraftStatus.optional(), title: z.string().optional(), description: z.string().optional(), tags: z.array(z.string()).optional(), price: z.number().min(0).optional(), externalListingId: z.string().optional(), externalUrl: z.string().url().optional().or(z.literal("")) }).safeParse(body);
+  if (!parsed.success) {
+    const badLink = parsed.error.issues.some((issue) => issue.path[0] === "externalUrl");
+    response.status(400).json({ error: badLink ? "That marketplace link doesn't look like a web address. Copy the listing's link again, or leave the box empty." : "That update could not be saved. Refresh the page and try again." });
+    return;
+  }
   const userId = getAuthenticatedUser(response).id;
   const update = { ...parsed.data, externalUrl: parsed.data.externalUrl || null, ...(parsed.data.status === "published" ? { publishedAt: new Date() } : {}) };
   const [draft] = await db.update(marketplaceDraftsTable).set(update).where(and(eq(marketplaceDraftsTable.id, Number(request.params.id)), eq(marketplaceDraftsTable.userId, userId))).returning();
