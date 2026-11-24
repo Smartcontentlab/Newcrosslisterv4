@@ -270,7 +270,7 @@ export default function ListingStudio() {
       }
       setPhotoEdit(draft);
       setPhotoPick(pick);
-      setPhotoResult({ unsure: Array.isArray(data.unsure) ? data.unsure : [], model: data.model, photosRead: data.photosRead ?? 1 });
+      setPhotoResult({ unsure: Array.isArray(data.unsure) ? data.unsure : [], model: data.aiModel, photosRead: data.photosRead ?? 1 });
       setPhotoNotice(Object.keys(draft).length ? { tone: 'info', text: `Read ${data.photosRead ?? 1} photo${data.photosRead === 1 ? '' : 's'}. Boxes are ticked only for fields that are still empty. Edit anything, then apply.` } : { tone: 'error', text: 'The AI could not make out enough in these photos. Try a clearer cover photo, or add a close-up of the tag.' });
     } catch (error) {
       setPhotoNotice({ tone: 'error', text: `${error instanceof Error ? error.message : 'The AI could not read the photos.'} Nothing was changed. You can fill the form by hand.` });

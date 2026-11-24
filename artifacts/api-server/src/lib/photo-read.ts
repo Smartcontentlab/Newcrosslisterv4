@@ -27,7 +27,8 @@ const STRING_FIELDS = ["title", "brand", "model", "category", "subcategory", "de
 const SYSTEM = [
   "You look at product photos for a reseller and extract listing facts. Reply with ONE JSON object and nothing else:",
   `{"title": string, "brand": string, "model": string, "category": string, "subcategory": string, "department": string, "color": string, "secondaryColor": string, "material": string, "pattern": string, "style": string, "size": string, "flaws": string[], "unsure": string[]}`,
-  "RULES: describe only what is visible. brand, model, size and material only if a label, tag, logo or stitching is legible; otherwise use an empty string and add that field name to unsure. Never guess measurements. Never claim authenticity.",
+  "RULES: describe only what is visible. brand, size and material only if a label, tag, logo or stitching is legible; otherwise use an empty string and add that field name to unsure. Never guess measurements. Never claim authenticity.",
+  "model is the item's model or style: the brand's product or style name when it is printed on a label or tag (for example: 501, Align, Air Force 1); otherwise a short plain description of the visible style, 2 to 4 words (for example: High-Rise Workout Legging, Cropped Denim Jacket, Crewneck Sweatshirt). Never put a product name you cannot read on a label.",
   `category must be exactly one of: ${PHOTO_CATEGORIES.join(", ")}. department is Women, Men, Kids or Unisex when clear, else empty. subcategory is a short type such as Jackets, Hoodies, Dresses, Sneakers.`,
   "title: brand (only if known) + item type + key attributes such as color, style or material, at most 80 characters, no hype words, no emoji.",
   "color is the main color name. style is 2 to 4 plain words about the look (for example: oversized, cropped, vintage wash).",
@@ -43,6 +44,7 @@ export function normalizePhotoFacts(raw: Record<string, unknown>): PhotoFacts {
   const facts = empty();
   for (const key of STRING_FIELDS) facts[key] = text(raw[key]);
   facts.title = titleCase(facts.title).slice(0, 80);
+  facts.model = titleCase(facts.model).slice(0, 60);
   const match = PHOTO_CATEGORIES.find((category) => category.toLowerCase() === facts.category.toLowerCase());
   facts.category = match ?? "";
   facts.flaws = list(raw.flaws);

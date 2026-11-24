@@ -247,7 +247,8 @@ router.post("/workflow/photo-read", async (request, response): Promise<void> => 
   if (!parsed.success) { response.status(400).json({ error: "Add 1 to 3 photos (JPG, PNG or WEBP). The app shrinks them before sending." }); return; }
   try {
     const { facts, model, photosRead } = await readPhotos(parsed.data.photos, parsed.data.hints);
-    response.json({ ...facts, model, photosRead });
+    // aiModel, not model: "model" is the item's model/style field and must not be overwritten.
+    response.json({ ...facts, aiModel: model, photosRead });
   } catch (error) { failAi(response, error); }
 });
 router.post("/workflow/items/:id/marketplace-drafts", async (request, response): Promise<void> => {
