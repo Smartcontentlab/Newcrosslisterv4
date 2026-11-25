@@ -456,8 +456,21 @@ def cmd_update(args) -> None:
         details["priceResearch"] = {"summary": args.research[:1500], "at": datetime.now(timezone.utc).isoformat(), "by": "hermes"}
     if not fields and not details:
         fail("Nothing to update. Pass at least one option, e.g. --price 38")
+    copy_changed = bool(fields.get("title") or fields.get("description"))
+    if copy_changed:
+        # Listings use the saved per-platform copy (Shay's doc text), so change it there too.
+        current = api("GET", f"/workflow/items/{args.id}")["item"]
+        saved = dict((current.get("marketplaceDetails") or {}).get("platformCopy") or {})
+        for market in ("poshmark", "depop", "mercari"):
+            entry = dict(saved.get(market) or {"title": current["title"], "description": current.get("description") or "", "hashtags": current.get("tags") or []})
+            if fields.get("title"):
+                entry["title"] = fields["title"][:80]
+            if fields.get("description"):
+                entry["description"] = fields["description"]
+            saved[market] = entry
+        details["platformCopy"] = saved
     patch_item(args.id, fields, details)
-    if args.redraft:
+    if args.redraft or copy_changed:
         api("POST", f"/workflow/items/{args.id}/marketplace-drafts", {}, timeout=90)
     cmd_item(args)
 

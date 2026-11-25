@@ -50,11 +50,28 @@ python3 ~/.hermes/skills/business/crosslinkos-lister/scripts/crosslinkos.py <com
    - `change 12 price 45` (or any field): `cl update 12 --price 45`, then confirm.
    - `skip 13`: do nothing; it stays in CrossLinkOS as Ready to push.
    - `undo 12`: `cl unapprove 12`
+   - `use title 12`: `cl update 12 --title "<the title you proposed>"`
 7. Approved drafts are posted by the Chrome extension (auto-post must be on there), spaced a few
    minutes apart. Later, `cl review --status published` and `cl review --status needs_attention`
    show what went live and what got stuck. Tell Shay about anything stuck, with the reason.
    Then run `cl tidy`: folders whose item is Live on Poshmark and Depop move into `posted/`.
    Only Poshmark and Depop are posted for now; never approve Mercari.
+
+## Title check (for each item, during research)
+
+Shay's doc titles are her words, so never change one silently. Check it, and only PROPOSE changes:
+1. Search sold and active listings for the same item (Poshmark, eBay sold, Depop, Google Shopping)
+   and note the words buyers and top sellers use: brand, the brand's style or product name, item type,
+   size, color, key feature (e.g. "Align", "Fit 1", "7/8", "High Rise").
+2. Propose a better title only if it adds a real search term or fixes a problem. Keep her facts.
+   Poshmark max 80 characters. Depop has no title (the first line of the description is used).
+3. Flag anything to take out: words that can get a listing removed or reported, like "dupe",
+   "inspired by", "like Lululemon", or another brand's name for a no-name item; keyword lists;
+   "NWT" or "new" on worn items; a brand or size her seller notes say is unconfirmed; emojis or ALL CAPS.
+4. In the approval message, show proposals as: `#3 title → "PacSun Skinniest Active Stretch Black Jeans 32x32 Slim"`
+   (one short reason). She replies `use title 3` -> `cl update 3 --title "<proposed>"`, or ignores it.
+   The same goes for a description problem (`--description`). Updating title or description rewrites
+   the drafts automatically; an item that was approved goes back to Ready to push, so ask again.
 
 ## Research rules
 
