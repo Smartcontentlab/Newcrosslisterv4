@@ -575,12 +575,14 @@ def pick_photos(paths: list[Path], keep_order: bool):
     return [images[i] for i in order], [roles[i] for i in order], [names[i] for i in order], notes, skipped
 
 
-def patch_item(item_id: int, fields: dict, details: dict) -> dict:
+def patch_item(item_id: int, fields: dict, details: dict, remove: list | None = None) -> dict:
     item = api("GET", f"/workflow/items/{item_id}")["item"]
     body = dict(fields)
-    if details:
+    if details or remove:
         merged = dict(item.get("marketplaceDetails") or {})
         merged.update(details)
+        for key in remove or []:
+            merged.pop(key, None)  # e.g. saved word-for-word copy, so the generator writes fresh copy
         body["marketplaceDetails"] = merged
     return api("PATCH", f"/workflow/items/{item_id}", body) if body else item
 
@@ -623,20 +625,8 @@ def cmd_update(args) -> None:
     if not fields and not details:
         fail("Nothing to update. Pass at least one option, e.g. --price 38")
     copy_changed = bool(fields.get("title") or fields.get("description"))
-    if copy_changed:
-        # Listings use the saved per-platform copy (Shay's doc text), so change it there too.
-        current = api("GET", f"/workflow/items/{args.id}")["item"]
-        saved = dict((current.get("marketplaceDetails") or {}).get("platformCopy") or {})
-        for market in ("poshmark", "depop", "mercari"):
-            entry = dict(saved.get(market) or {"title": current["title"], "description": current.get("description") or "", "hashtags": current.get("tags") or []})
-            if fields.get("title"):
-                entry["title"] = fields["title"][:80]
-            if fields.get("description"):
-                entry["description"] = fields["description"]
-            saved[market] = entry
-        details["platformCopy"] = saved
-    patch_item(args.id, fields, details)
-    if args.redraft or copy_changed:
+    patch_item(args.id, fields, details, remove=["platformCopy"] if copy_changed else None)
+    if args.redraft or copy_changed:  # the generator rewrites each site's copy from the new title/description
         api("POST", f"/workflow/items/{args.id}/marketplace-drafts", {}, timeout=90)
     cmd_item(args)
 

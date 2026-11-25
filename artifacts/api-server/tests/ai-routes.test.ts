@@ -31,7 +31,7 @@ await t("listing-copy: three platforms, AI ok", async () => {
   nim((b) => json({ choices: [{ message: { content: JSON.stringify({ title: "Levi's 501 Jeans 30x32", body: "Classic 501s.\n• Size: 30 x 32", hashtags: ["denim", "levis"] }) } }] }));
   const r = await post("/api/workflow/listing-copy", { title: "501 jeans", brand: "Levi's", size: "30 x 32", condition: "good" });
   assert.equal(r.status, 200); assert.deepEqual(Object.keys(r.json.copies).sort(), ["depop", "mercari", "poshmark"]); assert.equal(r.json.aiProblem, null);
-  assert.equal(r.json.copies.depop.description.split("\n")[0], "Levi's 501 Jeans 30x32"); assert.ok(r.json.playbooks.poshmark.sources.length >= 3); assert.equal(r.json.trendsAsOf, "2026-09-21");
+  assert.equal(r.json.copies.depop.description.split("\n")[0], "Levi's 501 Jeans"); // sizes stay out of titles assert.ok(r.json.playbooks.poshmark.sources.length >= 3); assert.equal(r.json.trendsAsOf, "2026-09-21");
 });
 await t("listing-copy: AI down -> 200 with templates + aiProblem", async () => {
   nim(() => json({}, 503));

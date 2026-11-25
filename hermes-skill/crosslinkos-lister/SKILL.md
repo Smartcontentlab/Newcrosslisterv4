@@ -107,16 +107,17 @@ Shay's doc titles are her words, so never change one silently. Check it, and onl
 Shay often drops a whole batch: `~/Listings/<Batch>/01_Navy_Cargo_Pants/`, `02_…`, plus a
 `posted/` folder and a `.docx` of her written descriptions. `scan` lists items inside batches
 (as `Batch/01_Navy_Cargo_Pants`), the number is dropped from the title, and `ingest` uses her
-description section from the .docx (matched by number or name). Her description always beats
-AI copy; Brand / Size / Price lines in it count like info.txt. Once an item is Live on both Poshmark and
+description section from the .docx (matched by number or name). Her description is the source the
+generator writes from; Brand / Size / Price lines in it count like info.txt. Once an item is Live on both Poshmark and
 Depop, `cl tidy` moves its folder into the batch's `posted/` folder (Shay's rule; no need to ask).
 
 ### Shay's styled descriptions doc (VibeHuntingSF format)
 
 Each item is a Heading 1 ("01  Navy Cargo Pants") followed by a MarketplaceTitle, a
 MarketplaceDescription and notes lines ("Suggested tags · …", "Measurements · …", "Seller notes · …").
-`ingest` uses her title and description word for word on every platform (no AI rewrite), her
-suggested tags, and saves the measurements and seller notes on the item. Shay may add lines
+`ingest` gives her title, description and suggested tags to CrossLinkOS's copy generator, which writes
+each site's version in that site's style (Poshmark detailed with up to 5 hashtags, Depop short with up
+to 5, sizes never in titles) from her facts only, and and saves the measurements and seller notes on the item. Shay may add lines
 such as `Listing price · $45`, `Lowest price · $35`, `Original price · $148` and `Condition · Like new`:
 `ingest` applies them (Lowest price turns on Poshmark Automate Offers at that floor). Never change
 a price she wrote; still show the sold comps in the summary, and flag a price far from them.

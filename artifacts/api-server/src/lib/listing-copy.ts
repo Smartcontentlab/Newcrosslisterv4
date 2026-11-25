@@ -74,6 +74,30 @@ function cutAtWord(text: string, limit: number): string {
   return (lastSpace > limit * 0.6 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:\-–—]+$/, "");
 }
 
+const LETTER_SIZES = "XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|S/P|M/P|L/P|OS|One Size|X-?Small|Small|Medium|Large|X-?Large|XX-?Large";
+/** Titles never carry the size (each marketplace has a size field): "Cardigan M" -> "Cardigan", "Jeans 32 x 32" -> "Jeans". */
+export function stripTitleSize(title: string, size?: string): string {
+  const sep = "(?:\\s+|\\s*[-,|]\\s*)";
+  const patterns = [
+    new RegExp(`${sep}(?:size\\s+|sz\\s+)?(?:${LETTER_SIZES})$`, "i"),
+    new RegExp(`${sep}(?:size\\s+|sz\\s+)?(?:US|UK|EU)\\s*\\d{1,2}(?:\\.\\d)?$`, "i"),
+    new RegExp(`${sep}\\d{2}\\s*x\\s*\\d{2}$`, "i"),
+    new RegExp(`${sep}\\d{1,2}\\s*(?:Regular|Short|Long|Petite|Tall)$`, "i"),
+    new RegExp(`${sep}size\\s+\\S+$`, "i"),
+  ];
+  if (size && size.trim()) patterns.push(new RegExp(`${sep}${size.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"));
+  let text = title.trim();
+  for (let round = 0; round < 3; round++) {
+    const before = text;
+    for (const pattern of patterns) {
+      const candidate = text.replace(pattern, "").trim();
+      if (candidate && candidate.split(/\s+/).length >= 2) text = candidate;
+    }
+    if (text === before) break;
+  }
+  return text;
+}
+
 function tidyTitle(raw: string, limit: number): string {
   let title = raw.replace(/[#*_`"“”]/g, "").replace(/\s+/g, " ").trim();
   const letters = title.replace(/[^a-z]/gi, "");
@@ -179,10 +203,9 @@ export function templateCopy(platform: Platform, facts: CopyFacts, reason?: stri
   const brand = clean(facts.brand);
   const name = clean(facts.title);
   const baseTitle = [brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : "", name].filter(Boolean).join(" ");
-  const size = clean(facts.size);
-  const sizeSaid = size && new RegExp(`\\bsize\\s*${size.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(baseTitle);
-  const attrs = [clean(facts.color) && !baseTitle.toLowerCase().includes(clean(facts.color).toLowerCase()) ? clean(facts.color) : "", size && !sizeSaid ? `Size ${size}` : ""].filter(Boolean);
-  const title = tidyTitle([baseTitle, ...attrs].join(" "), p.titleLimit);
+  // No size in titles: each marketplace has its own size field (Shay's rule).
+  const attrs = [clean(facts.color) && !baseTitle.toLowerCase().includes(clean(facts.color).toLowerCase()) ? clean(facts.color) : ""].filter(Boolean);
+  const title = tidyTitle(stripTitleSize([baseTitle, ...attrs].join(" "), clean(facts.size)), p.titleLimit);
   const condition = CONDITION_LABEL[facts.condition] ?? facts.condition;
   const detailRows: Array<[string, string]> = [["Brand", brand], ["Size", clean(facts.size)], ["Color", [facts.color, facts.secondaryColor].map(clean).filter(Boolean).join(" / ")], ["Material", clean(facts.material)], ["Pattern", clean(facts.pattern)], ["Fit", clean(facts.fit)], ["Style", clean(facts.style)]];
   const rows = detailRows.filter(([, value]) => value).map(([label, value]) => `• ${label}: ${value}`);
@@ -215,7 +238,7 @@ export function templateCopy(platform: Platform, facts: CopyFacts, reason?: stri
   }
   const guarded = guardBody(tidyBody(body), facts);
   const tagSource = [brand, facts.category, facts.subcategory, facts.color, facts.material, facts.pattern, facts.style, ...(facts.tags ?? [])].filter((v): v is string => Boolean(v && clean(v)));
-  const hashtags = cleanHashtags(tagSource, platform, facts).slice(0, platform === "mercari" ? 3 : platform === "depop" ? 5 : 8);
+  const hashtags = cleanHashtags(tagSource, platform, facts).slice(0, platform === "mercari" ? 3 : 5); // Poshmark and Depop: 5 at most
   const { description, trimmed } = compose(platform, title, guarded.body, hashtags, p.descriptionLimit);
   return {
     platform, title, description, hashtags,
@@ -258,7 +281,7 @@ export function finishCopy(platform: Platform, facts: CopyFacts, raw: Record<str
   const rawTitle = typeof raw.title === "string" ? raw.title : "";
   const rawBody = typeof raw.body === "string" ? raw.body : typeof raw.description === "string" ? raw.description : "";
   if (!clean(rawTitle) || !clean(rawBody)) return null;
-  const title = tidyTitle(rawTitle, platform === "depop" ? 60 : p.titleLimit);
+  const title = tidyTitle(stripTitleSize(rawTitle, clean(facts.size)), platform === "depop" ? 60 : p.titleLimit);
   const guarded = guardBody(tidyBody(rawBody), facts);
   if (!clean(guarded.body)) return null;
   const hashtags = cleanHashtags(raw.hashtags, platform, facts);

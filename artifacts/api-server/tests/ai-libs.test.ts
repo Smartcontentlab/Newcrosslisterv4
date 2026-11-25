@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { nimChat, resetNimState, NimError, cleanModelText, extractJsonObject } from "../src/lib/nim";
 import { finishCopy, templateCopy, generatePlatformCopy, cleanHashtags, guardBody, allowedStatusTags, type CopyFacts } from "../src/lib/listing-copy";
 import { titleCase } from "../src/lib/title-case";
+import { stripTitleSize } from "../src/lib/listing-copy";
 import { buildQuery, summarize, findComps, resetCompsCache, compsEstimate } from "../src/lib/comps";
 import { normalizePhotoFacts, mergePhotoFacts, readPhotos } from "../src/lib/photo-read";
 import { relevantTrends } from "../src/lib/platform-playbooks";
@@ -198,6 +199,16 @@ await test("photo roles: a whole front view beats a sharper tag photo", () => {
   assert.ok(coverScore("flat_lay", true, 7) > coverScore("detail", false, 10));
   assert.equal(normalizeRole({ view: "weird", whole_item: "true", quality: "x" }).view, "other");
   assert.equal(normalizeRole({ view: "label", whole_item: false, quality: 9 }).cover < 0, true);
+});
+
+await test("stripTitleSize: sizes come off the end of titles, model numbers stay", () => {
+  assert.equal(stripTitleSize("Aritzia Cream Cashmere Crewneck Cardigan M"), "Aritzia Cream Cashmere Crewneck Cardigan");
+  assert.equal(stripTitleSize("PacSun Skinniest Black Jeans 32 x 32"), "PacSun Skinniest Black Jeans");
+  assert.equal(stripTitleSize("Nasty Gal Halter Maxi Dress US 22"), "Nasty Gal Halter Maxi Dress");
+  assert.equal(stripTitleSize("Michael Kors Chino Shorts 33", "33"), "Michael Kors Chino Shorts");
+  assert.equal(stripTitleSize("Black Jeans Size 30"), "Black Jeans");
+  assert.equal(stripTitleSize("Nike Air Force 1"), "Nike Air Force 1");
+  assert.equal(stripTitleSize("Sweaty Betty Power Leggings Teal Small"), "Sweaty Betty Power Leggings Teal");
 });
 
 await test("estimateWeight: typical packed weight, null when unknown", () => {

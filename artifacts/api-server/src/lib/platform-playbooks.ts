@@ -46,10 +46,10 @@ export const PLAYBOOKS: Record<Platform, Playbook> = {
     titleLimitVerified: false,
     descriptionLimit: 1500,
     descriptionLimitVerified: false,
-    hashtags: { min: 4, max: 10, verified: false },
+    hashtags: { min: 3, max: 5, verified: true }, // Poshmark allows at most 5 hashtags (seller-confirmed, Nov 2026)
     voice: "Detailed, warm and honest, like explaining the piece to a friend. Full sentences are fine. Poshmark buyers browse, compare and bundle, so more detail helps.",
     structure: [
-      "Title: Brand + product type + key attributes (color, size, material or style). Lead with the brand.",
+      "Title: Brand + product type + key attributes (color, material or style). Lead with the brand. No size in the title: Poshmark has a size field.",
       "Opening line: what it is and why it is good (look, feel, fit, style such as tailored, relaxed or trend-led).",
       "Details block, one fact per line: brand, size, color, material, fit, style, and every measurement the seller gave.",
       "Condition line: honest, and name every flaw the seller listed. Mention tags/box/dust bag only if the seller said so.",
@@ -122,7 +122,7 @@ export const PLAYBOOKS: Record<Platform, Playbook> = {
     hashtags: { min: 0, max: 3, verified: false },
     voice: "Clear, factual and easy to skim on a phone. Search-first: brand and item words up front. Friendly but plain. Mercari shoppers want exact facts and honesty.",
     structure: [
-      "Title: brand + item type + key detail (size, color, model). Brand clearly stated.",
+      "Title: brand + item type + key detail (color, model). Brand clearly stated. No size in the title: the size field shows it.",
       "Opening sentence in plain words: what it is and its condition.",
       "Short facts list, one per line: brand, size, color, material, measurements the seller gave.",
       "Condition, honest, with every flaw the seller listed.",

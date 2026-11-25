@@ -68,12 +68,8 @@ router.post("/autopilot/items", async (request, response): Promise<void> => {
   for (const key of ["subcategory", "department", "secondaryColor", "material", "pattern", "style"] as const) if (facts[key]) marketplaceDetails[key] = facts[key];
   if (facts.flaws?.length) marketplaceDetails.flaws = facts.flaws.join("; ");
   marketplaceDetails.autopilot = { source: "hermes", folder, createdAt };
-  // The seller's own written title + description (from her batch doc) is used word for word on
-  // every platform, instead of AI copy; the drafts read it from platformCopy.
-  if (parsed.data.title && parsed.data.description) {
-    const copy = { title: parsed.data.title.trim(), description: parsed.data.description, hashtags: parsed.data.tags ?? [] };
-    marketplaceDetails.platformCopy = { poshmark: copy, depop: copy, mercari: copy };
-  }
+  // The seller's title and description (from her batch doc) are facts: the drafts' copy generator
+  // writes each marketplace's version in that site's style from them, with sizes kept out of titles.
   const weight = estimateWeight({ title, model: facts.model, category: facts.category, subcategory: facts.subcategory });
   const [item] = await db.insert(itemsTable).values({
     userId, title, brand: facts.brand || null, model: facts.model || null, category: facts.category || null, size: facts.size || null,
