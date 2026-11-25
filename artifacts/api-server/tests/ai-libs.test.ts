@@ -6,6 +6,7 @@ import { buildQuery, summarize, findComps, resetCompsCache, compsEstimate } from
 import { normalizePhotoFacts, mergePhotoFacts, readPhotos } from "../src/lib/photo-read";
 import { relevantTrends } from "../src/lib/platform-playbooks";
 import { estimateWeight } from "../src/lib/weight";
+import { coverScore, normalizeRole } from "../src/lib/photo-role";
 
 const realFetch = globalThis.fetch;
 let calls: Array<{ url: string; body?: any }> = [];
@@ -189,6 +190,14 @@ await test("titles: every word capitalized, deliberate casing and sizes kept", (
   assert.equal(titleCase("J.Crew emilie striped cardigan xl"), "J.Crew Emilie Striped Cardigan XL");
   assert.equal(titleCase("nwt patagonia fleece 3t y2k"), "NWT Patagonia Fleece 3T Y2K");
   assert.equal(titleCase("jeans 32x30"), "Jeans 32x30");
+});
+
+await test("photo roles: a whole front view beats a sharper tag photo", () => {
+  assert.ok(coverScore("front", true, 6) > coverScore("tag", false, 10));
+  assert.ok(coverScore("front", true, 8) > coverScore("back", true, 8));
+  assert.ok(coverScore("flat_lay", true, 7) > coverScore("detail", false, 10));
+  assert.equal(normalizeRole({ view: "weird", whole_item: "true", quality: "x" }).view, "other");
+  assert.equal(normalizeRole({ view: "label", whole_item: false, quality: 9 }).cover < 0, true);
 });
 
 await test("estimateWeight: typical packed weight, null when unknown", () => {

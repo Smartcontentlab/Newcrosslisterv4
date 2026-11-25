@@ -23,6 +23,7 @@ Commands (all print JSON, so Hermes can read the result):
     review [--status ready]      items waiting for approval, with what each draft still needs
     approve ID [--only poshmark] approve Ready to push drafts for auto-post
     unapprove ID                 take approved drafts back to Ready to push
+    cover ID N                   make photo N the cover of an item already sent
     tidy                         move folders that are Live on Poshmark and Depop into posted/
 
 Settings (environment or ~/.config/crosslinkos/env):
@@ -95,7 +96,11 @@ def fail(message: str, code: int = 1) -> None:
     sys.exit(code)
 
 
-def api(method: str, path: str, body: dict | None = None, timeout: int = 90) -> dict:
+class ApiError(Exception):
+    pass
+
+
+def api(method: str, path: str, body: dict | None = None, timeout: int = 90, soft: bool = False) -> dict:
     key = os.environ.get("CROSSLINKOS_KEY", "").strip()
     if not key:
         fail("CROSSLINKOS_KEY is not set. Create a key in CrossLinkOS Settings > Access keys and put it in ~/.config/crosslinkos/env")
@@ -115,11 +120,15 @@ def api(method: str, path: str, body: dict | None = None, timeout: int = 90) -> 
             if error.code in (502, 503, 504) and attempt < 2:
                 time.sleep(5 * (attempt + 1))
                 continue
+            if soft:
+                raise ApiError(message)
             fail(f"CrossLinkOS {method} {path} answered {error.code}: {message}")
         except urllib.error.URLError as error:
             if attempt < 2:
                 time.sleep(5)
                 continue
+            if soft:
+                raise ApiError(str(error.reason))
             fail(f"Could not reach CrossLinkOS: {error.reason}")
     return {}
 
@@ -360,8 +369,13 @@ def cmd_ingest(args) -> None:
             skipped.append(f"{path.name}: {error}")
     if not images:
         fail(f"None of the photos could be opened. {'; '.join(skipped)}")
+    order, roles, cover_note = choose_cover(images, [p.name for p in paths[:len(images)]], args.keep_order)
+    images = [images[i] for i in order]
     stored = [to_data_url(image, STORED_SIDE, STORED_BYTES) for image in images]
-    to_read = [to_data_url(image, READ_SIDE, READ_BYTES) for image in images[:3]]
+    # Read the cover plus up to two tag/label photos: the labels carry brand and size.
+    tag_positions = [pos for pos, i in enumerate(order) if roles[i] and roles[i]["view"] in ("tag", "label")][:2]
+    read_positions = [0] + tag_positions + [pos for pos in range(1, len(images)) if pos not in tag_positions]
+    to_read = [to_data_url(images[pos], READ_SIDE, READ_BYTES) for pos in read_positions[:3]]
 
     section = doc_section(folder)
     info = {**info_from_text(section["text"]), **read_info(folder)}  # info.txt beats the descriptions doc
@@ -411,11 +425,38 @@ def cmd_ingest(args) -> None:
     drafts = [] if args.no_drafts else api("POST", f"/workflow/items/{item_id}/marketplace-drafts", {}, timeout=90)
     (folder / MARKER).write_text(json.dumps({"itemId": item_id, "sentAt": datetime.now(timezone.utc).isoformat()}))
     print(json.dumps({
-        "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped,
+        "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped, "coverPhoto": cover_note,
+        "photoOrder": [{"file": paths[i].name, "view": (roles[i] or {}).get("view")} for i in order],
         "photoRead": {"facts": facts, "unsure": read.get("unsure", []), "aiModel": read.get("aiModel")},
         "fromInfoTxt": info, "fromDoc": {"doc": section["doc"], "title": section["title"], "tags": len(section["tags"]), "notes": section["notes"]} if section["doc"] else None, "weightLb": created.get("weight"),
         "drafts": draft_summary(drafts), "next": "Research the price and original price, then run: update ITEM --price N --original-price N",
     }, indent=2))
+
+
+ROLE_SIDE, ROLE_BYTES = 512, 60_000
+
+
+def choose_cover(images: list, names: list[str], keep_order: bool) -> tuple[list[int], list, str]:
+    """Order with the best full front view first. Falls back to the folder order if the AI can't answer."""
+    if keep_order or len(images) == 1:
+        return list(range(len(images))), [None] * len(images), "kept folder order"
+    chosen = next((i for i, name in enumerate(names) if name.lower().startswith(("cover", "00_", "00-", "00 "))), None)
+    if chosen is not None:  # Shay marked her own cover
+        return [chosen] + [i for i in range(len(images)) if i != chosen], [None] * len(images), f"cover: {names[chosen]} (picked by Shay)"
+    small = [to_data_url(image, ROLE_SIDE, ROLE_BYTES) for image in images]
+    roles: list = []
+    for start in range(0, len(small), 4):
+        try:
+            roles += api("POST", "/autopilot/photo-roles", {"photos": small[start:start + 4]}, timeout=75, soft=True).get("roles") or [None] * len(small[start:start + 4])
+        except Exception:  # noqa: BLE001
+            roles += [None] * len(small[start:start + 4])
+    scored = [(role["cover"], -i) for i, role in enumerate(roles) if role]
+    if not scored:
+        return list(range(len(images))), roles, "AI could not sort the photos; kept folder order"
+    best = -max(scored)[1]
+    order = [best] + [i for i in range(len(images)) if i != best]
+    view = roles[best]["view"].replace("_", " ")
+    return order, roles, f"cover: {names[best]} ({view}{', whole item' if roles[best]['wholeItem'] else ''})"
 
 
 def patch_item(item_id: int, fields: dict, details: dict) -> dict:
@@ -520,6 +561,17 @@ def cmd_tidy(args) -> None:
     print(json.dumps({"moved": moved, "waiting": waiting}, indent=2))
 
 
+def cmd_cover(args) -> None:
+    """Make photo number N (1 = current cover) the cover of an item already in CrossLinkOS."""
+    item = api("GET", f"/workflow/items/{args.id}")["item"]
+    records = list(item.get("photoRecords") or [])
+    if not 1 <= args.photo <= len(records):
+        fail(f"Item {args.id} has {len(records)} photos; pick 1 to {len(records)}.")
+    records.insert(0, records.pop(args.photo - 1))
+    api("PATCH", f"/workflow/items/{args.id}", {"photoRecords": records})
+    print(json.dumps({"itemId": args.id, "cover": f"photo {args.photo} is now the cover", "note": "Approved drafts use it on their next post; already-live listings keep their cover."}, indent=2))
+
+
 def cmd_approve(args) -> None:
     body = {"marketplaces": args.only} if args.only else {}
     print(json.dumps(api("POST", f"/autopilot/items/{args.id}/approve", body), indent=2))
@@ -533,7 +585,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="CrossLinkOS helper for Hermes")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("scan").set_defaults(run=cmd_scan)
-    p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.set_defaults(run=cmd_ingest)
+    p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.set_defaults(run=cmd_ingest)
     p = sub.add_parser("item"); p.add_argument("id", type=int); p.set_defaults(run=cmd_item)
     p = sub.add_parser("update"); p.add_argument("id", type=int)
     p.add_argument("--price", type=float); p.add_argument("--cost", type=float); p.add_argument("--original-price", type=float); p.add_argument("--weight", type=float)
@@ -545,6 +597,7 @@ def main() -> None:
     p = sub.add_parser("review"); p.add_argument("--status", default="", help="ready, approved, draft, needs_attention, published"); p.set_defaults(run=cmd_review)
     p = sub.add_parser("approve"); p.add_argument("id", type=int); p.add_argument("--only", nargs="+", choices=["poshmark", "depop"]); p.set_defaults(run=cmd_approve)
     p = sub.add_parser("tidy"); p.add_argument("--markets", nargs="+", default=["poshmark", "depop"], choices=["poshmark", "depop", "mercari"]); p.set_defaults(run=cmd_tidy)
+    p = sub.add_parser("cover"); p.add_argument("id", type=int); p.add_argument("photo", type=int, help="photo number, 1 = current cover"); p.set_defaults(run=cmd_cover)
     p = sub.add_parser("unapprove"); p.add_argument("id", type=int); p.set_defaults(run=cmd_unapprove)
     args = parser.parse_args()
     args.run(args)

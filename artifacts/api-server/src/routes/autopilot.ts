@@ -17,7 +17,8 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, itemsTable, marketplaceDraftsTable, type ItemPhotoRecord } from "@workspace/db";
 import { getAuthenticatedUser } from "../lib/auth";
-import { IMAGE_DATA_URL } from "../lib/photo-read";
+import { IMAGE_DATA_URL, MAX_INLINE_IMAGE_CHARS } from "../lib/photo-read";
+import { classifyPhotos } from "../lib/photo-role";
 import { titleCase } from "../lib/title-case";
 import { estimateWeight } from "../lib/weight";
 
@@ -80,6 +81,18 @@ router.post("/autopilot/items", async (request, response): Promise<void> => {
     weight, tags: parsed.data.tags ?? [], description: parsed.data.description || null, notes: notes || null, sku: parsed.data.sku || null, photos, photoRecords, marketplaceDetails, status: "draft",
   }).returning();
   response.status(201).json({ id: item.id, title: item.title, weight: item.weight, photos: photos.length });
+});
+
+// Sorts up to 4 small photos per call (front, back, tag, label, close-up...) so the helper can
+// put the best full front view first as the cover. A photo the AI can't read comes back null.
+const rolesBody = z.object({ photos: z.array(z.string().max(MAX_INLINE_IMAGE_CHARS).regex(IMAGE_DATA_URL)).min(1).max(4) });
+router.post("/autopilot/photo-roles", async (request, response): Promise<void> => {
+  const parsed = rolesBody.safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Send 1 to 4 small JPG, PNG or WEBP photos." }); return; }
+  getAuthenticatedUser(response);
+  const roles = await classifyPhotos(parsed.data.photos);
+  if (roles.every((role) => role === null)) { response.status(502).json({ error: "The AI could not look at these photos right now." }); return; }
+  response.json({ roles });
 });
 
 type Row = { item: typeof itemsTable.$inferSelect; drafts: Array<typeof marketplaceDraftsTable.$inferSelect> };

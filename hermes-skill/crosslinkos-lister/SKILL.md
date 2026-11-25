@@ -29,7 +29,11 @@ python3 ~/.hermes/skills/business/crosslinkos-lister/scripts/crosslinkos.py <com
 1. **Find new items**: `cl scan`. Skip folders with `"stillSyncing": true`; their photos are
    still arriving. If nothing is new, go to step 5.
 2. **Send each new folder**: `cl ingest "<folder name>"`. This takes about 30 to 60 seconds. It reads the
-   photos with AI, creates the item, and writes Poshmark/Depop/Mercari drafts. Note `photoRead.unsure`
+   photos with AI, picks the cover (the best whole-item front view, never a tag or label shot),
+   reads the tag photos for brand and size, creates the item, and writes Poshmark/Depop/Mercari drafts.
+   Mention the chosen cover (`coverPhoto`) in the approval summary. If Shay says a cover is wrong
+   (`cover 12 3` = make photo 3 the cover), run `cl cover 12 3`. A photo she names starting with
+   "cover" or "00_" is always used as the cover. Note `photoRead.unsure`
    and each draft's `stillNeeds`.
 3. **Research each item** with web search (see "Research rules"), then save what you found:
    ```
