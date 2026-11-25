@@ -248,17 +248,18 @@ def batch_doc(folder: Path) -> Path | None:
     return None
 
 
-def doc_paragraphs(path: Path) -> list[str]:
+def doc_paragraphs(path: Path) -> list[tuple[str, str]]:
+    """(style, text) for each paragraph. Word styles such as MarketplaceTitle tell the parts apart."""
     if path.suffix.lower() == ".txt":
-        return [line.strip() for line in path.read_text(errors="replace").splitlines()]
+        return [("", line.strip()) for line in path.read_text(errors="replace").splitlines()]
     ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
     with zipfile.ZipFile(path) as archive:
         root = ElementTree.fromstring(archive.read("word/document.xml"))
     paragraphs = []
     for para in root.iter(f"{ns}p"):
-        text = "".join(node.text or "" for node in para.iter() if node.tag in (f"{ns}t",)) 
-        text = text.replace("\u00a0", " ").strip()
-        paragraphs.append(text)
+        style = para.find(f"{ns}pPr/{ns}pStyle")
+        text = "".join(node.text or "" for node in para.iter(f"{ns}t")).replace("\u00a0", " ").strip()
+        paragraphs.append((style.get(f"{ns}val") if style is not None else "", text))
     return paragraphs
 
 
@@ -266,20 +267,25 @@ def words(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 1}
 
 
-def doc_section(folder: Path) -> tuple[str, str | None]:
-    """The part of the batch descriptions doc that belongs to this item: (text, doc name)."""
+def doc_section(folder: Path) -> dict:
+    """This item's part of the batch descriptions doc.
+
+    Returns {doc, text, title, description, tags, notes}. With Shay's styled doc (Heading1 "01  Navy
+    Cargo Pants", then MarketplaceTitle, MarketplaceDescription and ListingNotes lines such as
+    "Suggested tags · …"), each part is taken exactly. A plain doc gives just the text under the heading.
+    """
     doc = batch_doc(folder)
+    result: dict = {"doc": doc.name if doc else None, "text": "", "title": "", "description": "", "tags": [], "notes": []}
     if not doc:
-        return "", None
+        return result
     try:
         paras = doc_paragraphs(doc)
     except Exception:  # noqa: BLE001
-        return "", doc.name
+        return result
     siblings = [s for s in folder.parent.iterdir() if s.is_dir() and not ignored(s)]
-    own_number, own_words = item_number(folder.name), words(clean_title(folder.name))
 
-    def heading_for(text: str) -> Path | None:
-        if not text or len(text) > 120:
+    def heading_for(style: str, text: str) -> Path | None:
+        if not text or len(text) > 120 or style in ("MarketplaceTitle", "MarketplaceDescription", "ListingNotes", "ListingReference"):
             return None
         number = item_number(text) or (int(m.group(1)) if (m := re.match(r"^\s*(?:item|listing)\s*#?\s*(\d{1,3})", text, re.I)) else None)
         best, best_score = None, 0.0
@@ -291,16 +297,30 @@ def doc_section(folder: Path) -> tuple[str, str | None]:
                 best, best_score = sibling, score
         return best if best_score >= 0.6 else None
 
-    heads = [(i, heading_for(p)) for i, p in enumerate(paras)]
-    heads = [(i, s) for i, s in heads if s is not None]
+    is_heading = lambda style, text: style.lower().startswith("heading") or bool(item_number(text))  # noqa: E731
+    heads = [(i, heading_for(s, x)) for i, (s, x) in enumerate(paras)]
     mine = [i for i, s in heads if s == folder]
     if not mine:
-        return "", doc.name
+        return result
     start = mine[0]
-    end = next((i for i, s in heads if i > start and s != folder), len(paras))
-    body = "\n".join(p for p in paras[start + 1:end]).strip()
-    body = re.sub(r"\n{3,}", "\n\n", body)
-    return body[:5000], doc.name
+    end = next((i for i, (s, x) in enumerate(paras) if i > start and x and is_heading(s, x)), len(paras))
+    section = paras[start + 1:end]
+    for style, text in section:
+        if not text:
+            continue
+        label, _, value = text.partition(" · ")
+        if style == "MarketplaceTitle":
+            result["title"] = text
+        elif style == "MarketplaceDescription":
+            result["description"] = (result["description"] + "\n\n" + text).strip()
+        elif label.strip().lower() == "suggested tags":
+            result["tags"] = [tag.strip() for tag in value.split(",") if tag.strip()][:20]
+        elif style in ("ListingNotes", "ListingReference") or value:
+            result["notes"].append(text)
+    result["text"] = "\n".join(x for _, x in section if x)[:5000]
+    if not result["description"] and not result["title"]:
+        result["description"] = result["text"]  # plain doc: everything under the heading
+    return result
 
 
 def info_from_text(text: str) -> dict:
@@ -340,9 +360,9 @@ def cmd_ingest(args) -> None:
     stored = [to_data_url(image, STORED_SIDE, STORED_BYTES) for image in images]
     to_read = [to_data_url(image, READ_SIDE, READ_BYTES) for image in images[:3]]
 
-    section, doc_name = doc_section(folder)
-    info = {**info_from_text(section), **read_info(folder)}  # info.txt beats the descriptions doc
-    title = clean_title(folder.name)
+    section = doc_section(folder)
+    info = {**info_from_text(section["text"]), **read_info(folder)}  # info.txt beats the descriptions doc
+    title = section["title"] or clean_title(folder.name)
     hints = {"title": title}
     if info.get("brand"):
         hints["brand"] = info["brand"]
@@ -355,19 +375,25 @@ def cmd_ingest(args) -> None:
             facts[key] = info[key]  # the seller's own notes beat the photo reader
 
     body = {"folder": title, "photos": stored, "facts": facts}
-    if section:
+    if section["title"]:
+        body["title"] = section["title"][:80]
+    if section["description"]:
         # Shay's own description feeds every platform's copy; price and cost lines are for her, not buyers.
-        buyer_text = "\n".join(line for line in section.splitlines() if not re.match(r"^\s*[-*•]?\s*(list |asking |retail |original )?(price|cost|msrp|paid)\s*:", line, re.I)).strip()
+        buyer_text = "\n".join(line for line in section["description"].splitlines() if not re.match(r"^\s*[-*•]?\s*(list |asking |retail |original )?(price|cost|msrp|paid)\s*:", line, re.I)).strip()
         if buyer_text:
             body["description"] = buyer_text
+    if section["tags"]:
+        body["tags"] = section["tags"]
     if number(info.get("price")) is not None:
         body["price"] = number(info["price"])
     if number(info.get("cost")) is not None:
         body["cost"] = number(info["cost"])
     if info.get("condition"):
         body["condition"] = CONDITIONS.get(re.sub(r"[^a-z]", "", info["condition"].lower()), "good")
-    if info.get("notes"):
-        body["notes"] = info["notes"][:2000]
+    notes = [info["notes"]] if info.get("notes") else []
+    notes += section["notes"]
+    if notes:
+        body["notes"] = "\n".join(notes)[:2000]
     created = api("POST", "/autopilot/items", body, timeout=60)
     item_id = created["id"]
 
@@ -384,7 +410,7 @@ def cmd_ingest(args) -> None:
     print(json.dumps({
         "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped,
         "photoRead": {"facts": facts, "unsure": read.get("unsure", []), "aiModel": read.get("aiModel")},
-        "fromInfoTxt": info, "descriptionFrom": doc_name if section else None, "weightLb": created.get("weight"),
+        "fromInfoTxt": info, "fromDoc": {"doc": section["doc"], "title": section["title"], "tags": len(section["tags"]), "notes": section["notes"]} if section["doc"] else None, "weightLb": created.get("weight"),
         "drafts": draft_summary(drafts), "next": "Research the price and original price, then run: update ITEM --price N --original-price N",
     }, indent=2))
 

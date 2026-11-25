@@ -81,6 +81,21 @@ description section from the .docx (matched by number or name). Her description 
 AI copy; Brand / Size / Price lines in it count like info.txt. Once an item is Live on both Poshmark and
 Depop, `cl tidy` moves its folder into the batch's `posted/` folder (Shay's rule; no need to ask).
 
+### Shay's styled descriptions doc (VibeHuntingSF format)
+
+Each item is a Heading 1 ("01  Navy Cargo Pants") followed by a MarketplaceTitle, a
+MarketplaceDescription and notes lines ("Suggested tags · …", "Measurements · …", "Seller notes · …").
+`ingest` uses her title and description word for word on every platform (no AI rewrite), her
+suggested tags, and saves the measurements and seller notes on the item. The doc has NO price,
+original price, condition or department, so for every item:
+- research price and original price as usual;
+- set `--brand`, `--size`, `--department` and `--subcategory` from her title and the photo read
+  (e.g. "Aritzia Cream Cashmere Crewneck Cardigan M" -> --brand Aritzia --size M --department Women);
+- condition defaults to Good. Her seller notes often say to check condition, so put each item's
+  condition in the approval summary and let her correct it (`change 3 condition like new`);
+- if her seller notes say the brand or size is unconfirmed (items like 01, 11, 14), say so in the
+  summary instead of guessing.
+
 ## info.txt (optional, in an item folder)
 
 Shay can drop an `info.txt` next to the photos. Its values beat the photo reader:
