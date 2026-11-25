@@ -126,19 +126,49 @@ async function poshmarkChoose(dropdown, wanted) {
   return true;
 }
 
-/** Size is a grid of buttons (with Standard/Plus/Petite/... tabs) confirmed by a Done button. */
+/** Size words people write vs. what Poshmark's buttons say. */
+const SIZE_ALIASES = {
+  xxs: ['xxs', '2xs', 'xx small'], xs: ['xs', 'x small', 'extra small'], s: ['s', 'small', 's p', 'sp'], m: ['m', 'medium', 'med', 'm p'],
+  l: ['l', 'large', 'lg'], xl: ['xl', 'x large', 'extra large'], xxl: ['xxl', '2xl', 'xx large'], xxxl: ['xxxl', '3xl', 'xxx large'],
+  os: ['os', 'one size', 'one size fits all', 'osfa'],
+};
+function sizeWords(size) {
+  const n = norm(size).replace(/^(us|size|sz)\s+/, '');
+  for (const words of Object.values(SIZE_ALIASES)) if (words.includes(n)) return words;
+  return [n, n.replace(/\s*x\s*/, 'x')];
+}
+function sizeMatch(buttons, size) {
+  const words = sizeWords(size);
+  const label = (b) => norm(b.textContent);
+  return buttons.find((b) => words.includes(label(b)))
+    ?? buttons.find((b) => words.some((w) => label(b).startsWith(`${w} `))) // "M (8-10)"
+    ?? null;
+}
+
+/** Size is a grid of buttons (with Standard/Plus/Petite/... tabs) confirmed by a Done button. It only appears once the category is set. */
+let lastSizeOptions = [];
 async function poshmarkSize(size, sizeType) {
-  const dropdown = await waitFor(() => poshmarkDropdown('Select Size'), 2000);
+  const dropdown = await waitFor(() => poshmarkDropdown('Select Size'), 6000);
   if (!dropdown || !size) return false;
   dropdown.querySelector('.dropdown__selector')?.click();
-  await waitFor(() => dropdown.querySelector('button.multi-size-selector__button'), 2000);
+  await waitFor(() => dropdown.querySelector('button.multi-size-selector__button'), 4000);
+  const tabs = [...dropdown.querySelectorAll('.navigation--horizontal__link')];
   if (sizeType) {
-    const tab = [...dropdown.querySelectorAll('.navigation--horizontal__link')].find((link) => norm(link.textContent) === norm(sizeType));
+    const tab = tabs.find((link) => norm(link.textContent) === norm(sizeType));
     if (tab) { tab.click(); await sleep(400); }
   }
-  const buttons = [...dropdown.querySelectorAll('button.multi-size-selector__button')].filter(visible);
-  const button = buttons.find((candidate) => norm(candidate.textContent) === norm(size));
-  if (!button) { document.body.click(); return false; }
+  let button = sizeMatch([...dropdown.querySelectorAll('button.multi-size-selector__button')].filter(visible), size);
+  // Not on the open tab: look through the others (Standard, Plus, Petite...).
+  for (const tab of tabs) {
+    if (button) break;
+    tab.click(); await sleep(400);
+    button = sizeMatch([...dropdown.querySelectorAll('button.multi-size-selector__button')].filter(visible), size);
+  }
+  if (!button) {
+    lastSizeOptions = [...dropdown.querySelectorAll('button.multi-size-selector__button')].filter(visible).map((b) => b.textContent.trim()).slice(0, 20);
+    document.body.click();
+    return false;
+  }
   button.click();
   await sleep(250);
   [...dropdown.querySelectorAll('button')].find((candidate) => candidate.textContent.trim() === 'Done')?.click();
@@ -224,7 +254,7 @@ async function fillPoshmark(draft) {
   // Size only appears once a category is set.
   if (details.size) {
     if (await poshmarkSize(details.size, details.sizeType)) report.ok('size');
-    else report.skip('size', `pick ${details.size}`);
+    else report.skip('size', `pick ${details.size}${lastSizeOptions.length ? `; Poshmark offered: ${lastSizeOptions.join(', ')}` : '; the size list did not open'}`);
   } else report.skip('size');
 
   const condition = POSHMARK_CONDITION[norm(details.condition).replace(/ /g, '_')];

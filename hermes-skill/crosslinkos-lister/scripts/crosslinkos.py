@@ -240,6 +240,36 @@ def cmd_scan(_args) -> None:
 
 # ------------------------------------------------- titles and the batch descriptions doc
 
+LETTER_SIZES = r"(?:XXS|XS|S|M|L|XL|XXL|XXXL|[2-5]XL|S/P|M/P|L/P|OS|One Size|X-?Small|Small|Medium|Large|X-?Large|XX-?Large)"
+
+
+def strip_size(title: str, size: str | None = None) -> str:
+    """Sizes go in each marketplace's size field, not the title: 'Cardigan M' -> 'Cardigan'.
+
+    Letter sizes, 'US 22', '32 x 32' and '12 Regular' are removed from the end of the title. A bare
+    number is removed only when it is the item's size, so model numbers like 'Air Force 1' stay.
+    """
+    text = title.strip()
+    patterns = [
+        rf"(?:\s+|\s*[-,|]\s*)(?:size\s+|sz\s+)?{LETTER_SIZES}$",
+        r"(?:\s+|\s*[-,|]\s*)(?:size\s+|sz\s+)?(?:US|UK|EU)\s*\d{1,2}(?:\.\d)?$",
+        r"(?:\s+|\s*[-,|]\s*)\d{2}\s*[xX]\s*\d{2}$",
+        r"(?:\s+|\s*[-,|]\s*)\d{1,2}\s*(?:Regular|Short|Long|Petite|Tall|R|S|L|P|T)$",
+        r"(?:\s+|\s*[-,|]\s*)size\s+\S+$",
+    ]
+    if size and size.strip():
+        patterns.append(r"(?:\s+|\s*[-,|]\s*)" + re.escape(size.strip()) + r"$")
+    for _ in range(3):
+        before = text
+        for pattern in patterns:
+            candidate = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+            if candidate and len(candidate.split()) >= 2:
+                text = candidate
+        if text == before:
+            break
+    return text
+
+
 def clean_title(name: str) -> str:
     """'01_Navy_Cargo_Pants' -> 'Navy Cargo Pants' (the number only orders the batch)."""
     text = re.sub(r"^\s*#?\d{1,3}\s*[\s_.)\-]+", "", name)
@@ -380,7 +410,7 @@ def cmd_ingest(args) -> None:
     section = doc_section(folder)
     info = {**info_from_text(section["text"]), **read_info(folder)}  # info.txt beats the descriptions doc
     title = section["title"] or clean_title(folder.name)
-    hints = {"title": title}
+    hints = {"title": strip_size(title)}
     if info.get("brand"):
         hints["brand"] = info["brand"]
     read = api("POST", "/workflow/photo-read", {"photos": to_read, "hints": hints}, timeout=90)
@@ -392,8 +422,9 @@ def cmd_ingest(args) -> None:
             facts[key] = info[key]  # the seller's own notes beat the photo reader
 
     body = {"folder": title, "photos": stored, "facts": facts}
+    body["folder"] = strip_size(title, facts.get("size") or info.get("size"))
     if section["title"]:
-        body["title"] = section["title"][:80]
+        body["title"] = strip_size(section["title"], facts.get("size") or info.get("size"))[:80]
     if section["description"]:
         # Shay's own description feeds every platform's copy; price and cost lines are for her, not buyers.
         buyer_text = "\n".join(line for line in section["description"].splitlines() if not re.match(r"^\s*[-*•]?\s*(list |asking |retail |original )?(price|cost|msrp|paid)\s*:", line, re.I)).strip()
@@ -488,6 +519,8 @@ def cmd_update(args) -> None:
         value = getattr(args, name)
         if value:
             fields[name] = CONDITIONS.get(re.sub(r"[^a-z]", "", value.lower()), value) if name == "condition" else value
+    if fields.get("title") and not args.keep_size:
+        fields["title"] = strip_size(fields["title"], args.size)
     if args.weight is not None:
         fields["weight"] = args.weight
     if args.original_price is not None:
@@ -592,6 +625,7 @@ def main() -> None:
     for name in ("title", "brand", "size", "color", "category", "measurements", "condition", "description", "department", "subcategory", "material", "style", "research"):
         p.add_argument(f"--{name}")
     p.add_argument("--redraft", action="store_true", help="rewrite the P/D/M copy after the update")
+    p.add_argument("--keep-size", action="store_true", help="leave a size at the end of --title")
     p.set_defaults(run=cmd_update)
     p = sub.add_parser("redraft"); p.add_argument("id", type=int); p.set_defaults(run=cmd_redraft)
     p = sub.add_parser("review"); p.add_argument("--status", default="", help="ready, approved, draft, needs_attention, published"); p.set_defaults(run=cmd_review)

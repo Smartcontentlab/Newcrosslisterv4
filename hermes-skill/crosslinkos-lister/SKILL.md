@@ -69,6 +69,8 @@ Shay's doc titles are her words, so never change one silently. Check it, and onl
    size, color, key feature (e.g. "Align", "Fit 1", "7/8", "High Rise").
 2. Propose a better title only if it adds a real search term or fixes a problem. Keep her facts.
    Poshmark max 80 characters. Depop has no title (the first line of the description is used).
+   Never put the size in a title: Poshmark and Depop have their own size field. The script removes
+   a size from the end of a title by itself (on ingest and on `--title`).
 3. Flag anything to take out: words that can get a listing removed or reported, like "dupe",
    "inspired by", "like Lululemon", or another brand's name for a no-name item; keyword lists;
    "NWT" or "new" on worn items; a brand or size her seller notes say is unconfirmed; emojis or ALL CAPS.
