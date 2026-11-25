@@ -4,7 +4,7 @@ import { bodyBytes, SAVE_BUDGET_BYTES, shrinkPhoto, squareListingPhoto, storePho
 import { photoForVision } from '@/lib/downscale';
 import PricingPanel from '@/components/PricingPanel';
 import { estimateWeight, initialShip, takeHome, type ShipAssumptions } from '@/lib/pricing';
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Camera,
@@ -21,7 +21,7 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
-import { Link } from 'wouter';
+import { Link, useSearch } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -166,6 +166,54 @@ export default function ListingStudio() {
   const [salePlatform, setSalePlatform] = useState<Marketplace>('poshmark');
   const [salePrice, setSalePrice] = useState('');
   const [isMarkingSold, setIsMarkingSold] = useState(false);
+
+  // Open a saved item for editing: /listing-studio?item=12 (optionally &focus=<section id>).
+  // Used by "Fix it in Listing studio" on the draft board, so a draft that still needs
+  // details can be completed and its drafts generated again.
+  const search = useSearch();
+  const [openingItem, setOpeningItem] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const id = Number(params.get('item'));
+    if (!Number.isInteger(id) || id <= 0 || id === itemId) return;
+    let cancelled = false;
+    setOpeningItem(true);
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/workflow/items/${id}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'This item could not be opened.');
+        if (cancelled) return;
+        const item = data.item as Record<string, unknown>;
+        const text = (value: unknown) => (value === null || value === undefined ? '' : String(value));
+        setForm({
+          title: text(item.title), description: text(item.description), brand: text(item.brand), model: text(item.model), category: text(item.category),
+          size: text(item.size), color: text(item.color), measurements: text(item.measurements), sku: text(item.sku), notes: text(item.notes),
+          sourceLocation: text(item.sourceLocation), sourceUrl: text(item.sourceUrl),
+          condition: (text(item.condition) || 'good') as Condition, status: (text(item.status) || 'draft') as CanonicalForm['status'],
+          price: text(item.price), cost: text(item.cost), weight: text(item.weight),
+          tags: Array.isArray(item.tags) ? (item.tags as string[]).join(', ') : '',
+        });
+        const details = (item.marketplaceDetails ?? {}) as Partial<MarketplaceDetails>;
+        setMarketplaceDetails({ ...initialMarketplaceDetails, ...details, platformCopy: details.platformCopy ?? {} });
+        const records = Array.isArray(item.photoRecords) && item.photoRecords.length
+          ? (item.photoRecords as PhotoRecord[])
+          : (Array.isArray(item.photos) ? (item.photos as string[]) : []).map((url, index) => ({ id: crypto.randomUUID(), original: url, active: 'original' as const, processingStatus: 'original' as const, name: `Photo ${index + 1}`, createdAt: text(item.createdAt) || new Date().toISOString() }));
+        setPhotos(records);
+        setItemId(id);
+        setDrafts(Array.isArray(data.drafts) ? (data.drafts as MarketplaceDraft[]) : []);
+        const focus = params.get('focus');
+        window.setTimeout(() => document.getElementById(focus || 'listing-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
+        toast({ title: `Editing "${text(item.title)}"`, description: 'Fix what the draft needs, then Save & Continue and Generate P/D/M to refresh the drafts.' });
+      } catch (error) {
+        if (!cancelled) toast({ title: 'Could not open this item', description: error instanceof Error ? error.message : 'Refresh and try again.', variant: 'destructive' });
+      } finally {
+        if (!cancelled) setOpeningItem(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const proceeds = useMemo(() => takeHome(safeNumber(form.price), ship, safeNumber(form.weight), safeNumber(form.cost)).map((row) => ({ platform: row.platform, net: row.net, profit: row.profit })), [ship, form.cost, form.price, form.weight]);
 
@@ -440,7 +488,7 @@ export default function ListingStudio() {
         actions={
           <div className="flex flex-wrap gap-2 text-[0.625rem] font-medium uppercase tracking-[0.04em]">
             <span className="border border-border bg-card px-3 py-2 text-muted-foreground">{photos.length}/{MAX_PHOTOS} photos</span>
-            <span className={`inline-flex items-center gap-2 border border-border px-3 py-2 ${itemId ? 'bg-card text-foreground' : 'bg-accent-tint text-foreground'}`}>{itemId ? <span className="cx-status-dot" /> : <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-muted-foreground" />}{itemId ? `record #${itemId} saved` : 'unsaved draft'}</span>
+            <span className={`inline-flex items-center gap-2 border border-border px-3 py-2 ${itemId ? 'bg-card text-foreground' : 'bg-accent-tint text-foreground'}`}>{itemId ? <span className="cx-status-dot" /> : <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-muted-foreground" />}{openingItem ? 'opening saved item…' : itemId ? `record #${itemId} saved` : 'unsaved draft'}</span>
           </div>
         }
       />
