@@ -60,3 +60,5 @@ Thumbs.db
 # AI test output
 artifacts/api-server/tests/.out
 artifacts/resale-app/tests/.out
+__pycache__/
+*.pyc

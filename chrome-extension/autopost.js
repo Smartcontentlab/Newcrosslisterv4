@@ -84,7 +84,8 @@ async function sendToTab(tabId, message, attempts = 8) {
 
 /** Fill, check, then press List / Post step by step until the listing page appears. */
 async function postOne(draft) {
-  const tab = await chrome.tabs.create({ url: START_URLS[draft.marketplace], active: false });
+  // In front: Chrome barely runs background tabs (menus don't open, forms don't finish loading).
+  const tab = await chrome.tabs.create({ url: START_URLS[draft.marketplace], active: true });
   try {
     await waitForTabLoad(tab.id);
     await sleep(2500);

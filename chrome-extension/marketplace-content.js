@@ -375,7 +375,8 @@ async function fillDepop(draft) {
   const report = makeReport();
   const details = draft.details ?? {};
 
-  const description = findElement(['textarea#description', "textarea[name='description']"]);
+  // The form renders after the page loads; give it a moment before filling.
+  const description = await waitFor(() => findElement(['textarea#description', "textarea[name='description']"]), 10000);
   if (description) { setNativeValue(description, depopDescription(draft)); report.ok('description + hashtags'); report.ok('title'); } else report.skip('description', 'field not found');
 
   const department = norm(details.department);

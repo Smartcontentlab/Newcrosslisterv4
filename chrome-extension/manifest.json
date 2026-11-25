@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CrossLinkOS Draft Fill",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Fills Poshmark and Depop listing forms from your CrossLinkOS drafts (basic fields on Mercari), and can post the drafts you approve.",
   "minimum_chrome_version": "114",
   "permissions": [

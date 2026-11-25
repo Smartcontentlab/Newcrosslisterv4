@@ -505,13 +505,14 @@ def pick_photos(paths: list[Path], keep_order: bool):
     images = [image for _, image in opened]
     white = [white_background(image) for image in images]
     roles = photo_roles(images) if len(images) > 1 else [None]
-    keep = [i for i in range(len(images)) if white[i] or (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)]
+    named = [bool(re.search(r"label|tag|measure|tape|size|flaw", name, re.I)) for name in names]  # Shay's file names say what a photo is
+    keep = [i for i in range(len(images)) if white[i] or named[i] or (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)]
     notes = {"leftOut": [names[i] for i in range(len(images)) if i not in keep], "cover": ""}
     if not any(white):  # no edited photos in this folder: use them all rather than none
         keep, notes["leftOut"] = list(range(len(images))), []
         notes["noWhitePhotos"] = "No white-background photos found, so all photos were used."
     marked = next((i for i in keep if names[i].lower().startswith(("cover", "00_", "00-", "00 "))), None)
-    candidates = [i for i in keep if white[i] and not (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)] or keep
+    candidates = [i for i in keep if white[i] and not named[i] and not (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)] or keep
     if marked is not None:
         cover, notes["cover"] = marked, f"{names[marked]} (picked by Shay)"
     elif keep_order or not any(roles):
@@ -521,7 +522,7 @@ def pick_photos(paths: list[Path], keep_order: bool):
         cover = max(candidates, key=lambda i: ((roles[i] or {}).get("cover", -50), -i))
         role = roles[cover] or {}
         notes["cover"] = f"{names[cover]} ({str(role.get('view', 'photo')).replace('_', ' ')}{', whole item' if role.get('wholeItem') else ''}, white background)"
-    rank = lambda i: (0 if i == cover else 1 if i in candidates else 2 if (roles[i] or {}).get("view") in ("tag", "label") else 3, i)  # noqa: E731
+    rank = lambda i: (0 if i == cover else 1 if i in candidates else 2 if named[i] or (roles[i] or {}).get("view") in ("tag", "label") else 3, i)  # noqa: E731
     order = sorted(keep, key=rank)
     if len(order) > MAX_STORED:
         notes["leftOut"] += [names[i] + " (over the 8-photo limit)" for i in order[MAX_STORED:]]
