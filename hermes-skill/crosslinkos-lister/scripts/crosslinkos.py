@@ -23,6 +23,7 @@ Commands (all print JSON, so Hermes can read the result):
     review [--status ready]      items waiting for approval, with what each draft still needs
     approve ID [--only poshmark] approve Ready to push drafts for auto-post
     unapprove ID                 take approved drafts back to Ready to push
+    tidy                         move folders that are Live on Poshmark and Depop into posted/
 
 Settings (environment or ~/.config/crosslinkos/env):
     CROSSLINKOS_KEY   access key from CrossLinkOS Settings > Access keys (required)
@@ -454,6 +455,29 @@ def cmd_review(args) -> None:
     print(json.dumps({"count": len(items), "summary": lines, "items": items}, indent=2, default=str))
 
 
+def cmd_tidy(args) -> None:
+    """Move each sent folder into its batch's posted/ folder once Poshmark and Depop are both Live."""
+    moved, waiting = [], []
+    for folder in item_folders():
+        marker = folder / MARKER
+        if not marker.exists():
+            continue
+        item_id = json.loads(marker.read_text()).get("itemId")
+        drafts = {d["marketplace"]: d for d in api("GET", f"/workflow/items/{item_id}")["drafts"]}
+        live = {m: (drafts.get(m) or {}).get("status") in ("published", "sold") for m in args.markets}
+        if all(live.values()):
+            target_dir = folder.parent / "posted"
+            target_dir.mkdir(exist_ok=True)
+            target = target_dir / folder.name
+            if target.exists():
+                target = target_dir / f"{folder.name} ({item_id})"
+            shutil.move(str(folder), str(target))
+            moved.append({"itemId": item_id, "folder": folder.name, "to": str(target.relative_to(LISTINGS_DIR))})
+        else:
+            waiting.append({"itemId": item_id, "folder": folder.name, "notLiveYet": [m for m, ok in live.items() if not ok]})
+    print(json.dumps({"moved": moved, "waiting": waiting}, indent=2))
+
+
 def cmd_approve(args) -> None:
     body = {"marketplaces": args.only} if args.only else {}
     print(json.dumps(api("POST", f"/autopilot/items/{args.id}/approve", body), indent=2))
@@ -478,6 +502,7 @@ def main() -> None:
     p = sub.add_parser("redraft"); p.add_argument("id", type=int); p.set_defaults(run=cmd_redraft)
     p = sub.add_parser("review"); p.add_argument("--status", default="", help="ready, approved, draft, needs_attention, published"); p.set_defaults(run=cmd_review)
     p = sub.add_parser("approve"); p.add_argument("id", type=int); p.add_argument("--only", nargs="+", choices=["poshmark", "depop"]); p.set_defaults(run=cmd_approve)
+    p = sub.add_parser("tidy"); p.add_argument("--markets", nargs="+", default=["poshmark", "depop"], choices=["poshmark", "depop", "mercari"]); p.set_defaults(run=cmd_tidy)
     p = sub.add_parser("unapprove"); p.add_argument("id", type=int); p.set_defaults(run=cmd_unapprove)
     args = parser.parse_args()
     args.run(args)

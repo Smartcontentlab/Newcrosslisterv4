@@ -53,6 +53,8 @@ python3 ~/.hermes/skills/business/crosslinkos-lister/scripts/crosslinkos.py <com
 7. Approved drafts are posted by the Chrome extension (auto-post must be on there), spaced a few
    minutes apart. Later, `cl review --status published` and `cl review --status needs_attention`
    show what went live and what got stuck. Tell Shay about anything stuck, with the reason.
+   Then run `cl tidy`: folders whose item is Live on Poshmark and Depop move into `posted/`.
+   Only Poshmark and Depop are posted for now; never approve Mercari.
 
 ## Research rules
 
@@ -76,8 +78,8 @@ Shay often drops a whole batch: `~/Listings/<Batch>/01_Navy_Cargo_Pants/`, `02_â
 `posted/` folder and a `.docx` of her written descriptions. `scan` lists items inside batches
 (as `Batch/01_Navy_Cargo_Pants`), the number is dropped from the title, and `ingest` uses her
 description section from the .docx (matched by number or name). Her description always beats
-AI copy; Brand / Size / Price lines in it count like info.txt. When an item is live everywhere,
-offer to move its folder into the batch's `posted/` folder (ask first).
+AI copy; Brand / Size / Price lines in it count like info.txt. Once an item is Live on both Poshmark and
+Depop, `cl tidy` moves its folder into the batch's `posted/` folder (Shay's rule; no need to ask).
 
 ## info.txt (optional, in an item folder)
 
