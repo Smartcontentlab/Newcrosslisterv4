@@ -24,6 +24,7 @@ Commands (all print JSON, so Hermes can read the result):
     approve ID [--only poshmark] approve Ready to push drafts for auto-post
     unapprove ID                 take approved drafts back to Ready to push
     cover ID N                   make photo N the cover of an item already sent
+    rephoto ID                   re-pick an item's photos from its folder (white backgrounds + labels)
     tidy                         move folders that are Live on Poshmark and Depop into posted/
 
 Settings (environment or ~/.config/crosslinkos/env):
@@ -391,19 +392,10 @@ def cmd_ingest(args) -> None:
     paths = folder_photos(folder)
     if not paths:
         fail(f"No photos in {folder}")
-    images, skipped = [], []
-    for path in paths[:MAX_STORED]:
-        try:
-            images.append(open_image(path))
-        except Exception as error:  # noqa: BLE001
-            skipped.append(f"{path.name}: {error}")
-    if not images:
-        fail(f"None of the photos could be opened. {'; '.join(skipped)}")
-    order, roles, cover_note = choose_cover(images, [p.name for p in paths[:len(images)]], args.keep_order)
-    images = [images[i] for i in order]
+    images, roles, names, photo_notes, skipped = pick_photos(paths, args.keep_order)
     stored = [to_data_url(image, STORED_SIDE, STORED_BYTES) for image in images]
     # Read the cover plus up to two tag/label photos: the labels carry brand and size.
-    tag_positions = [pos for pos, i in enumerate(order) if roles[i] and roles[i]["view"] in ("tag", "label")][:2]
+    tag_positions = [pos for pos, role in enumerate(roles) if role and role["view"] in ("tag", "label")][:2]
     read_positions = [0] + tag_positions + [pos for pos in range(1, len(images)) if pos not in tag_positions]
     to_read = [to_data_url(images[pos], READ_SIDE, READ_BYTES) for pos in read_positions[:3]]
 
@@ -456,8 +448,8 @@ def cmd_ingest(args) -> None:
     drafts = [] if args.no_drafts else api("POST", f"/workflow/items/{item_id}/marketplace-drafts", {}, timeout=90)
     (folder / MARKER).write_text(json.dumps({"itemId": item_id, "sentAt": datetime.now(timezone.utc).isoformat()}))
     print(json.dumps({
-        "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped, "coverPhoto": cover_note,
-        "photoOrder": [{"file": paths[i].name, "view": (roles[i] or {}).get("view")} for i in order],
+        "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped, "coverPhoto": photo_notes["cover"],
+        "photoOrder": [{"file": name, "view": (role or {}).get("view")} for name, role in zip(names, roles)], "photosLeftOut": photo_notes["leftOut"],
         "photoRead": {"facts": facts, "unsure": read.get("unsure", []), "aiModel": read.get("aiModel")},
         "fromInfoTxt": info, "fromDoc": {"doc": section["doc"], "title": section["title"], "tags": len(section["tags"]), "notes": section["notes"]} if section["doc"] else None, "weightLb": created.get("weight"),
         "drafts": draft_summary(drafts), "next": "Research the price and original price, then run: update ITEM --price N --original-price N",
@@ -467,27 +459,74 @@ def cmd_ingest(args) -> None:
 ROLE_SIDE, ROLE_BYTES = 512, 60_000
 
 
-def choose_cover(images: list, names: list[str], keep_order: bool) -> tuple[list[int], list, str]:
-    """Order with the best full front view first. Falls back to the folder order if the AI can't answer."""
-    if keep_order or len(images) == 1:
-        return list(range(len(images))), [None] * len(images), "kept folder order"
-    chosen = next((i for i, name in enumerate(names) if name.lower().startswith(("cover", "00_", "00-", "00 "))), None)
-    if chosen is not None:  # Shay marked her own cover
-        return [chosen] + [i for i in range(len(images)) if i != chosen], [None] * len(images), f"cover: {names[chosen]} (picked by Shay)"
+MAX_LOOKED_AT = 24
+KEEP_ANY_BACKGROUND = ("tag", "label", "measurement")
+
+
+def white_background(image) -> bool:
+    """True for the edited, white-background shots: the photo's outer edge is almost all near-white."""
+    small = image.copy()
+    small.thumbnail((96, 96))
+    w, h = small.size
+    pixels = small.load()
+    ring = [pixels[x, y] for x in range(w) for y in (0, 1, h - 2, h - 1)] + [pixels[x, y] for y in range(h) for x in (0, 1, w - 2, w - 1)]
+    white = sum(1 for r, g, b in ring if min(r, g, b) >= 222 and max(r, g, b) - min(r, g, b) <= 18)
+    return white / max(1, len(ring)) >= 0.8
+
+
+def photo_roles(images: list) -> list:
     small = [to_data_url(image, ROLE_SIDE, ROLE_BYTES) for image in images]
     roles: list = []
     for start in range(0, len(small), 4):
+        chunk = small[start:start + 4]
         try:
-            roles += api("POST", "/autopilot/photo-roles", {"photos": small[start:start + 4]}, timeout=75, soft=True).get("roles") or [None] * len(small[start:start + 4])
+            roles += api("POST", "/autopilot/photo-roles", {"photos": chunk}, timeout=75, soft=True).get("roles") or [None] * len(chunk)
         except Exception:  # noqa: BLE001
-            roles += [None] * len(small[start:start + 4])
-    scored = [(role["cover"], -i) for i, role in enumerate(roles) if role]
-    if not scored:
-        return list(range(len(images))), roles, "AI could not sort the photos; kept folder order"
-    best = -max(scored)[1]
-    order = [best] + [i for i in range(len(images)) if i != best]
-    view = roles[best]["view"].replace("_", " ")
-    return order, roles, f"cover: {names[best]} ({view}{', whole item' if roles[best]['wholeItem'] else ''})"
+            roles += [None] * len(chunk)
+    return roles
+
+
+def pick_photos(paths: list[Path], keep_order: bool):
+    """Shay's rule: only the white-background photos go up, plus label, tag and measurement shots.
+
+    Returns (images, roles, names, notes, skipped) in listing order: the cover (best whole-item front
+    view on white, or a photo she named cover*/00_*) first, then the other white photos in her order,
+    then labels/tags, then measurements. At most MAX_STORED photos.
+    """
+    opened, skipped = [], []
+    for path in paths[:MAX_LOOKED_AT]:
+        try:
+            opened.append((path.name, open_image(path)))
+        except Exception as error:  # noqa: BLE001
+            skipped.append(f"{path.name}: {error}")
+    if not opened:
+        fail(f"None of the photos could be opened. {'; '.join(skipped)}")
+    names = [name for name, _ in opened]
+    images = [image for _, image in opened]
+    white = [white_background(image) for image in images]
+    roles = photo_roles(images) if len(images) > 1 else [None]
+    keep = [i for i in range(len(images)) if white[i] or (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)]
+    notes = {"leftOut": [names[i] for i in range(len(images)) if i not in keep], "cover": ""}
+    if not any(white):  # no edited photos in this folder: use them all rather than none
+        keep, notes["leftOut"] = list(range(len(images))), []
+        notes["noWhitePhotos"] = "No white-background photos found, so all photos were used."
+    marked = next((i for i in keep if names[i].lower().startswith(("cover", "00_", "00-", "00 "))), None)
+    candidates = [i for i in keep if white[i] and not (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)] or keep
+    if marked is not None:
+        cover, notes["cover"] = marked, f"{names[marked]} (picked by Shay)"
+    elif keep_order or not any(roles):
+        cover = candidates[0]
+        notes["cover"] = f"{names[cover]} (folder order)"
+    else:
+        cover = max(candidates, key=lambda i: ((roles[i] or {}).get("cover", -50), -i))
+        role = roles[cover] or {}
+        notes["cover"] = f"{names[cover]} ({str(role.get('view', 'photo')).replace('_', ' ')}{', whole item' if role.get('wholeItem') else ''}, white background)"
+    rank = lambda i: (0 if i == cover else 1 if i in candidates else 2 if (roles[i] or {}).get("view") in ("tag", "label") else 3, i)  # noqa: E731
+    order = sorted(keep, key=rank)
+    if len(order) > MAX_STORED:
+        notes["leftOut"] += [names[i] + " (over the 8-photo limit)" for i in order[MAX_STORED:]]
+        order = order[:MAX_STORED]
+    return [images[i] for i in order], [roles[i] for i in order], [names[i] for i in order], notes, skipped
 
 
 def patch_item(item_id: int, fields: dict, details: dict) -> dict:
@@ -594,6 +633,19 @@ def cmd_tidy(args) -> None:
     print(json.dumps({"moved": moved, "waiting": waiting}, indent=2))
 
 
+def cmd_rephoto(args) -> None:
+    """Re-pick an item's photos from its folder with the current photo rules (white backgrounds + labels)."""
+    folder = next((f for f in item_folders() if (f / MARKER).exists() and json.loads((f / MARKER).read_text()).get("itemId") == args.id), None)
+    if not folder:
+        fail(f"No folder in {LISTINGS_DIR} was sent as item {args.id}.")
+    images, roles, names, notes, skipped = pick_photos(folder_photos(folder), args.keep_order)
+    now = datetime.now(timezone.utc).isoformat()
+    records = [{"id": f"ap-{int(time.time())}-{i}", "original": to_data_url(image, STORED_SIDE, STORED_BYTES), "active": "original", "processingStatus": "original", "name": name, "createdAt": now} for i, (image, name) in enumerate(zip(images, names))]
+    api("PATCH", f"/workflow/items/{args.id}", {"photoRecords": records}, timeout=90)
+    print(json.dumps({"itemId": args.id, "photos": [{"file": n, "view": (r or {}).get("view")} for n, r in zip(names, roles)], "cover": notes["cover"], "leftOut": notes["leftOut"], "skipped": skipped,
+                      "note": "Drafts not posted yet use these photos. A listing already live keeps its photos: change those on the marketplace."}, indent=2))
+
+
 def cmd_cover(args) -> None:
     """Make photo number N (1 = current cover) the cover of an item already in CrossLinkOS."""
     item = api("GET", f"/workflow/items/{args.id}")["item"]
@@ -631,6 +683,7 @@ def main() -> None:
     p = sub.add_parser("review"); p.add_argument("--status", default="", help="ready, approved, draft, needs_attention, published"); p.set_defaults(run=cmd_review)
     p = sub.add_parser("approve"); p.add_argument("id", type=int); p.add_argument("--only", nargs="+", choices=["poshmark", "depop"]); p.set_defaults(run=cmd_approve)
     p = sub.add_parser("tidy"); p.add_argument("--markets", nargs="+", default=["poshmark", "depop"], choices=["poshmark", "depop", "mercari"]); p.set_defaults(run=cmd_tidy)
+    p = sub.add_parser("rephoto"); p.add_argument("id", type=int); p.add_argument("--keep-order", action="store_true"); p.set_defaults(run=cmd_rephoto)
     p = sub.add_parser("cover"); p.add_argument("id", type=int); p.add_argument("photo", type=int, help="photo number, 1 = current cover"); p.set_defaults(run=cmd_cover)
     p = sub.add_parser("unapprove"); p.add_argument("id", type=int); p.set_defaults(run=cmd_unapprove)
     args = parser.parse_args()

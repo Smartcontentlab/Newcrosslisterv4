@@ -31,6 +31,10 @@ python3 ~/.hermes/skills/business/crosslinkos-lister/scripts/crosslinkos.py <com
 2. **Send each new folder**: `cl ingest "<folder name>"`. This takes about 30 to 60 seconds. It reads the
    photos with AI, picks the cover (the best whole-item front view, never a tag or label shot),
    reads the tag photos for brand and size, creates the item, and writes Poshmark/Depop/Mercari drafts.
+   Photo rule (Shay's): only the edited white-background photos go up, plus label, tag and
+   measurement shots on any background. Unedited originals are left out (`photosLeftOut`).
+   If a folder has no white-background photos at all, every photo is used and you say so.
+   `cl rephoto <id>` re-picks an item's photos from its folder with this rule.
    Mention the chosen cover (`coverPhoto`) in the approval summary. If Shay says a cover is wrong
    (`cover 12 3` = make photo 3 the cover), run `cl cover 12 3`. A photo she names starting with
    "cover" or "00_" is always used as the cover. Note `photoRead.unsure`
