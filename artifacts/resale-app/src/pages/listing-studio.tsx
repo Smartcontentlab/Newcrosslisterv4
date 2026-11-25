@@ -204,7 +204,7 @@ export default function ListingStudio() {
         setDrafts(Array.isArray(data.drafts) ? (data.drafts as MarketplaceDraft[]) : []);
         const focus = params.get('focus');
         window.setTimeout(() => document.getElementById(focus || 'listing-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
-        toast({ title: `Editing "${text(item.title)}"`, description: 'Fix what the draft needs, then Save & Continue and Generate P/D/M to refresh the drafts.' });
+        toast({ title: `Editing "${text(item.title)}"`, description: 'Fix what the draft needs, then Save & Continue. Its drafts update to Ready to push on their own.' });
       } catch (error) {
         if (!cancelled) toast({ title: 'Could not open this item', description: error instanceof Error ? error.message : 'Refresh and try again.', variant: 'destructive' });
       } finally {

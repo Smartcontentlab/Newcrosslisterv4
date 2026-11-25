@@ -161,6 +161,7 @@ router.patch("/workflow/items/:id", async (request, response): Promise<void> => 
   const userId = getAuthenticatedUser(response).id; const id = Number(request.params.id);
   const [item] = await db.update(itemsTable).set({ ...withActivePhotos(parsed.data), sourceUrl: parsed.data.sourceUrl || null }).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId))).returning();
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
+  await refreshDraftRequirements(item, userId);
   response.json(item);
 });
 type AssistFields = { title: string; description?: string | null; brand?: string | null; model?: string | null; category?: string | null; size?: string | null; color?: string | null; condition: string; measurements?: string | null; tags?: string[]; material?: string | null; flaws?: string | null };
@@ -251,6 +252,25 @@ router.post("/workflow/photo-read", async (request, response): Promise<void> => 
     response.json({ ...facts, aiModel: model, photosRead });
   } catch (error) { failAi(response, error); }
 });
+/**
+ * After an item is saved, re-check what each of its existing drafts still needs, so a fix
+ * (for example an original price for Poshmark) clears "Still needs" without generating the
+ * drafts again. Copy is left as is. A draft that becomes complete moves from "draft" to "ready";
+ * drafts the seller has acted on keep their status, and live, sold or delisted ones are untouched.
+ */
+async function refreshDraftRequirements(item: typeof itemsTable.$inferSelect, userId: string) {
+  const existing = await db.select().from(marketplaceDraftsTable).where(and(eq(marketplaceDraftsTable.itemId, item.id), eq(marketplaceDraftsTable.userId, userId)));
+  for (const draft of existing) {
+    if (FINAL_MARKETPLACE_STATUSES.has(draft.status)) continue;
+    const rules = draftRequirements[draft.marketplace];
+    if (!rules) continue;
+    const requirements = rules.map((field) => ({ ...field, required: true, value: itemValue(item, field.key) }));
+    const missingFields = requirements.filter((field) => field.value === null || field.value === "" || field.value === false || field.value === 0).map((field) => field.key);
+    const status = missingFields.length > 0 ? "draft" : draft.status === "draft" ? "ready" : draft.status;
+    await db.update(marketplaceDraftsTable).set({ status, requiredFields: requirements, missingFields, price: item.price }).where(eq(marketplaceDraftsTable.id, draft.id));
+  }
+}
+
 router.post("/workflow/items/:id/marketplace-drafts", async (request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id; const item = await ownedItem(Number(request.params.id), userId);
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
