@@ -76,10 +76,13 @@ READ_SIDE, READ_BYTES = 768, 120_000  # photos sent to the AI reader (server lim
 def load_env() -> None:
     env_file = Path.home() / ".config" / "crosslinkos" / "env"
     if env_file.exists():
-        for line in env_file.read_text().splitlines():
+        values: dict[str, str] = {}
+        for line in env_file.read_text().splitlines():  # a later line wins, so appending a setting works
             if "=" in line and not line.strip().startswith("#"):
                 key, value = line.split("=", 1)
-                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+                values[key.strip()] = value.strip().strip('"').strip("'")
+        for key, value in values.items():
+            os.environ.setdefault(key, value)
 
 
 load_env()
