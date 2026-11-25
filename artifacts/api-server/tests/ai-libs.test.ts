@@ -204,6 +204,8 @@ await test("estimateWeight: typical packed weight, null when unknown", () => {
   assert.equal(estimateWeight({ title: "Lululemon Align Leggings" }), 0.6);
   assert.equal(estimateWeight({ title: "Nike Air Force 1 Sneakers" }), 2.3);
   assert.equal(estimateWeight({ title: "Vintage Thing" }), null);
+  assert.equal(estimateWeight({ title: "Aritzia Cashmere Crewneck Cardigan", subcategory: "Cardigans" }), 0.75);
+  assert.equal(estimateWeight({ title: "Champion Crewneck Sweatshirt" }), 1.25);
 });
 
 globalThis.fetch = realFetch;
