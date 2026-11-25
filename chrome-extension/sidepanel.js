@@ -108,7 +108,7 @@ function renderAuto(auto) {
   if (auto.key && !autoKey.value) autoKey.placeholder = `Saved key …${auto.key.slice(-4)}`;
   const posted = auto.postedDate === new Date().toISOString().slice(0, 10) ? auto.postedCount : 0;
   if (auto.paused) { autoToggle.textContent = 'Resume'; autoStatus.textContent = `Paused: ${auto.paused}`; autoStatus.className = 'status error'; }
-  else if (auto.enabled) { autoToggle.textContent = 'Turn off auto-post'; autoStatus.textContent = `On. Posted today: ${posted}. Checks for approved drafts every few minutes.`; autoStatus.className = 'status good'; }
+  else if (auto.enabled) { autoToggle.textContent = 'Turn off auto-post'; autoStatus.textContent = `On. Posted today: ${posted}. Checks for approved drafts every few minutes. It only posts drafts you approved; an empty queue means nothing is approved yet.`; autoStatus.className = 'status good'; }
   else { autoToggle.textContent = 'Turn on auto-post'; autoStatus.textContent = 'Off.'; autoStatus.className = 'status'; }
   autoLog.innerHTML = (auto.log ?? []).slice(0, 8).map((entry) => `<li>${escapeHtml(new Date(entry.at).toLocaleTimeString())} · ${escapeHtml(entry.text)}</li>`).join('');
 }

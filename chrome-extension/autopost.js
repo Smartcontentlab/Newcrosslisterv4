@@ -158,8 +158,16 @@ export async function runOnce() {
   } finally { busy = false; }
 }
 
+/** If auto-post is on but no check is scheduled (Chrome restarted, or the extension was reloaded or updated), schedule one. */
+async function ensureScheduled() {
+  const auto = await getAuto();
+  if (!auto.enabled || auto.paused) return;
+  if (!(await chrome.alarms.get(ALARM))) await scheduleNext(0.2, 0.5);
+}
+
 export function registerAutopost() {
   chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === ALARM) void runOnce(); });
-  // Chrome restarts clear alarms' timing but not storage: pick up where it left off.
-  chrome.runtime.onStartup.addListener(() => { void scheduleNext(1, 2); });
+  chrome.runtime.onStartup.addListener(() => { void ensureScheduled(); });
+  chrome.runtime.onInstalled.addListener(() => { void ensureScheduled(); });
+  void ensureScheduled(); // every time the service worker wakes
 }
