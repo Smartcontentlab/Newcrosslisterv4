@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, userProfilesTable } from "@workspace/db";
 import { getAuthenticatedUser, requireAuth } from "../lib/auth";
+import { createAgentKey, MAX_AGENT_KEYS, publicKeys, revokeAgentKey, withoutKeyHashes } from "../lib/agent-keys";
 
 const router: IRouter = Router();
 
@@ -33,7 +34,7 @@ router.get("/auth/me", async (_request, response): Promise<void> => {
     return;
   }
 
-  response.json(profile);
+  response.json(withoutKeyHashes(profile));
 });
 
 router.patch("/auth/me", async (request, response): Promise<void> => {
@@ -64,7 +65,33 @@ router.patch("/auth/me", async (request, response): Promise<void> => {
     .where(eq(userProfilesTable.id, user.id))
     .returning();
 
-  response.json(profile);
+  response.json(withoutKeyHashes(profile));
+});
+
+// Access keys for Hermes and the extension's auto-post mode. Managing keys needs the seller's
+// own login: a program holding a key cannot create more keys or revoke the seller's.
+const fromBrowserLogin = (response: import("express").Response) => getAuthenticatedUser(response).via !== "agent_key";
+
+router.get("/agent-keys", async (_request, response): Promise<void> => {
+  const user = getAuthenticatedUser(response);
+  const [profile] = await db.select({ settings: userProfilesTable.settings }).from(userProfilesTable).where(eq(userProfilesTable.id, user.id));
+  response.json({ keys: publicKeys(profile?.settings), max: MAX_AGENT_KEYS });
+});
+
+router.post("/agent-keys", async (request, response): Promise<void> => {
+  if (!fromBrowserLogin(response)) { response.status(403).json({ error: "Create access keys from CrossLinkOS Settings while signed in." }); return; }
+  const parsed = z.object({ name: z.string().trim().min(1).max(60) }).safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "Give the key a name, for example Hermes on my laptop." }); return; }
+  const result = await createAgentKey(getAuthenticatedUser(response).id, parsed.data.name);
+  if ("error" in result) { response.status(400).json({ error: result.error }); return; }
+  response.status(201).json(result);
+});
+
+router.delete("/agent-keys/:id", async (request, response): Promise<void> => {
+  if (!fromBrowserLogin(response)) { response.status(403).json({ error: "Revoke access keys from CrossLinkOS Settings while signed in." }); return; }
+  const removed = await revokeAgentKey(getAuthenticatedUser(response).id, String(request.params.id));
+  if (!removed) { response.status(404).json({ error: "That key was not found. It may already be revoked." }); return; }
+  response.json({ ok: true });
 });
 
 export default router;

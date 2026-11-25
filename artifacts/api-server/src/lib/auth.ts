@@ -1,8 +1,12 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 
+import { isAgentKey, verifyAgentKey } from "./agent-keys";
+
 export type AuthenticatedUser = {
   id: string;
   email: string | null;
+  /** "agent_key" when the request used an access key rather than the seller's login. */
+  via?: "session" | "agent_key";
 };
 
 type SupabaseAuthUser = {
@@ -34,6 +38,20 @@ export const requireAuth: RequestHandler = async (
   const token = getBearerToken(request);
   if (!token) {
     response.status(401).json({ error: "Authentication is required" });
+    return;
+  }
+
+  // Access keys for helper programs (Hermes, extension auto-post) instead of a browser login.
+  if (isAgentKey(token)) {
+    try {
+      const verified = await verifyAgentKey(token);
+      if (!verified) { response.status(401).json({ error: "This access key is not valid or was revoked. Create a new one in CrossLinkOS Settings." }); return; }
+      response.locals.authUser = { id: verified.userId, email: null, via: "agent_key" } satisfies AuthenticatedUser;
+      next();
+    } catch (error) {
+      request.log?.error({ err: error }, "Unable to check access key");
+      response.status(503).json({ error: "The access key could not be checked right now. Try again shortly." });
+    }
     return;
   }
 

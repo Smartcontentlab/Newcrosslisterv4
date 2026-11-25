@@ -132,7 +132,7 @@ const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'curren
 const safeNumber = (value: string) => Math.max(0, Number(value) || 0);
 
 function statusLabel(status: string) {
-  return ({ draft: 'Needs details', ready: 'Needs posted', prefilled: 'Prefilled — review', draft_saved: 'Draft saved', published: 'Live', sold: 'Sold', delisted: 'Delisted', needs_attention: 'Needs attention' } as Record<string, string>)[status] ?? status;
+  return ({ draft: 'Needs details', ready: 'Ready to push', approved: 'Approved — auto-post', prefilled: 'Prefilled — review', draft_saved: 'Draft saved', published: 'Live', sold: 'Sold', delisted: 'Delisted', needs_attention: 'Needs attention' } as Record<string, string>)[status] ?? status;
 }
 
 export default function ListingStudio() {

@@ -23,7 +23,7 @@ const router: IRouter = Router();
 const itemStatus = z.enum(["draft", "active", "sold", "archived"]);
 const condition = z.enum(["new", "like_new", "good", "fair", "poor"]);
 const marketplace = z.enum(SUPPORTED_MARKETPLACES);
-const marketplaceDraftStatus = z.enum(["draft", "ready", "prefilled", "draft_saved", "published", "sold", "delisting", "delisted", "needs_attention"]);
+const marketplaceDraftStatus = z.enum(["draft", "ready", "prefilled", "draft_saved", "published", "sold", "delisting", "delisted", "needs_attention", "approved"]);
 const FINAL_MARKETPLACE_STATUSES = new Set(["published", "sold", "delisting", "delisted"]);
 const photoRecord = z.object({
   id: z.string(), original: z.string(), processed: z.string().nullable().optional(),

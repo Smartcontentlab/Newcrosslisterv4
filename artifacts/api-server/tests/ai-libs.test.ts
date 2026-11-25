@@ -5,6 +5,7 @@ import { titleCase } from "../src/lib/title-case";
 import { buildQuery, summarize, findComps, resetCompsCache, compsEstimate } from "../src/lib/comps";
 import { normalizePhotoFacts, mergePhotoFacts, readPhotos } from "../src/lib/photo-read";
 import { relevantTrends } from "../src/lib/platform-playbooks";
+import { estimateWeight } from "../src/lib/weight";
 
 const realFetch = globalThis.fetch;
 let calls: Array<{ url: string; body?: any }> = [];
@@ -188,6 +189,12 @@ await test("titles: every word capitalized, deliberate casing and sizes kept", (
   assert.equal(titleCase("J.Crew emilie striped cardigan xl"), "J.Crew Emilie Striped Cardigan XL");
   assert.equal(titleCase("nwt patagonia fleece 3t y2k"), "NWT Patagonia Fleece 3T Y2K");
   assert.equal(titleCase("jeans 32x30"), "Jeans 32x30");
+});
+
+await test("estimateWeight: typical packed weight, null when unknown", () => {
+  assert.equal(estimateWeight({ title: "Lululemon Align Leggings" }), 0.6);
+  assert.equal(estimateWeight({ title: "Nike Air Force 1 Sneakers" }), 2.3);
+  assert.equal(estimateWeight({ title: "Vintage Thing" }), null);
 });
 
 globalThis.fetch = realFetch;

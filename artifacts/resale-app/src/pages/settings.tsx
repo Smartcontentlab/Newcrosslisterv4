@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useListItems } from '@workspace/api-client-react';
 import { Download, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
+import { AccessKeysPanel } from '@/components/AccessKeysPanel';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -113,6 +114,8 @@ export default function SettingsPage() {
           {saving && <Loader2 size={15} className="animate-spin" />} Save changes
         </button>
       </form>
+
+      <AccessKeysPanel className={panel} />
 
       <section className={panel} aria-label="Plan">
         <p className="cx-eyebrow cx-bracket">Plan</p>

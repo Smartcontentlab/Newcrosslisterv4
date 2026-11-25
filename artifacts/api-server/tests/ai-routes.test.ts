@@ -3,6 +3,8 @@ import http from "node:http";
 import express from "express";
 import workflow from "../src/routes/workflow";
 import ai from "../src/routes/ai";
+import autopilot from "../src/routes/autopilot";
+import { isAgentKey, verifyAgentKey, withoutKeyHashes } from "../src/lib/agent-keys";
 import { resetNimState } from "../src/lib/nim";
 import { resetCompsCache } from "../src/lib/comps";
 
@@ -10,7 +12,7 @@ process.env.NVIDIA_NIM_API_KEY = "test-key-not-real";
 const app = express();
 app.use(express.json({ limit: "3mb" }));
 app.use((_req, res, next) => { res.locals.authUser = { id: "u1", email: "a@b.c" }; next(); });
-app.use("/api", workflow); app.use("/api", ai);
+app.use("/api", workflow); app.use("/api", ai); app.use("/api", autopilot);
 const server = app.listen(0);
 const port = (server.address() as any).port;
 const post = (path: string, body: unknown) => new Promise<{ status: number; json: any }>((resolve, reject) => {
@@ -59,6 +61,22 @@ await t("missing NIM key -> 503 readable", async () => {
   const k = process.env.NVIDIA_NIM_API_KEY; delete process.env.NVIDIA_NIM_API_KEY;
   const r = await post("/api/workflow/photo-read", { photos: ["data:image/jpeg;base64,AAAA"] }); assert.equal(r.status, 503); assert.match(r.json.error, /NVIDIA_NIM_API_KEY/);
   process.env.NVIDIA_NIM_API_KEY = k;
+});
+await t("autopilot ingest: 400 without photos or folder (no database touched)", async () => {
+  assert.equal((await post("/api/autopilot/items", { folder: "Lulu Align", photos: [] })).status, 400);
+  assert.equal((await post("/api/autopilot/items", { photos: ["data:image/jpeg;base64,AAAA"] })).status, 400);
+  assert.equal((await post("/api/autopilot/items", { folder: "x", photos: ["https://example.com/a.jpg"] })).status, 400);
+});
+await t("autopilot approve: Mercari is refused (auto-post covers Poshmark and Depop)", async () => {
+  const r = await post("/api/autopilot/items/1/approve", { marketplaces: ["mercari"] }); assert.equal(r.status, 400); assert.match(r.json.error, /poshmark and depop/);
+});
+await t("autopilot result: 400 without ok", async () => { assert.equal((await post("/api/autopilot/drafts/1/result", { url: "https://poshmark.com/listing/x" })).status, 400); });
+await t("access keys: malformed keys rejected before any lookup; hashes never sent to the browser", async () => {
+  assert.equal(isAgentKey("clos_abc"), true); assert.equal(isAgentKey("eyJhbGciOi"), false);
+  assert.equal(await verifyAgentKey("clos_short"), null);
+  assert.equal(await verifyAgentKey("clos_nothex_" + "a".repeat(40)), null);
+  const profile = withoutKeyHashes({ id: "u", settings: { timezone: "PT", agentKeys: [{ id: "k", hash: "secret" }] } });
+  assert.deepEqual(profile.settings, { timezone: "PT" });
 });
 console.log(`${ok} route tests passed`); globalThis.fetch = realFetch; server.close();
 
