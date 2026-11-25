@@ -177,7 +177,8 @@ def read_info(folder: Path) -> dict:
             for line in file.read_text(errors="replace").splitlines():
                 if ":" in line:
                     key, value = line.split(":", 1)
-                    info[re.sub(r"[^a-z]", "", key.lower())] = value.strip()
+                    raw = re.sub(r"[^a-z]", "", key.lower())
+                    info[INFO_KEYS.get(raw, raw)] = value.strip()
                 elif line.strip():
                     info["notes"] = (info.get("notes", "") + " " + line.strip()).strip()
     return info
@@ -366,14 +367,31 @@ def doc_section(folder: Path) -> dict:
     return result
 
 
+INFO_KEYS = {
+    "price": "price", "listprice": "price", "listingprice": "price", "askingprice": "price", "suggestedprice": "price", "suggestedlistingprice": "price",
+    "lowestprice": "lowest", "lowest": "lowest", "lowestofferprice": "lowest", "lowestoffer": "lowest", "minimumprice": "lowest", "floorprice": "lowest", "floor": "lowest", "smartsell": "lowest", "smartpricing": "lowest", "automateoffers": "lowest",
+    "cost": "cost", "originalprice": "originalprice", "msrp": "originalprice", "retail": "originalprice", "retailprice": "originalprice",
+    "condition": "condition", "size": "size", "brand": "brand", "color": "color", "colour": "color", "measurements": "measurements",
+    "material": "material", "department": "department", "category": "category", "subcategory": "subcategory",
+}
+
+
 def info_from_text(text: str) -> dict:
+    """Lines like "Listing price · $45", "Lowest price: $35" or "Condition · Like new" in Shay's doc or info.txt."""
     info: dict[str, str] = {}
     for line in text.splitlines():
-        match = re.match(r"^\s*[-*•]?\s*([A-Za-z][A-Za-z /()]{1,25}):\s*(.+)$", line)
-        if match:
-            key = re.sub(r"[^a-z]", "", match.group(1).lower())
-            if key in ("price", "listprice", "askingprice", "cost", "originalprice", "msrp", "retail", "retailprice", "condition", "size", "brand", "color", "colour", "measurements", "material", "department", "category", "subcategory"):
-                info.setdefault({"listprice": "price", "askingprice": "price", "retailprice": "originalprice", "colour": "color"}.get(key, key), match.group(2).strip())
+        match = re.match(r"^\s*[-*•]?\s*([A-Za-z][A-Za-z /()]{1,30}?)\s*(?::|·)\s*(.+)$", line)
+        if not match:
+            continue
+        key = INFO_KEYS.get(re.sub(r"[^a-z]", "", match.group(1).lower()))
+        value = match.group(2).strip()
+        if not key or not value:
+            continue
+        if key == "measurements" and (re.search(r"not provided|unconfirmed|need|measure ", value, re.I) or not re.search(r"\d", value)):
+            continue  # her notes on what still needs measuring, not measurements
+        if key in ("size", "brand") and re.search(r"unconfirmed|need|check|tagged", value, re.I):
+            continue
+        info.setdefault(key, value)
     return info
 
 
@@ -440,6 +458,10 @@ def cmd_ingest(args) -> None:
     extra = {}
     if number(info.get("originalprice") or info.get("msrp") or info.get("retail")) is not None:
         extra["originalPrice"] = str(int(number(info.get("originalprice") or info.get("msrp") or info.get("retail"))))
+    lowest, list_price = number(info.get("lowest")), number(info.get("price"))
+    if lowest is not None and (list_price is None or lowest < list_price):
+        # Poshmark Automate Offers: accept offers down to this price. Mercari's smart pricing floor gets it too.
+        extra.update({"poshSmartSellMode": "minimum_price", "poshMinimumPrice": str(int(round(lowest))), "mercariSmartPriceFloor": str(int(round(lowest)))})
     if info.get("measurements"):
         patch_item(item_id, {"measurements": info["measurements"]}, extra)
     elif extra:
@@ -565,6 +587,8 @@ def cmd_update(args) -> None:
         fields["weight"] = args.weight
     if args.original_price is not None:
         details["originalPrice"] = str(int(round(args.original_price)))
+    if args.lowest is not None:
+        details.update({"poshSmartSellMode": "minimum_price", "poshMinimumPrice": str(int(round(args.lowest))), "mercariSmartPriceFloor": str(int(round(args.lowest)))})
     for name in ("department", "subcategory", "material", "style"):
         value = getattr(args, name)
         if value:
@@ -674,7 +698,7 @@ def main() -> None:
     p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.set_defaults(run=cmd_ingest)
     p = sub.add_parser("item"); p.add_argument("id", type=int); p.set_defaults(run=cmd_item)
     p = sub.add_parser("update"); p.add_argument("id", type=int)
-    p.add_argument("--price", type=float); p.add_argument("--cost", type=float); p.add_argument("--original-price", type=float); p.add_argument("--weight", type=float)
+    p.add_argument("--price", type=float); p.add_argument("--cost", type=float); p.add_argument("--original-price", type=float); p.add_argument("--lowest", type=float, help="lowest offer to accept (Poshmark Automate Offers)"); p.add_argument("--weight", type=float)
     for name in ("title", "brand", "size", "color", "category", "measurements", "condition", "description", "department", "subcategory", "material", "style", "research"):
         p.add_argument(f"--{name}")
     p.add_argument("--redraft", action="store_true", help="rewrite the P/D/M copy after the update")

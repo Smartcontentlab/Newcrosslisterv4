@@ -56,6 +56,7 @@ python3 ~/.hermes/skills/business/crosslinkos-lister/scripts/crosslinkos.py <com
    - `approve all` / `approve 12 14`: `cl approve <id>` for each. Report what `notReady` says.
    - `approve 12 poshmark`: `cl approve 12 --only poshmark`
    - `change 12 price 45` (or any field): `cl update 12 --price 45`, then confirm.
+   - `change 12 lowest 35`: `cl update 12 --lowest 35` (Poshmark accepts offers down to $35).
    - `skip 13`: do nothing; it stays in CrossLinkOS as Ready to push.
    - `undo 12`: `cl unapprove 12`
    - `use title 12`: `cl update 12 --title "<the title you proposed>"`
@@ -113,7 +114,11 @@ Depop, `cl tidy` moves its folder into the batch's `posted/` folder (Shay's rule
 Each item is a Heading 1 ("01  Navy Cargo Pants") followed by a MarketplaceTitle, a
 MarketplaceDescription and notes lines ("Suggested tags · …", "Measurements · …", "Seller notes · …").
 `ingest` uses her title and description word for word on every platform (no AI rewrite), her
-suggested tags, and saves the measurements and seller notes on the item. The doc has NO price,
+suggested tags, and saves the measurements and seller notes on the item. Shay may add lines
+such as `Listing price · $45`, `Lowest price · $35`, `Original price · $148` and `Condition · Like new`:
+`ingest` applies them (Lowest price turns on Poshmark Automate Offers at that floor). Never change
+a price she wrote; still show the sold comps in the summary, and flag a price far from them.
+Where the doc has NO price,
 original price, condition or department, so for every item:
 - research price and original price as usual;
 - set `--brand`, `--size`, `--department` and `--subcategory` from her title and the photo read
