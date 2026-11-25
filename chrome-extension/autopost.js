@@ -95,15 +95,23 @@ async function postOne(draft) {
     if (draft.photos?.length && !fill.photos) return { ok: false, keepTab: tab.id, message: 'Not posted: the photos could not be attached.' };
     await sleep(2000 + Math.random() * 2000); // let the form settle, like a person checking it
     let lastReason = '';
+    let clicked = false;
     for (let step = 0; step < 12; step += 1) {
       const result = await sendToTab(tab.id, { type: 'AUTO_STEP', platform: draft.marketplace }, 4).catch(() => ({ state: 'waiting', reason: 'Page is changing.' }));
       if (result.state === 'done') return { ok: true, url: result.url, tabId: tab.id };
       if (result.state === 'captcha') return { ok: false, captcha: true, keepTab: tab.id, message: `${draft.marketplace} is showing a CAPTCHA or security check.` };
       if (result.state === 'blocked') return { ok: false, keepTab: tab.id, message: result.reason };
+      if (result.state === 'clicked') clicked = true;
       lastReason = result.reason ?? lastReason;
       await sleep(result.state === 'clicked' ? 4000 : 2500);
     }
-    return { ok: false, keepTab: tab.id, message: `Not confirmed as posted. ${lastReason} Check the open ${draft.marketplace} tab.`.trim() };
+    // Last look: the marketplace may have opened the new listing without the page settling.
+    const finalUrl = (await chrome.tabs.get(tab.id).catch(() => null))?.url ?? '';
+    if (/poshmark\.com\/listing\/|depop\.com\/products\/(?!create|edit)/i.test(finalUrl)) return { ok: true, url: finalUrl.split(/[?#]/)[0], tabId: tab.id };
+    // After a List/Post click it may well be live: never re-post it automatically.
+    return { ok: false, keepTab: tab.id, message: clicked
+      ? `It may have posted, but the listing page did not open, so the link is missing. Check your ${draft.marketplace} closet; if it is there, paste its link on the Draft Board and press I reviewed and published it.`
+      : `Not posted. ${lastReason} Check the open ${draft.marketplace} tab.`.trim() };
   } catch (error) {
     return { ok: false, keepTab: tab.id, message: error instanceof Error ? error.message : 'Auto-post failed.' };
   }
