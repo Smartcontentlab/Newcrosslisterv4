@@ -70,6 +70,15 @@ python3 ~/.hermes/skills/business/crosslinkos-lister/scripts/crosslinkos.py <com
 - **Brand, size, condition**: only from the photos (tags, labels), `info.txt`, or Shay.
 - If the photos or the folder name don't match (wrong item, blurry), stop on that item and ask.
 
+## Batch folders and the descriptions doc
+
+Shay often drops a whole batch: `~/Listings/<Batch>/01_Navy_Cargo_Pants/`, `02_…`, plus a
+`posted/` folder and a `.docx` of her written descriptions. `scan` lists items inside batches
+(as `Batch/01_Navy_Cargo_Pants`), the number is dropped from the title, and `ingest` uses her
+description section from the .docx (matched by number or name). Her description always beats
+AI copy; Brand / Size / Price lines in it count like info.txt. When an item is live everywhere,
+offer to move its folder into the batch's `posted/` folder (ask first).
+
 ## info.txt (optional, in an item folder)
 
 Shay can drop an `info.txt` next to the photos. Its values beat the photo reader:

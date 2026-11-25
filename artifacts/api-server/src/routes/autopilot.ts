@@ -47,6 +47,7 @@ const ingestBody = z.object({
   price: z.number().min(0).max(100_000).optional(),
   cost: z.number().min(0).max(100_000).optional(),
   notes: text(2000),
+  description: text(5000),
   sku: text(80),
 });
 
@@ -56,7 +57,8 @@ router.post("/autopilot/items", async (request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id;
   const { folder, photos, facts, notes } = parsed.data;
   // The folder name is the seller's own label for the item, so it beats a guessed title.
-  const title = titleCase(folder.replace(/[_]+/g, " ").replace(/\s+/g, " ").trim()).slice(0, 80) || facts.title || "Untitled item";
+  // "01_Navy_Cargo_Pants" -> "Navy Cargo Pants": a leading number only orders the batch.
+  const title = titleCase(folder.replace(/^\s*#?\d{1,3}\s*[\s_.)-]+/, "").replace(/[_]+/g, " ").replace(/\s+/g, " ").trim()).slice(0, 80) || facts.title || "Untitled item";
   const createdAt = new Date().toISOString();
   const photoRecords: ItemPhotoRecord[] = photos.map((photo, index) => ({ id: `ap-${Date.now()}-${index}`, original: photo, active: "original", processingStatus: "original", name: `photo-${index + 1}.jpg`, createdAt }));
   const marketplaceDetails: Record<string, unknown> = { ...DEFAULT_DETAILS };
@@ -67,7 +69,7 @@ router.post("/autopilot/items", async (request, response): Promise<void> => {
   const [item] = await db.insert(itemsTable).values({
     userId, title, brand: facts.brand || null, model: facts.model || null, category: facts.category || null, size: facts.size || null,
     color: facts.color || null, condition: parsed.data.condition ?? "good", price: parsed.data.price ?? 0, cost: parsed.data.cost ?? 0,
-    weight, notes: notes || null, sku: parsed.data.sku || null, photos, photoRecords, marketplaceDetails, status: "draft",
+    weight, description: parsed.data.description || null, notes: notes || null, sku: parsed.data.sku || null, photos, photoRecords, marketplaceDetails, status: "draft",
   }).returning();
   response.status(201).json({ id: item.id, title: item.title, weight: item.weight, photos: photos.length });
 });

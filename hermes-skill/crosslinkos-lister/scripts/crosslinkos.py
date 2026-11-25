@@ -2,7 +2,10 @@
 """CrossLinkOS helper for Hermes: turns item photo folders into CrossLinkOS listings.
 
 Each folder inside LISTINGS_DIR (default ~/Listings) is one item, named the way you want
-the listing titled, e.g. ~/Listings/Lululemon Align Leggings Black 6/.
+the listing titled, e.g. ~/Listings/Lululemon Align Leggings Black 6/. A batch folder of item
+folders works too (~/Listings/VibeHuntingSF_Batch/01_Navy_Cargo_Pants/): the leading number
+is dropped from the title, "posted" and "platform-tools" folders are skipped, and a .docx of
+descriptions in the batch folder is matched to each item by number or name.
 Optional: an info.txt in the folder with lines like
     price: 38
     cost: 4
@@ -44,6 +47,8 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zipfile
+from xml.etree import ElementTree
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -171,7 +176,7 @@ def number(value: str | None) -> float | None:
     return float(match.group()) if match else None
 
 
-CONDITIONS = {"new": "new", "nwt": "new", "newwithtags": "new", "likenew": "like_new", "nwot": "like_new", "excellent": "like_new", "euc": "like_new", "good": "good", "guc": "good", "fair": "fair", "poor": "poor"}
+CONDITIONS = {"newwithouttags": "like_new", "new": "new", "nwt": "new", "newwithtags": "new", "likenew": "like_new", "nwot": "like_new", "excellent": "like_new", "euc": "like_new", "good": "good", "guc": "good", "fair": "fair", "poor": "poor"}
 
 
 def resolve_folder(name: str) -> Path:
@@ -185,20 +190,127 @@ def resolve_folder(name: str) -> Path:
 
 # ----------------------------------------------------------------- commands
 
+IGNORED = {"posted", "done", "sold", "archive", "archived", "listed"}
+
+
+def ignored(folder: Path) -> bool:
+    name = folder.name.lower()
+    return name.startswith((".", "_", "platform-tools")) or name in IGNORED
+
+
+def item_folders() -> list[Path]:
+    """Item folders directly in LISTINGS_DIR, plus items inside batch folders (a folder of item folders)."""
+    found: list[Path] = []
+    for folder in sorted(p for p in LISTINGS_DIR.iterdir() if p.is_dir() and not ignored(p)):
+        if folder_photos(folder):
+            found.append(folder)
+        else:
+            found.extend(sorted(s for s in folder.iterdir() if s.is_dir() and not ignored(s) and folder_photos(s)))
+    return found
+
+
 def cmd_scan(_args) -> None:
     if not LISTINGS_DIR.exists():
-        fail(f"{LISTINGS_DIR} does not exist yet. Create it and add one folder per item.")
-    new, done = [], []
-    for folder in sorted(p for p in LISTINGS_DIR.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
+        fail(f"{LISTINGS_DIR} does not exist yet. Create it and add one folder per item (or a batch folder of item folders).")
+    new, done = [], 0
+    for folder in item_folders():
         photos = folder_photos(folder)
-        marker = folder / MARKER
-        if marker.exists():
-            done.append({"folder": folder.name, **json.loads(marker.read_text())})
-        elif photos:
-            # Skip a folder still receiving photos (changed in the last 2 minutes).
-            settling = time.time() - max(p.stat().st_mtime for p in photos) < 120
-            new.append({"folder": folder.name, "path": str(folder), "photos": len(photos), "stillSyncing": settling})
-    print(json.dumps({"listingsDir": str(LISTINGS_DIR), "new": new, "alreadySent": len(done)}, indent=2))
+        if (folder / MARKER).exists():
+            done += 1
+            continue
+        # Skip a folder still receiving photos (changed in the last 2 minutes).
+        settling = time.time() - max(p.stat().st_mtime for p in photos) < 120
+        doc = batch_doc(folder)
+        new.append({"folder": str(folder.relative_to(LISTINGS_DIR)), "title": clean_title(folder.name), "photos": len(photos), "stillSyncing": settling, "descriptionsDoc": doc.name if doc else None})
+    print(json.dumps({"listingsDir": str(LISTINGS_DIR), "new": new, "alreadySent": done}, indent=2))
+
+
+# ------------------------------------------------- titles and the batch descriptions doc
+
+def clean_title(name: str) -> str:
+    """'01_Navy_Cargo_Pants' -> 'Navy Cargo Pants' (the number only orders the batch)."""
+    text = re.sub(r"^\s*#?\d{1,3}\s*[\s_.)\-]+", "", name)
+    return re.sub(r"\s+", " ", text.replace("_", " ")).strip() or name
+
+
+def item_number(name: str) -> int | None:
+    match = re.match(r"^\s*#?(\d{1,3})(?=[\s_.)\-])", name)
+    return int(match.group(1)) if match else None
+
+
+def batch_doc(folder: Path) -> Path | None:
+    for place in (folder, folder.parent):
+        docs = sorted(place.glob("*.docx")) + sorted(place.glob("*.txt")) if place != folder else sorted(place.glob("*.docx"))
+        docs = [d for d in docs if not d.name.startswith((".", "~$")) and d.name.lower() not in ("info.txt", "notes.txt")]
+        if docs:
+            return docs[0]
+    return None
+
+
+def doc_paragraphs(path: Path) -> list[str]:
+    if path.suffix.lower() == ".txt":
+        return [line.strip() for line in path.read_text(errors="replace").splitlines()]
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as archive:
+        root = ElementTree.fromstring(archive.read("word/document.xml"))
+    paragraphs = []
+    for para in root.iter(f"{ns}p"):
+        text = "".join(node.text or "" for node in para.iter() if node.tag in (f"{ns}t",)) 
+        text = text.replace("\u00a0", " ").strip()
+        paragraphs.append(text)
+    return paragraphs
+
+
+def words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 1}
+
+
+def doc_section(folder: Path) -> tuple[str, str | None]:
+    """The part of the batch descriptions doc that belongs to this item: (text, doc name)."""
+    doc = batch_doc(folder)
+    if not doc:
+        return "", None
+    try:
+        paras = doc_paragraphs(doc)
+    except Exception:  # noqa: BLE001
+        return "", doc.name
+    siblings = [s for s in folder.parent.iterdir() if s.is_dir() and not ignored(s)]
+    own_number, own_words = item_number(folder.name), words(clean_title(folder.name))
+
+    def heading_for(text: str) -> Path | None:
+        if not text or len(text) > 120:
+            return None
+        number = item_number(text) or (int(m.group(1)) if (m := re.match(r"^\s*(?:item|listing)\s*#?\s*(\d{1,3})", text, re.I)) else None)
+        best, best_score = None, 0.0
+        for sibling in siblings:
+            title_words = words(clean_title(sibling.name))
+            overlap = len(title_words & words(text)) / max(1, len(title_words))
+            score = overlap + (1.0 if number is not None and number == item_number(sibling.name) else 0.0)
+            if score > best_score:
+                best, best_score = sibling, score
+        return best if best_score >= 0.6 else None
+
+    heads = [(i, heading_for(p)) for i, p in enumerate(paras)]
+    heads = [(i, s) for i, s in heads if s is not None]
+    mine = [i for i, s in heads if s == folder]
+    if not mine:
+        return "", doc.name
+    start = mine[0]
+    end = next((i for i, s in heads if i > start and s != folder), len(paras))
+    body = "\n".join(p for p in paras[start + 1:end]).strip()
+    body = re.sub(r"\n{3,}", "\n\n", body)
+    return body[:5000], doc.name
+
+
+def info_from_text(text: str) -> dict:
+    info: dict[str, str] = {}
+    for line in text.splitlines():
+        match = re.match(r"^\s*[-*•]?\s*([A-Za-z][A-Za-z /()]{1,25}):\s*(.+)$", line)
+        if match:
+            key = re.sub(r"[^a-z]", "", match.group(1).lower())
+            if key in ("price", "listprice", "askingprice", "cost", "originalprice", "msrp", "retail", "retailprice", "condition", "size", "brand", "color", "colour", "measurements", "material", "department", "category", "subcategory"):
+                info.setdefault({"listprice": "price", "askingprice": "price", "retailprice": "originalprice", "colour": "color"}.get(key, key), match.group(2).strip())
+    return info
 
 
 def draft_summary(drafts: list[dict]) -> dict:
@@ -227,8 +339,10 @@ def cmd_ingest(args) -> None:
     stored = [to_data_url(image, STORED_SIDE, STORED_BYTES) for image in images]
     to_read = [to_data_url(image, READ_SIDE, READ_BYTES) for image in images[:3]]
 
-    info = read_info(folder)
-    hints = {"title": folder.name}
+    section, doc_name = doc_section(folder)
+    info = {**info_from_text(section), **read_info(folder)}  # info.txt beats the descriptions doc
+    title = clean_title(folder.name)
+    hints = {"title": title}
     if info.get("brand"):
         hints["brand"] = info["brand"]
     read = api("POST", "/workflow/photo-read", {"photos": to_read, "hints": hints}, timeout=90)
@@ -239,7 +353,12 @@ def cmd_ingest(args) -> None:
         if info.get(key):
             facts[key] = info[key]  # the seller's own notes beat the photo reader
 
-    body = {"folder": folder.name, "photos": stored, "facts": facts}
+    body = {"folder": title, "photos": stored, "facts": facts}
+    if section:
+        # Shay's own description feeds every platform's copy; price and cost lines are for her, not buyers.
+        buyer_text = "\n".join(line for line in section.splitlines() if not re.match(r"^\s*[-*•]?\s*(list |asking |retail |original )?(price|cost|msrp|paid)\s*:", line, re.I)).strip()
+        if buyer_text:
+            body["description"] = buyer_text
     if number(info.get("price")) is not None:
         body["price"] = number(info["price"])
     if number(info.get("cost")) is not None:
@@ -264,7 +383,7 @@ def cmd_ingest(args) -> None:
     print(json.dumps({
         "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped,
         "photoRead": {"facts": facts, "unsure": read.get("unsure", []), "aiModel": read.get("aiModel")},
-        "fromInfoTxt": info, "weightLb": created.get("weight"),
+        "fromInfoTxt": info, "descriptionFrom": doc_name if section else None, "weightLb": created.get("weight"),
         "drafts": draft_summary(drafts), "next": "Research the price and original price, then run: update ITEM --price N --original-price N",
     }, indent=2))
 
