@@ -195,7 +195,8 @@ async function fillPoshmark(draft) {
   const report = makeReport();
   const details = draft.details ?? {};
 
-  const title = findElement(["input[data-vv-name='title']"]);
+  // The form renders after the page loads; give it a moment before filling.
+  const title = await waitFor(() => findElement(["input[data-vv-name='title']"]), 8000);
   if (title) { setNativeValue(title, draft.title.slice(0, 80)); report.ok('title'); } else report.skip('title', 'field not found');
 
   const description = findElement(["textarea[data-vv-name='description']"]);

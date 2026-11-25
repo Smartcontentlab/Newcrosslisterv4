@@ -91,4 +91,7 @@ clearButton.addEventListener('click', async () => {
 });
 
 chrome.storage.onChanged.addListener((_changes, area) => { if (area === 'session') void loadQueue(); });
+// Follow the active tab, so after "Open … listing form" the button turns into "Fill draft" on its own.
+chrome.tabs.onActivated.addListener(() => void refresh());
+chrome.tabs.onUpdated.addListener((_tabId, change, tab) => { if (tab.active && (change.status === 'complete' || change.url)) void refresh(); });
 void refresh();
