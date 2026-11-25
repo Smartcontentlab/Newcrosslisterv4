@@ -159,7 +159,8 @@ router.patch("/workflow/items/:id", async (request, response): Promise<void> => 
   const parsed = patchCanonicalItemBody.safeParse(request.body);
   if (!parsed.success) { response.status(400).json({ error: parsed.error.flatten() }); return; }
   const userId = getAuthenticatedUser(response).id; const id = Number(request.params.id);
-  const [item] = await db.update(itemsTable).set({ ...withActivePhotos(parsed.data), sourceUrl: parsed.data.sourceUrl || null }).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId))).returning();
+  // A partial update leaves the source link alone unless it was sent.
+  const [item] = await db.update(itemsTable).set({ ...withActivePhotos(parsed.data), ...(parsed.data.sourceUrl !== undefined ? { sourceUrl: parsed.data.sourceUrl || null } : {}) }).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId))).returning();
   if (!item) { response.status(404).json({ error: "Item not found" }); return; }
   await refreshDraftRequirements(item, userId);
   response.json(item);

@@ -1,3 +1,5 @@
+import { getAuto, registerAutopost, runOnce, scheduleNext, setEnabled } from './autopost.js';
+
 // The live app, plus the older address in case that deployment is repaired.
 const CROSS_LINK_ORIGINS = ['https://crosslinkos.vercel.app', 'https://newcrosslisterv4000.vercel.app'];
 const MARKETPLACES = ['poshmark', 'depop', 'mercari'];
@@ -119,8 +121,20 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });
 
+registerAutopost();
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
+    if (message?.type === 'AUTO_GET') { sendResponse({ ok: true, auto: await getAuto() }); return; }
+    if (message?.type === 'AUTO_SET') { sendResponse({ ok: true, auto: await setEnabled(Boolean(message.enabled), message.key) }); return; }
+    if (message?.type === 'AUTO_RESUME') {
+      const { auto } = await chrome.storage.local.get('auto');
+      await chrome.storage.local.set({ auto: { ...(auto ?? {}), paused: '', failuresInRow: 0 } });
+      await scheduleNext(0.1, 0.2);
+      sendResponse({ ok: true, auto: await getAuto() });
+      return;
+    }
+    if (message?.type === 'AUTO_RUN_NOW') { void runOnce(); sendResponse({ ok: true }); return; }
     if (message?.type === 'QUEUE_DRAFTS') {
       const result = await queueDrafts(message.payload);
       sendResponse({ ok: true, ...result });

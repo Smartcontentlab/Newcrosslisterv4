@@ -1,11 +1,13 @@
 {
   "manifest_version": 3,
   "name": "CrossLinkOS Draft Fill",
-  "version": "0.2.2",
-  "description": "Fills every field of an open Poshmark or Depop listing form (basic fields on Mercari) from your CrossLinkOS drafts. You press Post yourself.",
+  "version": "0.3.0",
+  "description": "Fills Poshmark and Depop listing forms from your CrossLinkOS drafts (basic fields on Mercari), and can post the drafts you approve.",
   "minimum_chrome_version": "114",
   "permissions": [
     "activeTab",
+    "alarms",
+    "notifications",
     "scripting",
     "sidePanel",
     "storage",
@@ -21,6 +23,9 @@
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"
+  },
+  "icons": {
+    "128": "icon-128.png"
   },
   "action": {
     "default_title": "Open CrossLinkOS Draft Fill"

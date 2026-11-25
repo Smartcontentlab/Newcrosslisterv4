@@ -95,3 +95,38 @@ chrome.storage.onChanged.addListener((_changes, area) => { if (area === 'session
 chrome.tabs.onActivated.addListener(() => void refresh());
 chrome.tabs.onUpdated.addListener((_tabId, change, tab) => { if (tab.active && (change.status === 'complete' || change.url)) void refresh(); });
 void refresh();
+
+// ---------------------------------------------------------------- auto-post
+const autoKey = document.querySelector('#auto-key');
+const autoToggle = document.querySelector('#auto-toggle');
+const autoNow = document.querySelector('#auto-now');
+const autoStatus = document.querySelector('#auto-status');
+const autoLog = document.querySelector('#auto-log');
+
+function renderAuto(auto) {
+  if (!auto) return;
+  if (auto.key && !autoKey.value) autoKey.placeholder = `Saved key …${auto.key.slice(-4)}`;
+  const posted = auto.postedDate === new Date().toISOString().slice(0, 10) ? auto.postedCount : 0;
+  if (auto.paused) { autoToggle.textContent = 'Resume'; autoStatus.textContent = `Paused: ${auto.paused}`; autoStatus.className = 'status error'; }
+  else if (auto.enabled) { autoToggle.textContent = 'Turn off auto-post'; autoStatus.textContent = `On. Posted today: ${posted}. Checks for approved drafts every few minutes.`; autoStatus.className = 'status good'; }
+  else { autoToggle.textContent = 'Turn on auto-post'; autoStatus.textContent = 'Off.'; autoStatus.className = 'status'; }
+  autoLog.innerHTML = (auto.log ?? []).slice(0, 8).map((entry) => `<li>${escapeHtml(new Date(entry.at).toLocaleTimeString())} · ${escapeHtml(entry.text)}</li>`).join('');
+}
+
+async function loadAuto() { const response = await chrome.runtime.sendMessage({ type: 'AUTO_GET' }); renderAuto(response?.auto); return response?.auto; }
+
+autoToggle.addEventListener('click', async () => {
+  autoToggle.disabled = true;
+  try {
+    const current = await loadAuto();
+    const message = current?.paused ? { type: 'AUTO_RESUME' } : { type: 'AUTO_SET', enabled: !current?.enabled, key: autoKey.value.trim() || undefined };
+    const response = await chrome.runtime.sendMessage(message);
+    if (!response?.ok) throw new Error(response?.error || 'Auto-post could not be changed.');
+    autoKey.value = '';
+    renderAuto(response.auto);
+  } catch (error) { autoStatus.textContent = error instanceof Error ? error.message : 'Auto-post could not be changed.'; autoStatus.className = 'status error'; }
+  finally { autoToggle.disabled = false; }
+});
+autoNow.addEventListener('click', async () => { await chrome.runtime.sendMessage({ type: 'AUTO_RUN_NOW' }); autoStatus.textContent = 'Checking for approved drafts…'; });
+chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.auto) renderAuto(changes.auto.newValue); });
+void loadAuto();

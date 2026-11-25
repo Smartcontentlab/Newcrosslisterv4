@@ -1,6 +1,8 @@
 # CrossLinkOS Draft Fill — Local Chrome Extension
 
-CrossLinkOS Draft Fill is a **personal, unpacked Chrome extension** for the CrossLinkOS workflow. It receives seller-selected Poshmark, Depop, and Mercari drafts from the authenticated CrossLinkOS Draft Board, fills the already-open marketplace listing form, and then stops so you can review it and press Post yourself. It does **not** click Save, List, Publish, Submit, or any equivalent final action.
+CrossLinkOS Draft Fill is a **personal, unpacked Chrome extension** for the CrossLinkOS workflow. It receives seller-selected Poshmark, Depop, and Mercari drafts from the authenticated CrossLinkOS Draft Board, fills the already-open marketplace listing form, and then stops so you can review it and press Post yourself. Filling never clicks Save, List or Post.
+
+**Auto-post (v0.3.0, optional):** when you turn it on in the side panel with a CrossLinkOS access key, the extension also posts drafts you **approved** in CrossLinkOS (or through Hermes), on Poshmark and Depop only. It posts one draft every 2 to 5 minutes, at most 25 a day. It only presses List or Post when every required field filled and the photos attached, and it reports back to CrossLinkOS as Live (with the link) or Needs attention (with the reason). It pauses on any CAPTCHA or security check and after two failures in a row, and never tries to get past them.
 
 > **Privacy boundary:** Marketplace passwords, MFA codes, and cookies are never collected, copied, or stored. The temporary queue lives in Chrome extension session memory and is cleared when Chrome restarts, when the extension reloads, or when the seller clears it. Listing photos are passed once per item and attached to the form's photo picker, where you can still reorder or remove them.
 
@@ -37,7 +39,7 @@ The extension uses Chrome’s Manifest V3 Side Panel API, which requires Chrome 
 | Mercari | Title, description, price and tags only. Mercari blocks its sell form until the account finishes government-ID verification, so the full mapping is still to do. |
 | Photos | Attached to the form's photo picker when the handoff included them. Check them before posting. |
 | Marketplace drafts | A successful fill means **Prefilled — review** only. It does not mean a marketplace draft is saved. |
-| Publish / submit | Never automated. The seller manually saves or publishes after review. |
+| Publish / submit | Only in auto-post mode, only for drafts the seller approved, only on Poshmark and Depop. Otherwise the seller posts by hand after review. |
 | Cookies / credentials | Never requested, read, or stored. |
 
 ## Troubleshooting

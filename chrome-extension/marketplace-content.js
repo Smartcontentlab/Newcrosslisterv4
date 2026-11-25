@@ -1,5 +1,6 @@
 // Fills an open marketplace listing form from a CrossLinkOS draft.
-// It never clicks Save, List, Publish or any other final button.
+// Filling never clicks Save, List, Publish or any other final button. Only auto-post mode
+// (AUTO_STEP, sent by the service worker for drafts the seller approved) presses them.
 
 const platformFromHost = () => {
   const host = window.location.hostname;
@@ -428,10 +429,11 @@ function finish(report, photoResult, essentials) {
     : photoResult.ok ? ` Attached ${photoResult.count} photo(s), so check them in the form.`
       : ' Photos could not be attached here; add them by hand.';
   const manualNote = report.manual.length ? ` Still to do by hand: ${report.manual.join(', ')}.` : '';
+  const photos = photoResult?.ok ? photoResult.count : 0;
   if (missingEssential.length) {
-    return { ok: false, filled: report.filled, manual: report.manual, message: `Could not find ${missingEssential.join(', ')}. Wait for the form to finish loading and try again. Nothing was saved or published.${manualNote}` };
+    return { ok: false, photos, filled: report.filled, manual: report.manual, message: `Could not find ${missingEssential.join(', ')}. Wait for the form to finish loading and try again. Nothing was saved or published.${manualNote}` };
   }
-  return { ok: true, filled: report.filled, manual: report.manual, message: `Filled ${report.filled.join(', ')}.${manualNote}${photoNote} Review everything, then press the marketplace's own List/Post button when you're ready.` };
+  return { ok: true, photos, filled: report.filled, manual: report.manual, message: `Filled ${report.filled.join(', ')}.${manualNote}${photoNote} Review everything, then press the marketplace's own List/Post button when you're ready.` };
 }
 
 function sessionState() {
@@ -450,7 +452,53 @@ async function fillDraft(draft) {
   return fillBasic(platform, draft);
 }
 
+// ------------------------------------------------------------- auto-post
+// One step at a time, driven by the service worker: report a CAPTCHA or a form error,
+// recognise the finished listing page, or press the next List / Post button.
+
+const POST_BUTTONS = {
+  poshmark: [/^list this item$/i, /^list item$/i, /^list$/i, /^next$/i],
+  depop: [/^post$/i, /^post listing$/i, /^publish$/i],
+};
+const LISTING_PAGE = {
+  poshmark: /poshmark\.com\/listing\/[^/?#]+/i,
+  depop: /depop\.com\/products\/(?!create|edit)[^/?#]+\/?(?:[?#]|$)/i,
+};
+
+function captchaShown() {
+  if (document.querySelector("iframe[src*='captcha' i], iframe[src*='hcaptcha' i], iframe[src*='arkoselabs' i], iframe[title*='challenge' i], [id*='captcha' i], [class*='captcha' i]")) return true;
+  return /verify (that )?you('| a)re (a )?human|are you a robot|security check|unusual activity/i.test(document.body?.innerText?.slice(0, 20000) ?? '');
+}
+
+function formErrors() {
+  const nodes = [...document.querySelectorAll(".form__error-message, .error-message, [class*='error' i][role='alert'], [role='alert'], [aria-invalid='true']")].filter(visible);
+  return [...new Set(nodes.map((node) => node.textContent.trim() || node.getAttribute('aria-label') || node.getAttribute('name') || '').filter((text) => text && text.length < 160))].slice(0, 4);
+}
+
+function autoStep(platform) {
+  if (LISTING_PAGE[platform]?.test(window.location.href)) return { state: 'done', url: window.location.href.split(/[?#]/)[0] };
+  if (captchaShown()) return { state: 'captcha' };
+  if (sessionState() === 'signed_out') return { state: 'blocked', reason: `You are signed out of ${platform}. Sign in in Chrome.` };
+  const buttons = [...document.querySelectorAll("button, [role='button'], input[type='submit']")].filter((button) => visible(button));
+  for (const pattern of POST_BUTTONS[platform] ?? []) {
+    const button = buttons.find((candidate) => pattern.test((candidate.textContent || candidate.value || '').trim()));
+    if (!button) continue;
+    if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
+      const errors = formErrors();
+      return { state: 'blocked', reason: errors.length ? `The form shows: ${errors.join('; ')}` : `The ${button.textContent.trim()} button is greyed out, so a required field is still empty.` };
+    }
+    button.click();
+    return { state: 'clicked', label: (button.textContent || button.value || '').trim() };
+  }
+  const errors = formErrors();
+  return { state: 'waiting', reason: errors.length ? `The form shows: ${errors.join('; ')}` : 'No List or Post button found yet.' };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'AUTO_STEP') {
+    try { sendResponse(autoStep(message.platform)); } catch (error) { sendResponse({ state: 'blocked', reason: error instanceof Error ? error.message : 'Auto-post step failed.' }); }
+    return false;
+  }
   if (message?.type === 'PROBE_SESSION') {
     sendResponse({ session: sessionState() });
     return false;
