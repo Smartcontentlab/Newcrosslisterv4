@@ -7,8 +7,14 @@ skill_src="$here/crosslinkos-lister"
 skill_dst="$HOME/.hermes/skills/business/crosslinkos-lister"
 
 echo "1/4  Installing photo tools (asks for your password)…"
-sudo apt-get update -qq
-sudo apt-get install -y -qq python3-pil libheif-examples >/dev/null
+# If Ubuntu is installing updates in the background, wait for it (up to 10 minutes) instead of failing.
+if python3 -c "import PIL" 2>/dev/null && command -v heif-convert >/dev/null; then
+  echo "     Already installed."
+else
+  echo "     (If Ubuntu is busy installing updates, this waits for it to finish.)"
+  sudo apt-get -o DPkg::Lock::Timeout=600 update -qq
+  sudo apt-get -o DPkg::Lock::Timeout=600 install -y -qq python3-pil libheif-examples >/dev/null
+fi
 
 echo "2/4  Linking the skill into Hermes…"
 mkdir -p "$(dirname "$skill_dst")"
