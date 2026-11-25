@@ -422,7 +422,7 @@ async function fillDepop(draft) {
   if (price) { setNativeValue(price, Number(draft.price).toFixed(2)); report.ok('price'); } else report.skip('price', 'field not found');
 
   report.skip('shipping', 'Depop Shipping is preselected, so check the package size');
-  const photos = attachPhotos(draft.photos, '#upload-input__input');
+  const photos = attachPhotos((draft.photos ?? []).slice(0, 8), '#upload-input__input'); // Depop takes 8
   return finish(report, photos, ['description', 'price']);
 }
 

@@ -26,7 +26,7 @@ const router: IRouter = Router();
 
 /** Marketplaces the extension can post on its own. Mercari only fills basic fields today. */
 export const AUTO_POST_MARKETPLACES = ["poshmark", "depop"] as const;
-const MAX_STORED_PHOTOS = 8;
+const MAX_STORED_PHOTOS = 12; // Poshmark takes up to 16; the extension gives Depop its first 8
 const MAX_STORED_PHOTO_CHARS = 600_000;
 
 const DEFAULT_DETAILS = {
@@ -56,7 +56,7 @@ const ingestBody = z.object({
 
 router.post("/autopilot/items", async (request, response): Promise<void> => {
   const parsed = ingestBody.safeParse(request.body);
-  if (!parsed.success) { response.status(400).json({ error: "Send a folder name and 1 to 8 photos as JPG, PNG or WEBP data URLs (each under about 450 KB)." }); return; }
+  if (!parsed.success) { response.status(400).json({ error: "Send a folder name and 1 to 12 photos as JPG, PNG or WEBP data URLs (each under about 450 KB)." }); return; }
   const userId = getAuthenticatedUser(response).id;
   const { folder, photos, facts, notes } = parsed.data;
   // The folder name is the seller's own label for the item, so it beats a guessed title.

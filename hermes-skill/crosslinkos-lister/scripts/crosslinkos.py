@@ -70,8 +70,8 @@ except Exception:
 
 PHOTO_EXT = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 MARKER = ".crosslinkos.json"
-MAX_STORED = 8
-STORED_SIDE, STORED_BYTES = 1400, 300_000  # each stored photo; 8 of them stay under the 4.5 MB request limit
+MAX_STORED = 12  # Poshmark takes up to 16; Depop's first 8 are used there
+STORED_SIDE, STORED_BYTES = 1200, 240_000  # each stored photo; 12 of them stay under the 4.5 MB request limit
 READ_SIDE, READ_BYTES = 768, 120_000  # photos sent to the AI reader (server limit 170k characters)
 
 
@@ -272,6 +272,17 @@ def strip_size(title: str, size: str | None = None) -> str:
     return text
 
 
+def same_size(a: str, b: str) -> bool:
+    """'M' == 'Medium' == 'Size M'; '32 x 32' == '32x32'; 'US 22' == '22'; 'S/P' == 'S'."""
+    def canon(value: str) -> str:
+        text = re.sub(r"^(?:size|sz|us|uk|eu)\s*", "", value.strip().lower())
+        text = re.sub(r"\s*/\s*p$|\s*\(.*\)$|\s+(?:regular|reg|short|long|petite|tall)$", "", text)
+        text = re.sub(r"\s*x\s*", "x", text)
+        words = {"extra small": "xs", "x-small": "xs", "x small": "xs", "small": "s", "medium": "m", "med": "m", "large": "l", "x-large": "xl", "x large": "xl", "extra large": "xl", "xx-large": "xxl", "2xl": "xxl", "3xl": "xxxl", "one size": "os"}
+        return words.get(text, text).replace(" ", "")
+    return canon(a) == canon(b)
+
+
 def clean_title(name: str) -> str:
     """'01_Navy_Cargo_Pants' -> 'Navy Cargo Pants' (the number only orders the batch)."""
     text = re.sub(r"^\s*#?\d{1,3}\s*[\s_.)\-]+", "", name)
@@ -427,9 +438,25 @@ def cmd_ingest(args) -> None:
     facts = {k: read.get(k) for k in ("title", "brand", "model", "category", "subcategory", "department", "color", "secondaryColor", "material", "pattern", "style", "size") if read.get(k)}
     if read.get("flaws"):
         facts["flaws"] = read["flaws"]
+    # Size cross-check: the size Shay wrote (doc title tail, Size line or info.txt) vs. the tag in the photos.
+    written_title = section["title"] or clean_title(folder.name)
+    title_size = written_title[len(strip_size(written_title)):].strip(" -,|") or None
+    written_size = info.get("size") or title_size
+    photo_size = read.get("size") or None
+    size_check = {"written": written_size, "fromPhotos": photo_size, "status": "ok"}
+    if written_size and photo_size and not same_size(written_size, photo_size):
+        size_check["status"] = "MISMATCH: confirm before approving"
+    elif written_size and not photo_size:
+        size_check["status"] = "tag not readable in photos; using the written size"
+    elif photo_size and not written_size:
+        size_check["status"] = "no size written; using the tag in the photos"
+    elif not written_size and not photo_size:
+        size_check["status"] = "no size anywhere: ask Shay"
     for key in ("brand", "size", "department", "subcategory", "category", "color"):
         if info.get(key):
             facts[key] = info[key]  # the seller's own notes beat the photo reader
+    if written_size and "size" not in info:
+        facts["size"] = written_size
 
     body = {"folder": title, "photos": stored, "facts": facts}
     body["folder"] = strip_size(title, facts.get("size") or info.get("size"))
@@ -458,6 +485,7 @@ def cmd_ingest(args) -> None:
     extra = {}
     if number(info.get("originalprice") or info.get("msrp") or info.get("retail")) is not None:
         extra["originalPrice"] = str(int(number(info.get("originalprice") or info.get("msrp") or info.get("retail"))))
+    extra["sizeCheck"] = size_check
     lowest, list_price = number(info.get("lowest")), number(info.get("price"))
     if lowest is not None and (list_price is None or lowest < list_price):
         # Poshmark Automate Offers: accept offers down to this price. Mercari's smart pricing floor gets it too.
@@ -473,7 +501,7 @@ def cmd_ingest(args) -> None:
         "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped, "coverPhoto": photo_notes["cover"],
         "photoOrder": [{"file": name, "view": (role or {}).get("view")} for name, role in zip(names, roles)], "photosLeftOut": photo_notes["leftOut"],
         "photoRead": {"facts": facts, "unsure": read.get("unsure", []), "aiModel": read.get("aiModel")},
-        "fromInfoTxt": info, "fromDoc": {"doc": section["doc"], "title": section["title"], "tags": len(section["tags"]), "notes": section["notes"]} if section["doc"] else None, "weightLb": created.get("weight"),
+        "sizeCheck": size_check, "fromInfoTxt": info, "fromDoc": {"doc": section["doc"], "title": section["title"], "tags": len(section["tags"]), "notes": section["notes"]} if section["doc"] else None, "weightLb": created.get("weight"),
         "drafts": draft_summary(drafts), "next": "Research the price and original price, then run: update ITEM --price N --original-price N",
     }, indent=2))
 
@@ -509,11 +537,11 @@ def photo_roles(images: list) -> list:
 
 
 def pick_photos(paths: list[Path], keep_order: bool):
-    """Shay's rule: only the white-background photos go up, plus label, tag and measurement shots.
+    """Shay's rule: every photo in the item folder goes up; nothing from its Originals subfolder
+    (folder_photos never looks inside subfolders). The cover is the best whole-item front view,
+    preferring a white-background shot, or a photo she named cover*/00_*; the rest keep her order.
 
-    Returns (images, roles, names, notes, skipped) in listing order: the cover (best whole-item front
-    view on white, or a photo she named cover*/00_*) first, then the other white photos in her order,
-    then labels/tags, then measurements. At most MAX_STORED photos.
+    Returns (images, roles, names, notes, skipped). At most MAX_STORED photos.
     """
     opened, skipped = [], []
     for path in paths[:MAX_LOOKED_AT]:
@@ -525,29 +553,24 @@ def pick_photos(paths: list[Path], keep_order: bool):
         fail(f"None of the photos could be opened. {'; '.join(skipped)}")
     names = [name for name, _ in opened]
     images = [image for _, image in opened]
+    roles = photo_roles(images) if len(images) > 1 and not keep_order else [None] * len(images)
     white = [white_background(image) for image in images]
-    roles = photo_roles(images) if len(images) > 1 else [None]
-    named = [bool(re.search(r"label|tag|measure|tape|size|flaw", name, re.I)) for name in names]  # Shay's file names say what a photo is
-    keep = [i for i in range(len(images)) if white[i] or named[i] or (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)]
-    notes = {"leftOut": [names[i] for i in range(len(images)) if i not in keep], "cover": ""}
-    if not any(white):  # no edited photos in this folder: use them all rather than none
-        keep, notes["leftOut"] = list(range(len(images))), []
-        notes["noWhitePhotos"] = "No white-background photos found, so all photos were used."
-    marked = next((i for i in keep if names[i].lower().startswith(("cover", "00_", "00-", "00 "))), None)
-    candidates = [i for i in keep if white[i] and not named[i] and not (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)] or keep
+    named = [bool(re.search(r"label|tag|measure|tape|size|flaw", name, re.I)) for name in names]
+    notes = {"leftOut": [], "cover": ""}
+    marked = next((i for i, name in enumerate(names) if name.lower().startswith(("cover", "00_", "00-", "00 "))), None)
+    candidates = [i for i in range(len(images)) if not named[i] and not (roles[i] and roles[i]["view"] in KEEP_ANY_BACKGROUND)] or list(range(len(images)))
     if marked is not None:
         cover, notes["cover"] = marked, f"{names[marked]} (picked by Shay)"
     elif keep_order or not any(roles):
         cover = candidates[0]
         notes["cover"] = f"{names[cover]} (folder order)"
     else:
-        cover = max(candidates, key=lambda i: ((roles[i] or {}).get("cover", -50), -i))
+        cover = max(candidates, key=lambda i: ((roles[i] or {}).get("cover", -50) + (3 if white[i] else 0), -i))
         role = roles[cover] or {}
-        notes["cover"] = f"{names[cover]} ({str(role.get('view', 'photo')).replace('_', ' ')}{', whole item' if role.get('wholeItem') else ''}, white background)"
-    rank = lambda i: (0 if i == cover else 1 if i in candidates else 2 if named[i] or (roles[i] or {}).get("view") in ("tag", "label") else 3, i)  # noqa: E731
-    order = sorted(keep, key=rank)
+        notes["cover"] = f"{names[cover]} ({str(role.get('view', 'photo')).replace('_', ' ')}{', whole item' if role.get('wholeItem') else ''}{', white background' if white[cover] else ''})"
+    order = [cover] + [i for i in range(len(images)) if i != cover]
     if len(order) > MAX_STORED:
-        notes["leftOut"] += [names[i] + " (over the 8-photo limit)" for i in order[MAX_STORED:]]
+        notes["leftOut"] += [names[i] + " (over the 12-photo limit)" for i in order[MAX_STORED:]]
         order = order[:MAX_STORED]
     return [images[i] for i in order], [roles[i] for i in order], [names[i] for i in order], notes, skipped
 
@@ -587,6 +610,8 @@ def cmd_update(args) -> None:
         fields["weight"] = args.weight
     if args.original_price is not None:
         details["originalPrice"] = str(int(round(args.original_price)))
+    if args.size:
+        details["sizeCheck"] = {"written": args.size, "status": "confirmed by Shay"}
     if args.lowest is not None:
         details.update({"poshSmartSellMode": "minimum_price", "poshMinimumPrice": str(int(round(args.lowest))), "mercariSmartPriceFloor": str(int(round(args.lowest)))})
     for name in ("department", "subcategory", "material", "style"):
@@ -683,6 +708,10 @@ def cmd_cover(args) -> None:
 
 
 def cmd_approve(args) -> None:
+    check = (api("GET", f"/workflow/items/{args.id}")["item"].get("marketplaceDetails") or {}).get("sizeCheck") or {}
+    if str(check.get("status", "")).startswith("MISMATCH") and not args.size_ok:
+        fail(f"Item {args.id} size doesn't match: doc says {check.get('written')}, the tag in the photos reads {check.get('fromPhotos')}. "
+             f"Confirm with: cl update {args.id} --size <right size>  (then approve again)")
     body = {"marketplaces": args.only} if args.only else {}
     print(json.dumps(api("POST", f"/autopilot/items/{args.id}/approve", body), indent=2))
 
@@ -706,7 +735,7 @@ def main() -> None:
     p.set_defaults(run=cmd_update)
     p = sub.add_parser("redraft"); p.add_argument("id", type=int); p.set_defaults(run=cmd_redraft)
     p = sub.add_parser("review"); p.add_argument("--status", default="", help="ready, approved, draft, needs_attention, published"); p.set_defaults(run=cmd_review)
-    p = sub.add_parser("approve"); p.add_argument("id", type=int); p.add_argument("--only", nargs="+", choices=["poshmark", "depop"]); p.set_defaults(run=cmd_approve)
+    p = sub.add_parser("approve"); p.add_argument("id", type=int); p.add_argument("--only", nargs="+", choices=["poshmark", "depop"]); p.add_argument("--size-ok", action="store_true"); p.set_defaults(run=cmd_approve)
     p = sub.add_parser("tidy"); p.add_argument("--markets", nargs="+", default=["poshmark", "depop"], choices=["poshmark", "depop", "mercari"]); p.set_defaults(run=cmd_tidy)
     p = sub.add_parser("rephoto"); p.add_argument("id", type=int); p.add_argument("--keep-order", action="store_true"); p.set_defaults(run=cmd_rephoto)
     p = sub.add_parser("cover"); p.add_argument("id", type=int); p.add_argument("photo", type=int, help="photo number, 1 = current cover"); p.set_defaults(run=cmd_cover)
