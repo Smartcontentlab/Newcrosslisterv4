@@ -538,7 +538,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .catch((error) => sendResponse({ ok: false, message: `${error instanceof Error ? error.message : 'The form could not be filled.'} Nothing was saved or published.` }));
     return true; // keep the channel open for the async fill
   }
-  sendResponse({ ok: false, message: 'Unknown content-script request.' });
+  // Not ours (e.g. Closet Tools' POSH_TASK): stay silent so the script that owns it can answer.
   return false;
 });
 
