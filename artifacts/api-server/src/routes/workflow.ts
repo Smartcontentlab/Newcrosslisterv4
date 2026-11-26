@@ -296,6 +296,13 @@ router.post("/workflow/items/:id/marketplace-drafts", async (request, response):
     const [draft] = await db.insert(marketplaceDraftsTable).values({ userId, itemId: item.id, marketplace: platform, status, title: content.title, description: content.description, tags: draftTags(item, platform, content.tags), price: item.price, requiredFields: requirements, missingFields }).onConflictDoUpdate({ target: [marketplaceDraftsTable.itemId, marketplaceDraftsTable.marketplace], set: { status, title: content.title, description: content.description, tags: draftTags(item, platform, content.tags), price: item.price, requiredFields: requirements, missingFields } }).returning();
     drafts.push({ ...draft, usedFallback: content.usedFallback, copyOrigin: content.origin, copyReason: content.reason ?? null });
   }
+  // Keep the item's per-site copy equal to its drafts, so the studio shows exactly what will be posted.
+  const savedCopy = { ...(((item.marketplaceDetails as Record<string, unknown>)?.platformCopy ?? {}) as Record<string, unknown>) };
+  let added = false;
+  for (const draft of drafts) {
+    if (!savedCopy[draft.marketplace] && draft.description) { savedCopy[draft.marketplace] = { title: draft.title ?? item.title, description: draft.description, hashtags: contents[draft.marketplace]?.tags ?? [] }; added = true; }
+  }
+  if (added) await db.update(itemsTable).set({ marketplaceDetails: { ...(item.marketplaceDetails as Record<string, unknown>), platformCopy: savedCopy } }).where(and(eq(itemsTable.id, item.id), eq(itemsTable.userId, userId)));
   response.json(drafts);
 });
 router.get("/workflow/items/:id/marketplace-drafts", async (request, response): Promise<void> => {

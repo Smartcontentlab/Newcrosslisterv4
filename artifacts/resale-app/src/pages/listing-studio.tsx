@@ -457,7 +457,9 @@ export default function ListingStudio() {
   };
 
   const generateMarketplaceDrafts = async () => {
-    const id = itemId ?? await saveCanonicalItem();
+    // Always save first: the drafts are built from the saved item, so unsaved copy edits would be lost
+    // and the AI would write different copy than the one on screen.
+    const id = await saveCanonicalItem();
     if (!id) return;
     setIsGeneratingDrafts(true);
     try {
@@ -465,6 +467,14 @@ export default function ListingStudio() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not generate marketplace drafts');
       setDrafts(data);
+      // Show the copy each draft will post, for any site that had none on screen.
+      setMarketplaceDetails((current) => {
+        const next = { ...current.platformCopy };
+        for (const draft of data as Array<{ marketplace: Marketplace; title: string | null; description: string | null; tags: string[] }>) {
+          if (!next[draft.marketplace] && draft.description) next[draft.marketplace] = { title: draft.title ?? form.title, description: draft.description, hashtags: draft.tags ?? [] };
+        }
+        return { ...current, platformCopy: next };
+      });
       toast({ title: 'P / D / M drafts ready', description: 'Open the Draft Board to monitor each physical item in one line and push ready drafts to your extension.' });
     } catch (error) {
       toast({ title: 'Draft generation failed', description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' });
