@@ -130,3 +130,43 @@ autoToggle.addEventListener('click', async () => {
 autoNow.addEventListener('click', async () => { await chrome.runtime.sendMessage({ type: 'AUTO_RUN_NOW' }); autoStatus.textContent = 'Checking for approved drafts…'; });
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.auto) renderAuto(changes.auto.newValue); });
 void loadAuto();
+
+// ---------------------------------------------------------- Poshmark Closet Tools
+const poshEl = (id) => document.querySelector(`#${id}`);
+const poshToggle = poshEl('posh-toggle');
+const poshStatus = poshEl('posh-status');
+
+function renderPosh(p) {
+  if (!p) return;
+  poshEl('posh-share').checked = p.features.share;
+  poshEl('posh-follow').checked = p.features.follow;
+  poshEl('posh-followback').checked = p.features.followBack;
+  for (const [id, value] of [['posh-cap-share', p.caps.share], ['posh-cap-follow', p.caps.follow], ['posh-cap-followback', p.caps.followBack], ['posh-start', p.hours.start], ['posh-end', p.hours.end]]) {
+    const el = poshEl(id); if (document.activeElement !== el) el.value = value;
+  }
+  const today = p.day.date === new Date().toLocaleDateString('en-CA') ? p.day : { share: 0, follow: 0, followBack: 0, cap: p.caps };
+  const counts = `Today: ${today.share}/${today.cap.share || p.caps.share} shares, ${today.follow}/${today.cap.follow || p.caps.follow} follows, ${today.followBack} follow-backs.`;
+  if (p.paused) { poshToggle.textContent = 'Resume'; poshStatus.textContent = `Paused: ${p.paused}`; poshStatus.className = 'status error'; }
+  else if (p.on) { poshToggle.textContent = 'Stop Closet Tools'; poshStatus.textContent = `On${p.me ? ` for @${p.me}` : ''}. ${counts}`; poshStatus.className = 'status good'; }
+  else { poshToggle.textContent = 'Start Closet Tools'; poshStatus.textContent = `Off. ${counts}`; poshStatus.className = 'status'; }
+  poshEl('posh-log').innerHTML = (p.log ?? []).slice(0, 10).map((e) => `<li>${escapeHtml(new Date(e.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))} · ${escapeHtml(e.text)}</li>`).join('');
+}
+async function poshSend(message) { const r = await chrome.runtime.sendMessage(message); if (r?.posh) renderPosh(r.posh); return r; }
+const numberOf = (id, fallback) => { const n = Number(poshEl(id).value); return Number.isFinite(n) && n >= 0 ? n : fallback; };
+async function savePoshSettings() {
+  await poshSend({ type: 'POSH_SETTINGS', patch: {
+    features: { share: poshEl('posh-share').checked, follow: poshEl('posh-follow').checked, followBack: poshEl('posh-followback').checked },
+    caps: { share: numberOf('posh-cap-share', 300), follow: numberOf('posh-cap-follow', 150), followBack: numberOf('posh-cap-followback', 100) },
+    hours: { start: Math.min(23, numberOf('posh-start', 8)), end: Math.min(24, Math.max(1, numberOf('posh-end', 23))) },
+  } });
+}
+for (const id of ['posh-share', 'posh-follow', 'posh-followback', 'posh-cap-share', 'posh-cap-follow', 'posh-cap-followback', 'posh-start', 'posh-end']) poshEl(id).addEventListener('change', () => { void savePoshSettings(); });
+poshToggle.addEventListener('click', async () => {
+  const { posh } = await chrome.runtime.sendMessage({ type: 'POSH_GET' });
+  if (posh.paused) await poshSend({ type: 'POSH_RESUME' });
+  else if (posh.on) await poshSend({ type: 'POSH_STOP_ALL' });
+  else { await savePoshSettings(); await poshSend({ type: 'POSH_START' }); }
+});
+poshEl('posh-now').addEventListener('click', async () => { await chrome.runtime.sendMessage({ type: 'POSH_RUN_NOW' }); poshStatus.textContent = 'Starting a session…'; });
+chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.posh) renderPosh(changes.posh.newValue && { ...changes.posh.newValue }); });
+void chrome.runtime.sendMessage({ type: 'POSH_GET' }).then((r) => renderPosh(r?.posh));

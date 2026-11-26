@@ -1,4 +1,5 @@
 import { getAuto, registerAutopost, runOnce, scheduleNext, setEnabled } from './autopost.js';
+import { getPosh, registerPoshbot, resumePosh, setPoshSettings, startPosh, stopPosh, tick as poshTick } from './poshbot.js';
 
 // The live app, plus the older address in case that deployment is repaired.
 const CROSS_LINK_ORIGINS = ['https://crosslinkos.vercel.app', 'https://newcrosslisterv4000.vercel.app'];
@@ -122,9 +123,16 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 registerAutopost();
+registerPoshbot();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
+    if (message?.type === 'POSH_GET') { sendResponse({ ok: true, posh: await getPosh() }); return; }
+    if (message?.type === 'POSH_SETTINGS') { sendResponse({ ok: true, posh: await setPoshSettings(message.patch ?? {}) }); return; }
+    if (message?.type === 'POSH_START') { sendResponse({ ok: true, posh: await startPosh() }); return; }
+    if (message?.type === 'POSH_STOP_ALL') { sendResponse({ ok: true, posh: await stopPosh() }); return; }
+    if (message?.type === 'POSH_RESUME') { sendResponse({ ok: true, posh: await resumePosh() }); return; }
+    if (message?.type === 'POSH_RUN_NOW') { void poshTick(); sendResponse({ ok: true }); return; }
     if (message?.type === 'AUTO_GET') { sendResponse({ ok: true, auto: await getAuto() }); return; }
     if (message?.type === 'AUTO_SET') { sendResponse({ ok: true, auto: await setEnabled(Boolean(message.enabled), message.key) }); return; }
     if (message?.type === 'AUTO_RESUME') {

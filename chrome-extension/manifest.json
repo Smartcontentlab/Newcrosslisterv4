@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CrossLinkOS Draft Fill",
-  "version": "0.3.6",
-  "description": "Fills Poshmark and Depop listing forms from your CrossLinkOS drafts (basic fields on Mercari), and can post the drafts you approve.",
+  "version": "0.4.0",
+  "description": "Fills Poshmark and Depop listing forms from your CrossLinkOS drafts, posts the drafts you approve, and runs paced Poshmark closet sharing and following.",
   "minimum_chrome_version": "114",
   "permissions": [
     "activeTab",
@@ -52,6 +52,16 @@
       ],
       "js": [
         "marketplace-content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://poshmark.com/*",
+        "https://www.poshmark.com/*"
+      ],
+      "js": [
+        "poshmark-tools.js"
       ],
       "run_at": "document_idle"
     }

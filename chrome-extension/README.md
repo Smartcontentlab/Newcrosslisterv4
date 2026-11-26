@@ -47,3 +47,23 @@ The extension uses Chrome’s Manifest V3 Side Panel API, which requires Chrome 
 If the Connections page says the extension is not detected, refresh the CrossLinkOS browser tab after loading the unpacked extension. If the extension shows **Open Poshmark, Depop, or Mercari first**, navigate to that marketplace’s listing flow and wait until the form is visible. If a field cannot be found, wait for the marketplace page to finish loading and try again; selector layouts may change, and CrossLinkOS will report the draft as **Needs attention** rather than claiming success.
 
 For external web-page access, Chrome requires an explicit `externally_connectable.matches` allow-list in the extension manifest. This package allows only the CrossLinkOS Vercel URL to initiate the limited local handoff. [Chrome externally_connectable reference](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable)
+
+
+## Poshmark Closet Tools (v0.4.0)
+
+Side panel → **Poshmark Closet Tools**. Off until the seller presses Start.
+
+- **Share my closet:** shares available listings to followers from the bottom of the closet up
+  (oldest-shared first), never the same listing twice within 3 hours.
+- **Follow closets in my feed, then their followers:** reads closets from the feed, follows each
+  owner, then works through that closet's followers page; skips anyone already followed.
+- **Follow back new followers.**
+- Runs in its own small Chrome window (keep it open, not minimised), only inside active hours
+  (default 8–23), with daily limits that vary a little (default 300 shares / 150 follows /
+  100 follow-backs), 6–30 s between actions, 1–3 min between sessions and an 8–25 min break every
+  25–45 actions.
+- Stops immediately on a CAPTCHA, a "limit / try again later" message, an error, or a sign-out,
+  and notifies the seller. It never solves or bypasses CAPTCHAs.
+- Works by clicking Poshmark's own buttons by their visible words (poshmark-tools.js); the schedule
+  lives in poshbot.js. Poshmark's terms restrict automation: the risk sits with the seller's account,
+  which is why the defaults are conservative.
