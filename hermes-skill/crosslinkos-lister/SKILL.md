@@ -143,6 +143,12 @@ size: 6
 notes: tiny pill on inner thigh
 ```
 
+## Original price (MSRP)
+
+`ingest` fills a missing original price with an AI estimate of the brand's retail price (saved as an
+estimate). `cl msrp all` does the same for items already sent. When you can, confirm it on the brand's
+site and save the real one with `cl update <id> --original-price N`. Tell Shay which prices are estimates.
+
 ## Descriptions
 
 Never type or paste a description yourself, and never run `cl update --description` with her doc text.

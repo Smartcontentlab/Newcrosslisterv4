@@ -18,6 +18,7 @@ Commands (all print JSON, so Hermes can read the result):
     scan                         folders not yet sent to CrossLinkOS
     ingest FOLDER                read photos, create the item, write the P/D/M drafts
     ingest-all                   send every new folder (drafts only; nothing is approved or posted)
+    msrp ID… | all               fill missing original prices with an AI estimate of the brand's retail price
     recopy ID… | all             rewrite each site's title + description with the generator (retries timeouts)
     item ID                      one item with its drafts (no photos)
     update ID [--price ...]      save research (price, original price, sizes, notes)
@@ -529,13 +530,14 @@ def cmd_ingest(args) -> None:
     elif extra:
         patch_item(item_id, {}, extra)
 
+    msrp = {"originalPrice": int(number(extra["originalPrice"])), "source": "your doc"} if extra.get("originalPrice") else estimate_msrp(item_id)
     drafts = [] if args.no_drafts else generate_drafts(item_id)[0]
     (folder / MARKER).write_text(json.dumps({"itemId": item_id, "sentAt": datetime.now(timezone.utc).isoformat()}))
     print(json.dumps({
         "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped, "coverPhoto": photo_notes["cover"],
         "photoOrder": [{"file": name, "view": (role or {}).get("view")} for name, role in zip(names, roles)], "photosLeftOut": photo_notes["leftOut"],
         "photoRead": {"facts": facts, "unsure": read.get("unsure", []), "aiModel": read.get("aiModel")},
-        "sizeCheck": size_check, "fromInfoTxt": info, "fromDoc": {"doc": section["doc"], "title": section["title"], "tags": len(section["tags"]), "notes": section["notes"]} if section["doc"] else None, "weightLb": created.get("weight"),
+        "sizeCheck": size_check, "originalPrice": msrp, "fromInfoTxt": info, "fromDoc": {"doc": section["doc"], "title": section["title"], "tags": len(section["tags"]), "notes": section["notes"]} if section["doc"] else None, "weightLb": created.get("weight"),
         "drafts": draft_summary(drafts), "next": "Research the price and original price, then run: update ITEM --price N --original-price N",
     }, indent=2))
 
@@ -730,7 +732,13 @@ def cmd_ingest_all(args) -> None:
         needs = sorted({need for draft in result.get("drafts", {}).values() if draft.get("status") != "ready" for need in draft.get("stillNeeds", [])})
         size = result.get("sizeCheck", {}).get("status", "")
         status = "ready" if not needs else "needs: " + ", ".join(needs)
-        rows.append((name, str(result["itemId"]), status, "" if size == "ok" else f"size: {size}"))
+        msrp = result.get("originalPrice") or {}
+        note = "" if size == "ok" else f"size: {size}"
+        if not msrp.get("originalPrice"):
+            note += " | original price missing"
+        elif "estimate" in str(msrp.get("source")):
+            note += f" | MSRP ${msrp['originalPrice']} estimated"
+        rows.append((name, str(result["itemId"]), status, note.strip(" |")))
         print(f"      item {result['itemId']}: {status}{'' if size == 'ok' else ' | size ' + size}", flush=True)
     print("\nDone. Open the Draft Board in CrossLinkOS to review and post them.\n")
     for name, item, status, note in rows:
@@ -747,6 +755,29 @@ def generate_drafts(item_id: int, tries: int = 3) -> tuple[list, dict]:
             break
         time.sleep(4 * (attempt + 1))
     return drafts, {d["marketplace"]: d.get("copyOrigin") for d in drafts}
+
+
+def estimate_msrp(item_id: int, replace: bool = False) -> dict:
+    """Poshmark needs an original price: ask CrossLinkOS for an AI estimate of the brand's retail price."""
+    try:
+        result = api("POST", f"/autopilot/items/{item_id}/retail-estimate", {"replace": replace}, timeout=60, soft=True)
+    except Exception as error:  # noqa: BLE001
+        return {"originalPrice": None, "source": f"estimate failed: {error}"}
+    if result.get("originalPrice") and result.get("estimated"):
+        return {"originalPrice": result["originalPrice"], "source": f"AI estimate ({result.get('confidence')}): {result.get('basis', '')}"}
+    if result.get("originalPrice"):
+        return {"originalPrice": result["originalPrice"], "source": "already set"}
+    return {"originalPrice": None, "source": f"not estimated: {result.get('reason', 'no brand')}. Add it yourself: cl update {item_id} --original-price N"}
+
+
+def cmd_msrp(args) -> None:
+    ids = args.ids
+    if ids == ["all"]:
+        ids = [str(json.loads((f / MARKER).read_text())["itemId"]) for f in item_folders() if (f / MARKER).exists()]
+    for raw in ids:
+        result = estimate_msrp(int(raw), args.replace)
+        price = f"${result['originalPrice']}" if result["originalPrice"] else "-"
+        print(f"item {raw}: original price {price}  ({result['source']})", flush=True)
 
 
 def cmd_recopy(args) -> None:
@@ -811,6 +842,7 @@ def main() -> None:
     sub.add_parser("scan").set_defaults(run=cmd_scan)
     p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.set_defaults(run=cmd_ingest)
     sub.add_parser("ingest-all").set_defaults(run=cmd_ingest_all)
+    p = sub.add_parser("msrp"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.add_argument("--replace", action="store_true", help="replace an original price already set"); p.set_defaults(run=cmd_msrp)
     p = sub.add_parser("recopy"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.set_defaults(run=cmd_recopy)
     p = sub.add_parser("item"); p.add_argument("id", type=int); p.set_defaults(run=cmd_item)
     p = sub.add_parser("update"); p.add_argument("id", type=int)

@@ -259,7 +259,7 @@ router.post("/workflow/photo-read", async (request, response): Promise<void> => 
  * drafts again. Copy is left as is. A draft that becomes complete moves from "draft" to "ready";
  * drafts the seller has acted on keep their status, and live, sold or delisted ones are untouched.
  */
-async function refreshDraftRequirements(item: typeof itemsTable.$inferSelect, userId: string) {
+export async function refreshDraftRequirements(item: typeof itemsTable.$inferSelect, userId: string) {
   const existing = await db.select().from(marketplaceDraftsTable).where(and(eq(marketplaceDraftsTable.itemId, item.id), eq(marketplaceDraftsTable.userId, userId)));
   for (const draft of existing) {
     if (FINAL_MARKETPLACE_STATUSES.has(draft.status)) continue;

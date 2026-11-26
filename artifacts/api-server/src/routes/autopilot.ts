@@ -21,6 +21,9 @@ import { IMAGE_DATA_URL, MAX_INLINE_IMAGE_CHARS } from "../lib/photo-read";
 import { classifyPhotos } from "../lib/photo-role";
 import { titleCase } from "../lib/title-case";
 import { estimateWeight } from "../lib/weight";
+import { estimateRetail } from "../lib/retail-estimate";
+import { refreshDraftRequirements } from "./workflow";
+import { nimProblem } from "../lib/nim";
 
 const router: IRouter = Router();
 
@@ -89,6 +92,27 @@ router.post("/autopilot/photo-roles", async (request, response): Promise<void> =
   const roles = await classifyPhotos(parsed.data.photos);
   if (roles.every((role) => role === null)) { response.status(502).json({ error: "The AI could not look at these photos right now." }); return; }
   response.json({ roles });
+});
+
+// Fills Poshmark's "Original price" with an AI estimate of the brand's retail price when the seller gave none.
+// Never overwrites a price she gave unless asked; always saved as an estimate, with its basis.
+router.post("/autopilot/items/:id/retail-estimate", async (request, response): Promise<void> => {
+  const userId = getAuthenticatedUser(response).id; const id = Number(request.params.id);
+  const [item] = await db.select().from(itemsTable).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId)));
+  if (!item) { response.status(404).json({ error: "Item not found" }); return; }
+  const details = (item.marketplaceDetails ?? {}) as Record<string, unknown>;
+  const existing = Number(details.originalPrice);
+  const replace = request.body?.replace === true;
+  if (existing > 0 && !replace) { response.json({ itemId: id, originalPrice: existing, source: details.originalPriceSource ?? "seller", changed: false }); return; }
+  try {
+    const estimate = await estimateRetail({ title: item.title, brand: item.brand, model: item.model, category: item.category, subcategory: details.subcategory as string | undefined, material: details.material as string | undefined });
+    if (!estimate.retail) { response.json({ itemId: id, originalPrice: null, changed: false, reason: estimate.basis || "Not confident enough to estimate.", confidence: estimate.confidence }); return; }
+    const [updated] = await db.update(itemsTable).set({ marketplaceDetails: { ...details, originalPrice: String(estimate.retail), originalPriceSource: { by: "AI estimate", basis: estimate.basis, low: estimate.low, high: estimate.high, confidence: estimate.confidence, at: new Date().toISOString() } } }).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId))).returning();
+    await refreshDraftRequirements(updated, userId);
+    response.json({ itemId: id, originalPrice: estimate.retail, changed: true, estimated: true, confidence: estimate.confidence, basis: estimate.basis, range: [estimate.low, estimate.high] });
+  } catch (error) {
+    response.status(502).json({ error: nimProblem(error) });
+  }
 });
 
 type Row = { item: typeof itemsTable.$inferSelect; drafts: Array<typeof marketplaceDraftsTable.$inferSelect> };
