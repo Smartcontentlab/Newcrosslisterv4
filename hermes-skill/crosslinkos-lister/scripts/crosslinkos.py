@@ -17,6 +17,7 @@ Optional: an info.txt in the folder with lines like
 Commands (all print JSON, so Hermes can read the result):
     scan                         folders not yet sent to CrossLinkOS
     ingest FOLDER                read photos, create the item, write the P/D/M drafts
+    ingest-all                   send every new folder (drafts only; nothing is approved or posted)
     item ID                      one item with its drafts (no photos)
     update ID [--price ...]      save research (price, original price, sizes, notes)
     redraft ID                   rewrite the drafts after big changes
@@ -673,6 +674,36 @@ def cmd_tidy(args) -> None:
     print(json.dumps({"moved": moved, "waiting": waiting}, indent=2))
 
 
+def cmd_ingest_all(args) -> None:
+    """Send every new item folder, one after another, and print a short table. Nothing is approved or posted."""
+    folders = [f for f in item_folders() if not (f / MARKER).exists()]
+    if not folders:
+        print("Nothing new to send: every item folder already has its drafts in CrossLinkOS.")
+        return
+    print(f"Sending {len(folders)} items. Each takes about 1-2 minutes; leave this window open.\n", flush=True)
+    rows = []
+    for number, folder in enumerate(folders, 1):
+        name = str(folder.relative_to(LISTINGS_DIR))
+        print(f"[{number}/{len(folders)}] {name} …", flush=True)
+        run = subprocess.run([sys.executable, __file__, "ingest", name], capture_output=True, text=True)
+        try:
+            result = json.loads(run.stdout)
+        except Exception:  # noqa: BLE001
+            result = {"error": (run.stdout or run.stderr).strip()[-300:]}
+        if "error" in result:
+            rows.append((name, "-", "FAILED", result["error"]))
+            print(f"      failed: {result['error']}", flush=True)
+            continue
+        needs = sorted({need for draft in result.get("drafts", {}).values() if draft.get("status") != "ready" for need in draft.get("stillNeeds", [])})
+        size = result.get("sizeCheck", {}).get("status", "")
+        status = "ready" if not needs else "needs: " + ", ".join(needs)
+        rows.append((name, str(result["itemId"]), status, "" if size == "ok" else f"size: {size}"))
+        print(f"      item {result['itemId']}: {status}{'' if size == 'ok' else ' | size ' + size}", flush=True)
+    print("\nDone. Open the Draft Board in CrossLinkOS to review and post them.\n")
+    for name, item, status, note in rows:
+        print(f"  #{item:>4}  {status:<40} {note}  ({name.split('/')[-1]})")
+
+
 def cmd_rephoto(args) -> None:
     """Re-pick an item's photos from its folder with the current photo rules (white backgrounds + labels)."""
     folder = next((f for f in item_folders() if (f / MARKER).exists() and json.loads((f / MARKER).read_text()).get("itemId") == args.id), None)
@@ -715,6 +746,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("scan").set_defaults(run=cmd_scan)
     p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.set_defaults(run=cmd_ingest)
+    sub.add_parser("ingest-all").set_defaults(run=cmd_ingest_all)
     p = sub.add_parser("item"); p.add_argument("id", type=int); p.set_defaults(run=cmd_item)
     p = sub.add_parser("update"); p.add_argument("id", type=int)
     p.add_argument("--price", type=float); p.add_argument("--cost", type=float); p.add_argument("--original-price", type=float); p.add_argument("--lowest", type=float, help="lowest offer to accept (Poshmark Automate Offers)"); p.add_argument("--weight", type=float)
