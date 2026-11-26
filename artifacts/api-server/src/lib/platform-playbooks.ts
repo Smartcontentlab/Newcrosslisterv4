@@ -47,13 +47,12 @@ export const PLAYBOOKS: Record<Platform, Playbook> = {
     descriptionLimit: 1500,
     descriptionLimitVerified: false,
     hashtags: { min: 3, max: 5, verified: true }, // Poshmark allows at most 5 hashtags (seller-confirmed, Nov 2026)
-    voice: "Detailed, warm and honest, like explaining the piece to a friend. Full sentences are fine. Poshmark buyers browse, compare and bundle, so more detail helps.",
+    voice: "Detailed, warm and honest, like explaining the piece to a friend. Full sentences are fine. Poshmark buyers browse and compare, so more detail helps.",
     structure: [
       "Title: Brand + product type + key attributes (color, material or style). Lead with the brand. No size in the title: Poshmark has a size field.",
       "Opening line: what it is and why it is good (look, feel, fit, style such as tailored, relaxed or trend-led).",
       "Details block, one fact per line: brand, size, color, material, fit, style, and every measurement the seller gave.",
       "Condition line: honest, and name every flaw the seller listed. Mention tags/box/dust bag only if the seller said so.",
-      "Bundle nudge (Poshmark buyers bundle): a short line inviting a bundle, no discount promises the seller did not state.",
       "Last line: hashtags, space separated.",
     ],
     do: [
@@ -62,6 +61,8 @@ export const PLAYBOOKS: Record<Platform, Playbook> = {
       "Match seasonal hashtags to the item and the time of year (only when they honestly fit).",
     ],
     dont: [
+      "No bundle invitations or \"bundle to save\" lines.",
+      "Never write step names such as \"Opening line:\" or \"Condition line:\" in the description.",
       "No commentary about the seller's own fit (\"too small for me\"). Describe the item, not the seller.",
       "No hashtag stuffing with brands or styles that do not describe this item.",
       "No all-caps titles or emoji strings in the title.",

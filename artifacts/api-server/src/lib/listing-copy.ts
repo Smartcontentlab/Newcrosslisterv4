@@ -148,6 +148,10 @@ function tidyBody(raw: string): string {
     .split("\n")
     // A line made only of hashtags belongs in the hashtag list, not the body.
     .filter((line) => !/^\s*(#[\w-]+\s*)+$/.test(line))
+    // The model sometimes echoes the structure's step names ("Bundle nudge:", "Opening line:"): drop the label.
+    .map((line) => line.replace(/^\s*(?:•\s*)?(?:opening line|details block|details|condition line|quick facts|facts list|bundle nudge|closing line|last line)\s*[:\-–]\s*/i, ""))
+    // No bundle invitations (Shay's rule); a seller's own bundle info is added separately.
+    .filter((line) => !/\bbundl/i.test(line))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -219,7 +223,6 @@ export function templateCopy(platform: Platform, facts: CopyFacts, reason?: stri
       seller && seller.slice(0, 500),
       ["Details", ...rows, ...(measurementLines.length ? ["Measurements", ...measurementLines] : [])].join("\n"),
       `Condition: ${condition}.${flaws ? ` ${flaws}` : ""}`,
-      "Bundles welcome. Add a few of my items to save on shipping.",
     ].filter(Boolean).join("\n\n");
   } else if (platform === "depop") {
     body = [
