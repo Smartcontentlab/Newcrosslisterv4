@@ -389,7 +389,7 @@ INFO_KEYS = {
 }
 
 
-NOTE_LABELS = {"suggestedtags", "tags", "hashtags", "measurements", "sellernotes", "notes", "note", "reference", "productreference", "photos", "comps", "soldcomps", "research", "todo", "styleno", "stylenumber", "sku"}
+NOTE_LABELS = {"internalnotes", "internalnote", "privatenotes", "notetoself", "suggestedtags", "tags", "hashtags", "measurements", "sellernotes", "notes", "note", "reference", "productreference", "photos", "comps", "soldcomps", "research", "todo", "styleno", "stylenumber", "sku"}
 NOTE_LINE = re.compile(r"^\s*[-*•]?\s*([A-Za-z][A-Za-z /()#]{1,30}?)\s*(?::|·)\s*\S")
 
 
@@ -397,7 +397,20 @@ def buyer_description(text: str) -> str:
     """The part of Shay's text a buyer should read: her notes and settings lines (prices, tags,
     measurements to take, seller notes, condition...) are taken out, whatever the doc's styling."""
     kept = []
+    in_notes = False
     for line in text.splitlines():
+        heading = re.sub(r"[^a-z]", "", line.lower())
+        # A notes heading on its own line ("Internal notes", "Seller notes:", "Notes") hides everything
+        # under it until a blank line or the next heading.
+        if heading and len(line.strip()) <= 40 and (heading in NOTE_LABELS or heading.endswith(("notes", "note")) or heading in ("internal", "private", "forme", "pricing", "prices")):
+            in_notes = True
+            continue
+        if in_notes:
+            if not line.strip():
+                in_notes = False
+            continue
+        if re.search(r"\(\s*(?:internal|private|note to self|for me)\b[^)]*\)", line, re.I):
+            line = re.sub(r"\(\s*(?:internal|private|note to self|for me)\b[^)]*\)", "", line, flags=re.I).rstrip()
         match = NOTE_LINE.match(line)
         label = re.sub(r"[^a-z]", "", match.group(1).lower()) if match else ""
         if match and (label in INFO_KEYS or label in NOTE_LABELS or label.endswith(("price", "notes", "tags"))):
