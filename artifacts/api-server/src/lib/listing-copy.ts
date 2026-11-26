@@ -139,7 +139,7 @@ export function guardBody(body: string, facts: CopyFacts): { body: string; warni
   return { body: keptLines.join("\n"), warnings: [...new Set(warnings)] };
 }
 
-const INTERNAL_SENTENCE = /not provided|not available|unavailable|\bn\/a\b|to be (?:added|confirmed)|needs? (?:verification|confirming|to be (?:measured|confirmed|checked))|unconfirmed|not (?:yet )?verified|measure (?:the )?(?:flat|pit|actual|relaxed|shoulder|bust|waist|rise|inseam|garment|length)|take (?:flat )?measurements|add (?:the )?(?:actual |flat )?(?:measurements?|inseam|waist)|check the (?:tag|label|inside|waistband|size)|confirm (?:the )?(?:size|brand|garment|lettering|style)|photograph the|before (?:selecting|choosing|posting|using)|seller notes?|internal (?:note|use|only)/i;
+const INTERNAL_SENTENCE = /not provided|not available|unavailable|\bn\/a\b|to be (?:added|confirmed)|needs? (?:verification|confirming|to be (?:measured|confirmed|checked))|unconfirmed|not (?:yet )?verified|measure (?:the )?(?:flat|pit|actual|relaxed|shoulder|bust|waist|rise|inseam|garment|length)|take (?:flat )?measurements|add (?:the )?(?:actual |flat )?(?:measurements?|inseam|waist)|check the (?:tag|label|inside|waistband|size)|confirm (?:the )?(?:size|brand|garment|lettering|style)|photograph the|before (?:selecting|choosing|posting|using)|seller notes?|smart ?sell|smart pricing|automate offers|(?:min(?:imum)?|lowest|floor)\s+(?:smart|offer|price|accept)|(?:suggested|listing|list|asking)\s+price|price to list|\bmin\b[^.]*\$\s*\d|internal (?:note|use|only)/i;
 
 function tidyBody(raw: string): string {
   return raw

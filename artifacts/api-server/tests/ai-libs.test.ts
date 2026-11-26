@@ -212,9 +212,9 @@ await test("stripTitleSize: sizes come off the end of titles, model numbers stay
 });
 
 await test("finishCopy: no bundle nudge, no internal to-dos, no step labels", () => {
-  const copy = finishCopy("poshmark", { title: "Old Navy Cargo Pants", brand: "Old Navy", condition: "good" }, { title: "Old Navy Cargo Pants", body: "Opening line: Navy cargo pants with an internal pocket.\nMeasurements: Not provided. Measure flat waist and inseam.\nBundle nudge: Bundle to save on shipping!\nCondition: good used condition." }, "m", []);
+  const copy = finishCopy("poshmark", { title: "Old Navy Cargo Pants", brand: "Old Navy", condition: "good" }, { title: "Old Navy Cargo Pants", body: "Opening line: Navy cargo pants with an internal pocket.\nMeasurements: Not provided. Measure flat waist and inseam.\nBundle nudge: Bundle to save on shipping!\nCondition: good used condition.\nMin smart sell $35. Suggested price $45." }, "m", []);
   assert.ok(copy);
-  assert.doesNotMatch(copy!.description, /bundle|not provided|measure flat|Opening line/i);
+  assert.doesNotMatch(copy!.description, /bundle|not provided|measure flat|Opening line|smart sell|\$35|\$45/i);
   assert.match(copy!.description, /internal pocket/);
 });
 
