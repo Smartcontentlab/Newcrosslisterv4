@@ -11,6 +11,7 @@ import agentRouter from "./agent";
 import workflowRouter from "./workflow";
 import buyScannerRouter from "./buy-scanner";
 import autopilotRouter from "./autopilot";
+import offersRouter from "./offers";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -28,5 +29,6 @@ router.use(agentRouter);
 router.use(workflowRouter);
 router.use(buyScannerRouter);
 router.use(autopilotRouter);
+router.use(offersRouter);
 
 export default router;

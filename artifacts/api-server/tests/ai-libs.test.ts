@@ -228,3 +228,17 @@ await test("estimateWeight: typical packed weight, null when unknown", () => {
 
 globalThis.fetch = realFetch;
 console.log(`\n${passed} tests passed`);
+
+// ------------------------------------------------------------------ offers inbox matching
+{
+  const { listingKey, titleMatch, estimateFees } = await import("../src/lib/offer-match");
+  assert.equal(listingKey("https://poshmark.com/listing/Aritzia-Cardigan-6730f1c2a9b8e4d5f6a7b8c9?x=1"), "6730f1c2a9b8e4d5f6a7b8c9");
+  assert.equal(listingKey("https://www.depop.com/products/vibehuntingsf-aritzia-cardigan/"), "vibehuntingsf-aritzia-cardigan");
+  assert.equal(listingKey(null), null);
+  assert.ok(titleMatch("Aritzia Cream Cashmere Cardigan", "Aritzia Cream Cashmere Crewneck Cardigan") >= 0.75);
+  assert.ok(titleMatch("Levi's 501 Jeans", "Aritzia Cardigan") < 0.75);
+  assert.equal(estimateFees("poshmark", 10), 2.95);
+  assert.equal(estimateFees("poshmark", 50), 10);
+  assert.equal(estimateFees("depop", 40), 1.77);
+  console.log("ok  - offers inbox matching (8 checks)");
+}

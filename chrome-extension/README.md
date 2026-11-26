@@ -67,3 +67,13 @@ Side panel → **Poshmark Closet Tools**. Off until the seller presses Start.
 - Works by clicking Poshmark's own buttons by their visible words (poshmark-tools.js); the schedule
   lives in poshbot.js. Poshmark's terms restrict automation: the risk sits with the seller's account,
   which is why the defaults are conservative.
+
+## Offers & Sales watch (v0.5.0)
+
+Side panel → **Offers & Sales watch** (on by default; needs the access key pasted under Auto-post).
+
+- Every 2.5 to 4 hours, inside the Closet Tools active hours, it opens a small window, reads Poshmark's offers page (`/offers/my_offers`, falling back to `/news`) and sales page (`/order/sales`), then Depop's (`/sellinghub/offers/` or `/messages/`, and `/sellinghub/sold-items/`), sends what it found to `POST /api/offers/sync`, and closes the window. **Check now** runs it at once.
+- `page-reader.js` only reads. It finds "cards" (the smallest block with one listing link and a $ amount) instead of fixed CSS classes, so small page changes don't break it; skips offers the page marks accepted/declined/expired.
+- The app's **Offers & sales** page (`/offers`) groups open offers by item across both sites, ranks them by take-home after fees, flags the better site and offers under the Poshmark minimum, and greys out offers older than ~a day.
+- Sales: the first read of each site's sales page is saved as history (never recorded). After that, a new sale matched to an item (by listing link, else title) is recorded as an order: item marked sold, shipping checklist, delist task for the other site. Unmatched sales wait on the page for the seller to pick the item.
+- Not verified against the live pages yet (Nov 2026): page URLs and card reading may need tuning on the first runs; the log shows how many offers/sales each page gave.

@@ -24,6 +24,9 @@ const between = (min, max) => min + Math.random() * (max - min);
 const localDate = () => new Date().toLocaleDateString('en-CA');
 let running = false;
 
+/** True while a Closet Tools session is using the Poshmark window. */
+export function isPoshBusy() { return running; }
+
 export async function getPosh() {
   const { posh } = await chrome.storage.local.get('posh');
   const merged = { ...DEFAULTS, ...(posh ?? {}) };

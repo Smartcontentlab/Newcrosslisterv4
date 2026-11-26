@@ -9,6 +9,7 @@ import Dashboard from "@/pages/dashboard";
 import Inventory from "@/pages/inventory";
 import Listings from "@/pages/listings";
 import Orders from "@/pages/orders";
+import Offers from "@/pages/offers";
 import Shipping from "@/pages/shipping";
 import Analytics from "@/pages/analytics";
 import AiAssistant from "@/pages/ai-assistant";
@@ -33,6 +34,7 @@ function WorkspaceRoutes() {
       <Route path="/bulk-import"><AppLayout><BulkImport /></AppLayout></Route>
       <Route path="/listings"><AppLayout><Listings /></AppLayout></Route>
       <Route path="/orders"><AppLayout><Orders /></AppLayout></Route>
+      <Route path="/offers"><AppLayout><Offers /></AppLayout></Route>
       <Route path="/shipping"><AppLayout><Shipping /></AppLayout></Route>
       <Route path="/analytics"><AppLayout><Analytics /></AppLayout></Route>
       <Route path="/ai-assistant"><AppLayout><AiAssistant /></AppLayout></Route>

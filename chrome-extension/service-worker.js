@@ -1,4 +1,5 @@
 import { getAuto, registerAutopost, runOnce, scheduleNext, setEnabled } from './autopost.js';
+import { getWatch, registerOffersWatch, runWatch, setWatchOn } from './offers-watch.js';
 import { getPosh, registerPoshbot, resumePosh, setPoshSettings, startPosh, stopPosh, tick as poshTick } from './poshbot.js';
 
 // The live app, plus the older address in case that deployment is repaired.
@@ -124,9 +125,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 registerAutopost();
 registerPoshbot();
+registerOffersWatch();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
+    if (message?.type === 'WATCH_GET') { sendResponse({ ok: true, watch: await getWatch() }); return; }
+    if (message?.type === 'WATCH_SET') { sendResponse({ ok: true, watch: await setWatchOn(Boolean(message.on)) }); return; }
+    if (message?.type === 'WATCH_RUN_NOW') { void runWatch({ manual: true }); sendResponse({ ok: true }); return; }
     if (message?.type === 'POSH_GET') { sendResponse({ ok: true, posh: await getPosh() }); return; }
     if (message?.type === 'POSH_SETTINGS') { sendResponse({ ok: true, posh: await setPoshSettings(message.patch ?? {}) }); return; }
     if (message?.type === 'POSH_START') { sendResponse({ ok: true, posh: await startPosh() }); return; }

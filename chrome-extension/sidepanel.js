@@ -170,3 +170,21 @@ poshToggle.addEventListener('click', async () => {
 poshEl('posh-now').addEventListener('click', async () => { await chrome.runtime.sendMessage({ type: 'POSH_RUN_NOW' }); poshStatus.textContent = 'Starting a session…'; });
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.posh) renderPosh(changes.posh.newValue && { ...changes.posh.newValue }); });
 void chrome.runtime.sendMessage({ type: 'POSH_GET' }).then((r) => renderPosh(r?.posh));
+
+// ---------------------------------------------------------- Offers & Sales watch
+const watchEl = (id) => document.querySelector(`#${id}`);
+const timeOf = (ms) => new Date(ms).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+function renderWatch(w) {
+  if (!w) return;
+  watchEl('watch-on').checked = w.on;
+  const last = w.lastRun ? `Last checked ${timeOf(w.lastRun)}${w.summary ? ` (${w.summary})` : ''}.` : 'Not checked yet.';
+  const next = w.on && w.nextRun ? ` Next check around ${timeOf(w.nextRun)}.` : '';
+  watchEl('watch-status').textContent = `${w.on ? 'On.' : 'Off.'} ${last}${next}`;
+  watchEl('watch-status').className = w.on ? 'status good' : 'status';
+  watchEl('watch-log').innerHTML = (w.log ?? []).slice(0, 8).map((e) => `<li>${escapeHtml(new Date(e.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))} · ${escapeHtml(e.text)}</li>`).join('');
+}
+watchEl('watch-on').addEventListener('change', async (event) => { const r = await chrome.runtime.sendMessage({ type: 'WATCH_SET', on: event.target.checked }); renderWatch(r?.watch); });
+watchEl('watch-now').addEventListener('click', async () => { await chrome.runtime.sendMessage({ type: 'WATCH_RUN_NOW' }); watchEl('watch-status').textContent = 'Checking now…'; });
+watchEl('watch-open').addEventListener('click', () => { void chrome.tabs.create({ url: 'https://crosslinkos.vercel.app/offers' }); });
+chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.watch) renderWatch(changes.watch.newValue); });
+void chrome.runtime.sendMessage({ type: 'WATCH_GET' }).then((r) => renderWatch(r?.watch));

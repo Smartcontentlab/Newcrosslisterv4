@@ -6,3 +6,4 @@ export * from "./shipping_tasks";
 export * from "./marketplace_drafts";
 export * from "./delisting_tasks";
 export * from "./buy_candidates";
+export * from "./marketplace_offers";

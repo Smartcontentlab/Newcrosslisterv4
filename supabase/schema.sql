@@ -266,4 +266,31 @@ create policy "crosslinkos_buy_candidates_owner"
   using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
   with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
+-- Offers and sales read by the Chrome extension (also created by the API on first use).
+create table if not exists public.marketplace_offers (
+  id serial primary key,
+  user_id uuid not null references public.user_profiles(id) on delete cascade,
+  item_id integer,
+  marketplace text not null,
+  kind text not null default 'offer',
+  external_key text not null,
+  listing_url text,
+  listing_title text,
+  amount real not null default 0,
+  buyer text,
+  detail text,
+  status text not null default 'open',
+  order_id integer,
+  first_seen_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  unique (user_id, marketplace, kind, external_key)
+);
+create index if not exists marketplace_offers_user_status on public.marketplace_offers (user_id, status);
+alter table public.marketplace_offers enable row level security;
+drop policy if exists "crosslinkos_marketplace_offers_owner" on public.marketplace_offers;
+create policy "crosslinkos_marketplace_offers_owner"
+  on public.marketplace_offers for all to authenticated
+  using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+  with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
 commit;

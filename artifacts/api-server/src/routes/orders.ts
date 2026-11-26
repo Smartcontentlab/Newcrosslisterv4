@@ -16,7 +16,7 @@ import {
   UpdateOrderResponse,
 } from "@workspace/api-zod";
 
-const DEFAULT_SHIPPING_STEPS = [
+export const DEFAULT_SHIPPING_STEPS = [
   { key: "locate", label: "Locate item", completed: false, completedAt: null },
   { key: "verify", label: "Verify condition", completed: false, completedAt: null },
   { key: "package", label: "Package item", completed: false, completedAt: null },

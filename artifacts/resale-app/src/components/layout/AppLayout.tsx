@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'wouter';
 import {
+  BadgeDollarSign,
   BarChart3,
   Bot,
   CircleHelp,
@@ -32,15 +33,16 @@ const browseItems: NavItem[] = [
   { path: '/inventory', label: 'Inventory', icon: <Package size={16} />, code: '02' },
   { path: '/listings', label: 'Listings', icon: <List size={16} />, code: '03' },
   { path: '/orders', label: 'Orders', icon: <ShoppingCart size={16} />, code: '04' },
+  { path: '/offers', label: 'Offers & sales', icon: <BadgeDollarSign size={16} />, code: '05' },
 ];
 
 const toolItems: NavItem[] = [
-  { path: '/listing-studio', label: 'Listing studio', icon: <PlusSquare size={16} />, code: '05' },
-  { path: '/shipping', label: 'Shipping', icon: <Truck size={16} />, code: '06' },
-  { path: '/connections', label: 'Marketplaces', icon: <PlugZap size={16} />, code: '07' },
-  { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={16} />, code: '08' },
-  { path: '/ai-assistant', label: 'AI assistant', icon: <SparklesIcon size={16} />, code: '09' },
-  { path: '/agent', label: 'Agent hub', icon: <Bot size={16} />, code: '10' },
+  { path: '/listing-studio', label: 'Listing studio', icon: <PlusSquare size={16} />, code: '06' },
+  { path: '/shipping', label: 'Shipping', icon: <Truck size={16} />, code: '07' },
+  { path: '/connections', label: 'Marketplaces', icon: <PlugZap size={16} />, code: '08' },
+  { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={16} />, code: '09' },
+  { path: '/ai-assistant', label: 'AI assistant', icon: <SparklesIcon size={16} />, code: '10' },
+  { path: '/agent', label: 'Agent hub', icon: <Bot size={16} />, code: '11' },
 ];
 
 const footerItems: NavItem[] = [
