@@ -19,7 +19,7 @@ extension in her own Chrome.
 All CrossLinkOS work goes through the helper script. It prints JSON. Run it with the terminal tool:
 
 ```
-python3 ~/.hermes/skills/business/crosslinkos-lister/scripts/crosslinkos.py <command>
+python3 ~/crosslinkos/hermes-skill/crosslinkos-lister/scripts/crosslinkos.py <command>
 ```
 
 (Below, `cl` means that whole command.)

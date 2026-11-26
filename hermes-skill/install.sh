@@ -4,7 +4,15 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 skill_src="$here/crosslinkos-lister"
-skill_dst="$HOME/.hermes/skills/business/crosslinkos-lister"
+# Hermes keeps its home in $HERMES_HOME, ~/.hermes, or wherever it was installed (e.g. /mnt/storage/.hermes).
+hermes_homes=()
+[ -n "${HERMES_HOME:-}" ] && hermes_homes+=("$HERMES_HOME")
+hermes_homes+=("$HOME/.hermes")
+if command -v hermes >/dev/null; then
+  real="$(readlink -f "$(command -v hermes)")"
+  case "$real" in */.hermes/*) hermes_homes+=("${real%%/.hermes/*}/.hermes");; esac
+fi
+[ -d /mnt/storage/.hermes ] && hermes_homes+=("/mnt/storage/.hermes")
 
 echo "1/4  Installing photo tools (asks for your password)…"
 # If Ubuntu is installing updates in the background, wait for it (up to 10 minutes) instead of failing.
@@ -17,8 +25,13 @@ else
 fi
 
 echo "2/4  Linking the skill into Hermes…"
-mkdir -p "$(dirname "$skill_dst")"
-ln -sfn "$skill_src" "$skill_dst"
+for home in $(printf '%s\n' "${hermes_homes[@]}" | awk '!seen[$0]++'); do
+  if [ -d "$home" ] || [ "$home" = "$HOME/.hermes" ]; then
+    mkdir -p "$home/skills/business"
+    ln -sfn "$skill_src" "$home/skills/business/crosslinkos-lister"
+    echo "     linked into $home/skills/business/crosslinkos-lister"
+  fi
+done
 chmod +x "$skill_src/scripts/crosslinkos.py"
 
 echo "3/4  Creating ~/Listings (one folder per item goes here)…"
