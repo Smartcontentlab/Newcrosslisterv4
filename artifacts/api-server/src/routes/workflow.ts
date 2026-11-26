@@ -104,6 +104,8 @@ async function draftContentFor(item: typeof itemsTable.$inferSelect): Promise<Re
   }
   return out;
 }
+/** Poshmark's style-tag box is filled from the item's own Tags field (what the seller edits); other sites use the copy's hashtags. */
+const draftTags = (item: typeof itemsTable.$inferSelect, platform: string, copyTags: string[]) => (platform === "poshmark" && item.tags.length ? item.tags : copyTags);
 async function ownedItem(id: number, userId: string) {
   const [item] = await db.select().from(itemsTable).where(and(eq(itemsTable.id, id), eq(itemsTable.userId, userId)));
   return item;
@@ -270,7 +272,7 @@ export async function refreshDraftRequirements(item: typeof itemsTable.$inferSel
     const status = missingFields.length > 0 ? "draft" : draft.status === "draft" ? "ready" : draft.status;
     // Copy the seller edited and saved for this site is what the extension posts, so drafts pick it up on save.
     const saved = savedCopyFor(item, draft.marketplace);
-    const copy = saved ? { title: saved.title, description: saved.description, tags: saved.hashtags } : {};
+    const copy = saved ? { title: saved.title, description: saved.description, tags: draftTags(item, draft.marketplace, saved.hashtags) } : { tags: draftTags(item, draft.marketplace, draft.tags) };
     await db.update(marketplaceDraftsTable).set({ status, requiredFields: requirements, missingFields, price: item.price, ...copy }).where(eq(marketplaceDraftsTable.id, draft.id));
   }
 }
@@ -291,7 +293,7 @@ router.post("/workflow/items/:id/marketplace-drafts", async (request, response):
       eq(marketplaceDraftsTable.marketplace, platform),
     ));
     const status = existing && FINAL_MARKETPLACE_STATUSES.has(existing.status) ? existing.status : calculatedStatus;
-    const [draft] = await db.insert(marketplaceDraftsTable).values({ userId, itemId: item.id, marketplace: platform, status, title: content.title, description: content.description, tags: content.tags, price: item.price, requiredFields: requirements, missingFields }).onConflictDoUpdate({ target: [marketplaceDraftsTable.itemId, marketplaceDraftsTable.marketplace], set: { status, title: content.title, description: content.description, tags: content.tags, price: item.price, requiredFields: requirements, missingFields } }).returning();
+    const [draft] = await db.insert(marketplaceDraftsTable).values({ userId, itemId: item.id, marketplace: platform, status, title: content.title, description: content.description, tags: draftTags(item, platform, content.tags), price: item.price, requiredFields: requirements, missingFields }).onConflictDoUpdate({ target: [marketplaceDraftsTable.itemId, marketplaceDraftsTable.marketplace], set: { status, title: content.title, description: content.description, tags: draftTags(item, platform, content.tags), price: item.price, requiredFields: requirements, missingFields } }).returning();
     drafts.push({ ...draft, usedFallback: content.usedFallback, copyOrigin: content.origin, copyReason: content.reason ?? null });
   }
   response.json(drafts);
