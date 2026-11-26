@@ -231,7 +231,7 @@ async function fillPoshmark(draft) {
   if (title) { setNativeValue(title, draft.title.slice(0, 80)); report.ok('title'); } else report.skip('title', 'field not found');
 
   const description = findElement(["textarea[data-vv-name='description']"]);
-  if (description) { setNativeValue(description, draft.description.slice(0, 1500)); report.ok('description'); } else report.skip('description', 'field not found');
+  if (description) { setNativeValue(description, String(draft.description ?? '').trim().slice(0, 1500)); report.ok('description'); } else report.skip('description', 'field not found');
 
   // Category: department first (Women/Men/Kids/Home/Pets/Electronics), then the category inside it.
   const department = details.department;
@@ -364,11 +364,9 @@ async function depopBrand(brand) {
   return true;
 }
 
+/** Exactly the description approved in CrossLinkOS: nothing added (no title line, no extra hashtags). */
 function depopDescription(draft) {
-  const hashtags = (draft.tags ?? []).map((tag) => `#${String(tag).replace(/[^A-Za-z0-9]/g, '').toLowerCase()}`).filter((tag) => tag.length > 1).slice(0, 5);
-  const firstLine = draft.description.trim().toLowerCase().startsWith(draft.title.trim().toLowerCase()) ? '' : `${draft.title.trim()}\n\n`;
-  const tail = hashtags.length ? `\n\n${hashtags.join(' ')}` : '';
-  return `${firstLine}${draft.description.trim()}`.slice(0, 1000 - tail.length) + tail;
+  return String(draft.description ?? '').trim().slice(0, 1000);
 }
 
 async function fillDepop(draft) {
@@ -377,7 +375,7 @@ async function fillDepop(draft) {
 
   // The form renders after the page loads; give it a moment before filling.
   const description = await waitFor(() => findElement(['textarea#description', "textarea[name='description']"]), 10000);
-  if (description) { setNativeValue(description, depopDescription(draft)); report.ok('description + hashtags'); report.ok('title'); } else report.skip('description', 'field not found');
+  if (description) { setNativeValue(description, depopDescription(draft)); report.ok('description'); report.ok('title'); } else report.skip('description', 'field not found');
 
   const department = norm(details.department);
   const category = details.category;

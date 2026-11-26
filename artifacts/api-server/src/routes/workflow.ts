@@ -268,7 +268,10 @@ export async function refreshDraftRequirements(item: typeof itemsTable.$inferSel
     const requirements = rules.map((field) => ({ ...field, required: true, value: itemValue(item, field.key) }));
     const missingFields = requirements.filter((field) => field.value === null || field.value === "" || field.value === false || field.value === 0).map((field) => field.key);
     const status = missingFields.length > 0 ? "draft" : draft.status === "draft" ? "ready" : draft.status;
-    await db.update(marketplaceDraftsTable).set({ status, requiredFields: requirements, missingFields, price: item.price }).where(eq(marketplaceDraftsTable.id, draft.id));
+    // Copy the seller edited and saved for this site is what the extension posts, so drafts pick it up on save.
+    const saved = savedCopyFor(item, draft.marketplace);
+    const copy = saved ? { title: saved.title, description: saved.description, tags: saved.hashtags } : {};
+    await db.update(marketplaceDraftsTable).set({ status, requiredFields: requirements, missingFields, price: item.price, ...copy }).where(eq(marketplaceDraftsTable.id, draft.id));
   }
 }
 
