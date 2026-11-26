@@ -132,7 +132,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === 'POSH_START') { sendResponse({ ok: true, posh: await startPosh() }); return; }
     if (message?.type === 'POSH_STOP_ALL') { sendResponse({ ok: true, posh: await stopPosh() }); return; }
     if (message?.type === 'POSH_RESUME') { sendResponse({ ok: true, posh: await resumePosh() }); return; }
-    if (message?.type === 'POSH_RUN_NOW') { void poshTick(); sendResponse({ ok: true }); return; }
+    if (message?.type === 'POSH_RUN_NOW') { void poshTick({ manual: true }); sendResponse({ ok: true }); return; }
     if (message?.type === 'AUTO_GET') { sendResponse({ ok: true, auto: await getAuto() }); return; }
     if (message?.type === 'AUTO_SET') { sendResponse({ ok: true, auto: await setEnabled(Boolean(message.enabled), message.key) }); return; }
     if (message?.type === 'AUTO_RESUME') {

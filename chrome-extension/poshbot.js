@@ -112,14 +112,19 @@ async function stopFor(reason, detail) {
   notify('CrossLinkOS Closet Tools paused', message);
 }
 
-export async function tick() {
-  if (running) return;
+export async function tick({ manual = false } = {}) {
+  if (running) { if (manual) await log('A session is already running; watch the small Poshmark window.'); return; }
   let p = await getPosh();
-  if (!p.on || p.paused) return;
+  if (manual && p.paused) { await log('Closet Tools is paused. Fix what the last message says, then press Resume.'); return; }
+  if (!manual && (!p.on || p.paused)) return;
   running = true;
   try {
-    const wait = secondsUntilActive(p.hours);
-    if (wait > 0) { await schedule(wait); return; }
+    const wait = manual ? 0 : secondsUntilActive(p.hours);
+    if (wait > 0) {
+      await log(`Outside your active hours; next run around ${new Date(Date.now() + wait * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`);
+      await schedule(wait); return;
+    }
+    if (manual) await log('Test session starting now (ignores your active hours; a small Poshmark window will open).');
     if (p.day.date !== localDate()) p = await setPosh({ day: newDay(p) });
     const task = pickTask(p);
     if (!task) { await log('Done for today: daily limits reached.'); await schedule(secondsUntilActive({ ...p.hours, end: 0 }) || 6 * 3600); return; }
@@ -185,6 +190,7 @@ export async function tick() {
       if (stop && stop !== 'stopped') { await stopFor(stop); return; }
     }
 
+    if (manual && !p.on) { await log('Test session finished. Press Start to let it run on its own.'); return; }
     if (p.sinceBreak >= p.breakAfter) {
       const minutes = Math.round(between(8, 25));
       await setPosh({ sinceBreak: 0, breakAfter: Math.round(between(25, 45)) });
