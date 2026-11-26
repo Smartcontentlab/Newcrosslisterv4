@@ -319,7 +319,13 @@ def doc_paragraphs(path: Path) -> list[tuple[str, str]]:
     for para in root.iter(f"{ns}p"):
         style = para.find(f"{ns}pPr/{ns}pStyle")
         text = "".join(node.text or "" for node in para.iter(f"{ns}t")).replace("\u00a0", " ").strip()
-        paragraphs.append((style.get(f"{ns}val") if style is not None else "", text))
+        name = style.get(f"{ns}val") if style is not None else ""
+        runs = [run for run in para.iter(f"{ns}r") if "".join(n.text or "" for n in run.iter(f"{ns}t")).strip()]
+        bold = bool(runs) and all(
+            (b := run.find(f"{ns}rPr/{ns}b")) is not None and b.get(f"{ns}val", "true") not in ("0", "false") for run in runs)
+        if bold and not name.lower().startswith(("heading", "title")):
+            name = name or "BoldLine"  # a bold line under the item's heading is the listing title
+        paragraphs.append((name, text))
     return paragraphs
 
 
@@ -365,18 +371,35 @@ def doc_section(folder: Path) -> dict:
     start = mine[0]
     end = next((i for i, (s, x) in enumerate(paras) if i > start and x and is_heading(s, x)), len(paras))
     section = paras[start + 1:end]
+    styled = any(style in ("MarketplaceTitle", "MarketplaceDescription") for style, _ in section)
+    has_bold = any(style == "BoldLine" and 0 < len(text) <= 100 for style, text in section)
+    value_next = False
     for style, text in section:
         if not text:
             continue
+        if value_next:  # the value under a label like "SUGGESTED PRICE:"
+            value_next = False
+            result["notes"].append(text)
+            continue
+        if re.fullmatch(r"[A-Za-z][A-Za-z /()#&]{1,40}\s*[:·]?", text) and info_key(text.rstrip(" :·")):
+            result["notes"].append(text)
+            value_next = True
+            continue
         label, _, value = text.partition(" · ")
-        if style == "MarketplaceTitle":
+        tag_line = re.match(r"^\s*(?:suggested\s+)?(?:tags|hashtags)\s*(?::|·)\s*(.+)$", text, re.I)
+        note_line = bool(value) or bool(NOTE_LINE.match(text) and info_key(NOTE_LINE.match(text).group(1)))
+        if style == "MarketplaceTitle" or (style == "BoldLine" and not result["title"] and len(text) <= 100 and not note_line):
             result["title"] = text
         elif style == "MarketplaceDescription":
             result["description"] = (result["description"] + "\n\n" + text).strip()
-        elif label.strip().lower() == "suggested tags":
-            result["tags"] = [tag.strip() for tag in value.split(",") if tag.strip()][:20]
-        elif style in ("ListingNotes", "ListingReference") or value:
+        elif tag_line:
+            result["tags"] = [tag.strip() for tag in tag_line.group(1).split(",") if tag.strip()][:20]
+        elif style in ("ListingNotes", "ListingReference") or note_line:
             result["notes"].append(text)
+        elif not styled and not has_bold and not result["title"] and len(text) <= 100 and not style.lower().startswith("heading"):
+            result["title"] = text  # plain doc: the first line under the item's heading is the listing title
+        elif not styled:
+            result["description"] = (result["description"] + "\n\n" + text).strip()
     result["text"] = "\n".join(x for _, x in section if x)[:5000]
     if not result["description"] and not result["title"]:
         result["description"] = result["text"]  # plain doc: everything under the heading
@@ -401,7 +424,15 @@ def buyer_description(text: str) -> str:
     measurements to take, seller notes, condition...) are taken out, whatever the doc's styling."""
     kept = []
     in_notes = False
+    skip_value = False
     for line in text.splitlines():
+        if skip_value and line.strip():
+            skip_value = False
+            if re.fullmatch(r"\s*\$?\s*\d+(?:\.\d{1,2})?\s*|\s*[A-Za-z][A-Za-z /-]{1,25}\s*", line):
+                continue
+        if re.fullmatch(r"\s*[A-Za-z][A-Za-z /()#&]{1,40}\s*[:·]?\s*", line) and info_key(line.strip().rstrip(" :·")):
+            skip_value = True
+            continue
         heading = re.sub(r"[^a-z]", "", line.lower())
         # A notes heading on its own line ("Internal notes", "Seller notes:", "Notes") hides everything
         # under it until a blank line or the next heading.
@@ -845,6 +876,8 @@ def cmd_redoc(args) -> None:
         section = doc_section(folder)
         info = {**info_from_text(section["text"]), **read_info(folder)}
         fields, details = {}, {}
+        if section["title"]:
+            fields["title"] = strip_size(section["title"], info.get("size"))[:80]
         if number(info.get("price")) is not None:
             fields["price"] = number(info["price"])
         if info.get("condition"):
@@ -857,7 +890,8 @@ def cmd_redoc(args) -> None:
             details.update({"poshSmartSellMode": "minimum_price", "poshMinimumPrice": str(int(round(lowest))), "mercariSmartPriceFloor": str(int(round(lowest)))})
         if os.environ.get("ORIGIN_ZIP"):
             details["mercariOriginPostal"] = os.environ["ORIGIN_ZIP"].strip()
-        found = {k: info[k] for k in ("price", "lowest", "originalprice", "condition") if k in info}
+        found = {"title": fields.get("title"), **{k: info[k] for k in ("price", "lowest", "originalprice", "condition") if k in info}}
+        found = {k: v for k, v in found.items() if v}
         if fields or details:
             patch_item(item_id, fields, details)
         print(f"item {item_id} ({folder.name}): " + (", ".join(f"{k} {v}" for k, v in found.items()) if found else "nothing found in the doc for this item"), flush=True)
