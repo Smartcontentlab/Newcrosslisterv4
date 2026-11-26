@@ -18,6 +18,7 @@ Commands (all print JSON, so Hermes can read the result):
     scan                         folders not yet sent to CrossLinkOS
     ingest FOLDER                read photos, create the item, write the P/D/M drafts
     ingest-all                   send every new folder (drafts only; nothing is approved or posted)
+    recopy ID… | all             rewrite each site's title + description with the generator (retries timeouts)
     item ID                      one item with its drafts (no photos)
     update ID [--price ...]      save research (price, original price, sizes, notes)
     redraft ID                   rewrite the drafts after big changes
@@ -388,6 +389,25 @@ INFO_KEYS = {
 }
 
 
+NOTE_LABELS = {"suggestedtags", "tags", "hashtags", "measurements", "sellernotes", "notes", "note", "reference", "productreference", "photos", "comps", "soldcomps", "research", "todo", "styleno", "stylenumber", "sku"}
+NOTE_LINE = re.compile(r"^\s*[-*•]?\s*([A-Za-z][A-Za-z /()#]{1,30}?)\s*(?::|·)\s*\S")
+
+
+def buyer_description(text: str) -> str:
+    """The part of Shay's text a buyer should read: her notes and settings lines (prices, tags,
+    measurements to take, seller notes, condition...) are taken out, whatever the doc's styling."""
+    kept = []
+    for line in text.splitlines():
+        match = NOTE_LINE.match(line)
+        label = re.sub(r"[^a-z]", "", match.group(1).lower()) if match else ""
+        if match and (label in INFO_KEYS or label in NOTE_LABELS or label.endswith(("price", "notes", "tags"))):
+            continue
+        if re.match(r"^\s*(product archive|.*\breference\b.*|.*resale comparison.*)$", line, re.I) and len(line) < 80:
+            continue  # her link captions ("Product archive · Blue resale comparison")
+        kept.append(line)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+
+
 def info_from_text(text: str) -> dict:
     """Lines like "Listing price · $45", "Lowest price: $35" or "Condition · Like new" in Shay's doc or info.txt."""
     info: dict[str, str] = {}
@@ -464,8 +484,8 @@ def cmd_ingest(args) -> None:
     if section["title"]:
         body["title"] = strip_size(section["title"], facts.get("size") or info.get("size"))[:80]
     if section["description"]:
-        # Shay's own description feeds every platform's copy; price and cost lines are for her, not buyers.
-        buyer_text = "\n".join(line for line in section["description"].splitlines() if not re.match(r"^\s*[-*•]?\s*(list |asking |retail |original )?(price|cost|msrp|paid)\s*:", line, re.I)).strip()
+        # Her description is the generator's source; her notes and settings lines never reach buyers.
+        buyer_text = buyer_description(section["description"])
         if buyer_text:
             body["description"] = buyer_text
     if section["tags"]:
@@ -496,7 +516,7 @@ def cmd_ingest(args) -> None:
     elif extra:
         patch_item(item_id, {}, extra)
 
-    drafts = [] if args.no_drafts else api("POST", f"/workflow/items/{item_id}/marketplace-drafts", {}, timeout=90)
+    drafts = [] if args.no_drafts else generate_drafts(item_id)[0]
     (folder / MARKER).write_text(json.dumps({"itemId": item_id, "sentAt": datetime.now(timezone.utc).isoformat()}))
     print(json.dumps({
         "itemId": item_id, "title": created["title"], "photosSent": len(stored), "photosSkipped": skipped, "coverPhoto": photo_notes["cover"],
@@ -628,12 +648,12 @@ def cmd_update(args) -> None:
     copy_changed = bool(fields.get("title") or fields.get("description"))
     patch_item(args.id, fields, details, remove=["platformCopy"] if copy_changed else None)
     if args.redraft or copy_changed:  # the generator rewrites each site's copy from the new title/description
-        api("POST", f"/workflow/items/{args.id}/marketplace-drafts", {}, timeout=90)
+        generate_drafts(args.id)
     cmd_item(args)
 
 
 def cmd_redraft(args) -> None:
-    drafts = api("POST", f"/workflow/items/{args.id}/marketplace-drafts", {}, timeout=90)
+    drafts, _ = generate_drafts(args.id)
     print(json.dumps({"itemId": args.id, "drafts": draft_summary(drafts)}, indent=2))
 
 
@@ -704,6 +724,37 @@ def cmd_ingest_all(args) -> None:
         print(f"  #{item:>4}  {status:<40} {note}  ({name.split('/')[-1]})")
 
 
+def generate_drafts(item_id: int, tries: int = 3) -> tuple[list, dict]:
+    """Ask CrossLinkOS's copy generator for each site's version; retry while any site fell back to the plain template."""
+    drafts: list = []
+    for attempt in range(tries):
+        drafts = api("POST", f"/workflow/items/{item_id}/marketplace-drafts", {}, timeout=90)
+        origins = {d["marketplace"]: d.get("copyOrigin") for d in drafts}
+        if all(origin in ("ai", "seller") for origin in origins.values()):
+            break
+        time.sleep(4 * (attempt + 1))
+    return drafts, {d["marketplace"]: d.get("copyOrigin") for d in drafts}
+
+
+def cmd_recopy(args) -> None:
+    """Throw away saved copy and have the generator write each site's title + description again."""
+    ids = args.ids
+    if ids == ["all"]:
+        ids = [str(json.loads((f / MARKER).read_text())["itemId"]) for f in item_folders() if (f / MARKER).exists()]
+    results = []
+    for raw in ids:
+        item_id = int(raw)
+        current = api("GET", f"/workflow/items/{item_id}")["item"]
+        cleaned = buyer_description(current.get("description") or "")
+        fields = {"description": cleaned} if cleaned and cleaned != (current.get("description") or "").strip() else {}
+        patch_item(item_id, fields, {}, remove=["platformCopy"])
+        drafts, origins = generate_drafts(item_id)
+        live = [d["marketplace"] for d in drafts if d["status"] in ("published", "sold")]
+        results.append({"itemId": item_id, "copy": {m: ("AI, written for this site" if o == "ai" else "TEMPLATE (AI timed out; run recopy again)" if o == "template" else o) for m, o in origins.items()}, "alreadyLive": live})
+        print(f"item {item_id}: " + ", ".join(f"{m} {'ok' if o == 'ai' else o}" for m, o in origins.items()), flush=True)
+    print(json.dumps({"recopied": results, "note": "Drafts already live keep what was posted; edit those on the marketplace if needed."}, indent=2))
+
+
 def cmd_rephoto(args) -> None:
     """Re-pick an item's photos from its folder with the current photo rules (white backgrounds + labels)."""
     folder = next((f for f in item_folders() if (f / MARKER).exists() and json.loads((f / MARKER).read_text()).get("itemId") == args.id), None)
@@ -747,6 +798,7 @@ def main() -> None:
     sub.add_parser("scan").set_defaults(run=cmd_scan)
     p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.set_defaults(run=cmd_ingest)
     sub.add_parser("ingest-all").set_defaults(run=cmd_ingest_all)
+    p = sub.add_parser("recopy"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.set_defaults(run=cmd_recopy)
     p = sub.add_parser("item"); p.add_argument("id", type=int); p.set_defaults(run=cmd_item)
     p = sub.add_parser("update"); p.add_argument("id", type=int)
     p.add_argument("--price", type=float); p.add_argument("--cost", type=float); p.add_argument("--original-price", type=float); p.add_argument("--lowest", type=float, help="lowest offer to accept (Poshmark Automate Offers)"); p.add_argument("--weight", type=float)

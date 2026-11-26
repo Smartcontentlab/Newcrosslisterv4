@@ -143,6 +143,14 @@ size: 6
 notes: tiny pill on inner thigh
 ```
 
+## Descriptions
+
+Never type or paste a description yourself, and never run `cl update --description` with her doc text.
+The generator writes each site's description from her doc. If a draft's copy looks like the doc
+word for word, or shows notes (prices, tags, measurements, seller notes), run `cl recopy <id>`
+(or `cl recopy all`): it removes notes from the description, rewrites each site's copy, and retries
+when the AI timed out. Report any site still on TEMPLATE.
+
 ## Never
 
 - Never approve on Shay's behalf unless she has said, in this conversation, to auto-approve, and
