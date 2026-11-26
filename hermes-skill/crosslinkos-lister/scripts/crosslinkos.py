@@ -415,6 +415,7 @@ INFO_KEYS = {
 }
 
 
+INTERNAL_SENTENCE = re.compile(r"not provided|not available|unavailable|\bn/a\b|to be (?:added|confirmed)|needs? (?:verification|confirming|to be (?:measured|confirmed|checked))|unconfirmed|not (?:yet )?verified|measure (?:the )?(?:flat|pit|actual|relaxed|shoulder|bust|waist|rise|inseam|garment|length)|take (?:flat )?measurements|add (?:the )?(?:actual |flat )?(?:measurements?|inseam|waist)|check the (?:tag|label|inside|waistband|size)|confirm (?:the )?(?:size|brand|garment|lettering|style)|photograph the|before (?:selecting|choosing|posting|using)|seller notes?|internal (?:note|use|only)", re.I)
 NOTE_LABELS = {"internalnotes", "internalnote", "privatenotes", "notetoself", "suggestedtags", "tags", "hashtags", "measurements", "sellernotes", "notes", "note", "reference", "productreference", "photos", "comps", "soldcomps", "research", "todo", "styleno", "stylenumber", "sku"}
 NOTE_LINE = re.compile(r"^\s*[-*•]?\s*([A-Za-z][A-Za-z /()#]{1,30}?)\s*(?::|·)\s*\S")
 
@@ -451,7 +452,11 @@ def buyer_description(text: str) -> str:
             continue
         if re.match(r"^\s*(product archive|.*\breference\b.*|.*resale comparison.*)$", line, re.I) and len(line) < 80:
             continue  # her link captions ("Product archive · Blue resale comparison")
-        kept.append(line)
+        # Drop sentences that are to-dos for Shay ("Measurements not provided. Measure flat waist…").
+        sentences = re.split(r"(?<=[.!?])\s+", line)
+        line = " ".join(s for s in sentences if not INTERNAL_SENTENCE.search(s)).strip() if line.strip() else line
+        if line or not kept or kept[-1]:
+            kept.append(line)
     return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
 
 

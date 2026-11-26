@@ -62,6 +62,7 @@ export const PLAYBOOKS: Record<Platform, Playbook> = {
     ],
     dont: [
       "No bundle invitations or \"bundle to save\" lines.",
+      "If the seller gave no measurements, say nothing about measurements at all (never \"not provided\"). Never copy the seller's notes or to-dos (\"measure the waist\", \"confirm the size\").",
       "Never write step names such as \"Opening line:\" or \"Condition line:\" in the description.",
       "No commentary about the seller's own fit (\"too small for me\"). Describe the item, not the seller.",
       "No hashtag stuffing with brands or styles that do not describe this item.",

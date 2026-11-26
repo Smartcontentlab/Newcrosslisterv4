@@ -211,6 +211,13 @@ await test("stripTitleSize: sizes come off the end of titles, model numbers stay
   assert.equal(stripTitleSize("Sweaty Betty Power Leggings Teal Small"), "Sweaty Betty Power Leggings Teal");
 });
 
+await test("finishCopy: no bundle nudge, no internal to-dos, no step labels", () => {
+  const copy = finishCopy("poshmark", { title: "Old Navy Cargo Pants", brand: "Old Navy", condition: "good" }, { title: "Old Navy Cargo Pants", body: "Opening line: Navy cargo pants with an internal pocket.\nMeasurements: Not provided. Measure flat waist and inseam.\nBundle nudge: Bundle to save on shipping!\nCondition: good used condition." }, "m", []);
+  assert.ok(copy);
+  assert.doesNotMatch(copy!.description, /bundle|not provided|measure flat|Opening line/i);
+  assert.match(copy!.description, /internal pocket/);
+});
+
 await test("estimateWeight: typical packed weight, null when unknown", () => {
   assert.equal(estimateWeight({ title: "Lululemon Align Leggings" }), 0.6);
   assert.equal(estimateWeight({ title: "Nike Air Force 1 Sneakers" }), 2.3);

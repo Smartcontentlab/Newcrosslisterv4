@@ -139,6 +139,8 @@ export function guardBody(body: string, facts: CopyFacts): { body: string; warni
   return { body: keptLines.join("\n"), warnings: [...new Set(warnings)] };
 }
 
+const INTERNAL_SENTENCE = /not provided|not available|unavailable|\bn\/a\b|to be (?:added|confirmed)|needs? (?:verification|confirming|to be (?:measured|confirmed|checked))|unconfirmed|not (?:yet )?verified|measure (?:the )?(?:flat|pit|actual|relaxed|shoulder|bust|waist|rise|inseam|garment|length)|take (?:flat )?measurements|add (?:the )?(?:actual |flat )?(?:measurements?|inseam|waist)|check the (?:tag|label|inside|waistband|size)|confirm (?:the )?(?:size|brand|garment|lettering|style)|photograph the|before (?:selecting|choosing|posting|using)|seller notes?|internal (?:note|use|only)/i;
+
 function tidyBody(raw: string): string {
   return raw
     .replace(/\r/g, "")
@@ -152,6 +154,9 @@ function tidyBody(raw: string): string {
     .map((line) => line.replace(/^\s*(?:•\s*)?(?:opening line|details block|details|condition line|quick facts|facts list|bundle nudge|closing line|last line)\s*[:\-–]\s*/i, ""))
     // No bundle invitations (Shay's rule); a seller's own bundle info is added separately.
     .filter((line) => !/\bbundl/i.test(line))
+    // Internal to-dos never reach buyers: "Measurements: not provided", "measure flat waist", "unconfirmed"…
+    .map((line) => line.split(/(?<=[.!?])\s+/).filter((sentence) => !INTERNAL_SENTENCE.test(sentence)).join(" ").trimEnd())
+    .filter((line, index, lines) => line.trim() !== "" || (index > 0 && lines[index - 1].trim() !== ""))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
