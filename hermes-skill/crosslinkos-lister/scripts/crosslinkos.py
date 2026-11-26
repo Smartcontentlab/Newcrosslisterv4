@@ -18,6 +18,7 @@ Commands (all print JSON, so Hermes can read the result):
     scan                         folders not yet sent to CrossLinkOS
     ingest FOLDER                read photos, create the item, write the P/D/M drafts
     ingest-all                   send every new folder (drafts only; nothing is approved or posted)
+    redoc ID… | all              re-read the doc for sent items: price, lowest price, original price, condition
     msrp ID… | all               fill missing original prices with an AI estimate of the brand's retail price
     recopy ID… | all             rewrite each site's title + description with the generator (retries timeouts)
     item ID                      one item with its drafts (no photos)
@@ -422,16 +423,44 @@ def buyer_description(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
 
 
+def info_key(label: str) -> str | None:
+    """Map whatever Shay calls a field to one key: "Price to list", "List at", "Smart sell min",
+    "Min offer", "MSRP", "Retail" and so on."""
+    raw = re.sub(r"[^a-z]", "", label.lower())
+    if raw in INFO_KEYS:
+        return INFO_KEYS[raw]
+    words = set(re.findall(r"[a-z]+", label.lower()))
+    if words & {"min", "minimum", "lowest", "floor", "smart", "smartsell", "offer", "offers", "accept"}:
+        return "lowest"
+    if words & {"original", "msrp", "retail", "rrp", "new"} and words & {"price", "msrp", "retail", "rrp", "cost"} | {"msrp", "retail", "rrp"}:
+        return "originalprice"
+    if words & {"list", "listing", "asking", "sell", "selling", "suggested"} or raw in ("price", "listat", "listfor", "priceit"):
+        return "price"
+    if raw in ("cost", "paid", "ipaid", "costofgoods", "cog"):
+        return "cost"
+    return None
+
+
 def info_from_text(text: str) -> dict:
-    """Lines like "Listing price · $45", "Lowest price: $35" or "Condition · Like new" in Shay's doc or info.txt."""
+    """Lines like "Listing price · $45", "Price to list: 45", "Smart sell min · $35" or "Condition · Like new"
+    in Shay's doc or info.txt. A label alone on one line with its value on the next (a two-column
+    table in Word) counts too."""
     info: dict[str, str] = {}
-    for line in text.splitlines():
-        match = re.match(r"^\s*[-*•]?\s*([A-Za-z][A-Za-z /()]{1,30}?)\s*(?::|·)\s*(.+)$", line)
-        if not match:
+    lines = [line.strip() for line in text.splitlines()]
+    for index, line in enumerate(lines):
+        match = re.match(r"^[-*•]?\s*([A-Za-z][A-Za-z /()#&]{1,40}?)\s*(?::|·|-|–|=)\s*(.+)$", line)
+        if match:
+            label, value = match.group(1), match.group(2).strip()
+        elif (bare := re.match(r"^[-*•]?\s*([A-Za-z][A-Za-z /()#&]{1,40}?)\s+(\$\s*\d+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)$", line)) and info_key(bare.group(1)) in ("price", "lowest", "originalprice", "cost"):
+            label, value = bare.group(1), bare.group(2)  # "Suggested listing price $45"
+        elif re.fullmatch(r"[A-Za-z][A-Za-z /()#&]{1,40}", line or "") and index + 1 < len(lines) and re.fullmatch(r"\$?\s*\d+(?:\.\d{1,2})?|[A-Za-z][A-Za-z /-]{1,25}", lines[index + 1] or ""):
+            label, value = line, lines[index + 1]
+        else:
             continue
-        key = INFO_KEYS.get(re.sub(r"[^a-z]", "", match.group(1).lower()))
-        value = match.group(2).strip()
+        key = info_key(label)
         if not key or not value:
+            continue
+        if key in ("price", "lowest", "originalprice", "cost") and number(value) is None:
             continue
         if key == "measurements" and (re.search(r"not provided|unconfirmed|need|measure ", value, re.I) or not re.search(r"\d", value)):
             continue  # her notes on what still needs measuring, not measurements
@@ -780,6 +809,36 @@ def cmd_msrp(args) -> None:
         print(f"item {raw}: original price {price}  ({result['source']})", flush=True)
 
 
+def cmd_redoc(args) -> None:
+    """Re-read the descriptions doc (and info.txt) for items already sent and apply its price,
+    lowest price (Poshmark Automate Offers), original price and condition."""
+    folders = [f for f in item_folders() if (f / MARKER).exists()]
+    wanted = None if args.ids == ["all"] else {int(i) for i in args.ids}
+    for folder in folders:
+        item_id = json.loads((folder / MARKER).read_text())["itemId"]
+        if wanted is not None and item_id not in wanted:
+            continue
+        section = doc_section(folder)
+        info = {**info_from_text(section["text"]), **read_info(folder)}
+        fields, details = {}, {}
+        if number(info.get("price")) is not None:
+            fields["price"] = number(info["price"])
+        if info.get("condition"):
+            fields["condition"] = CONDITIONS.get(re.sub(r"[^a-z]", "", info["condition"].lower()), "good")
+        if number(info.get("originalprice")) is not None:
+            details["originalPrice"] = str(int(number(info["originalprice"])))
+            details["originalPriceSource"] = "your doc"
+        lowest, price = number(info.get("lowest")), number(info.get("price"))
+        if lowest is not None and (price is None or lowest < price):
+            details.update({"poshSmartSellMode": "minimum_price", "poshMinimumPrice": str(int(round(lowest))), "mercariSmartPriceFloor": str(int(round(lowest)))})
+        if os.environ.get("ORIGIN_ZIP"):
+            details["mercariOriginPostal"] = os.environ["ORIGIN_ZIP"].strip()
+        found = {k: info[k] for k in ("price", "lowest", "originalprice", "condition") if k in info}
+        if fields or details:
+            patch_item(item_id, fields, details)
+        print(f"item {item_id} ({folder.name}): " + (", ".join(f"{k} {v}" for k, v in found.items()) if found else "nothing found in the doc for this item"), flush=True)
+
+
 def cmd_recopy(args) -> None:
     """Throw away saved copy and have the generator write each site's title + description again."""
     ids = args.ids
@@ -842,6 +901,7 @@ def main() -> None:
     sub.add_parser("scan").set_defaults(run=cmd_scan)
     p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.set_defaults(run=cmd_ingest)
     sub.add_parser("ingest-all").set_defaults(run=cmd_ingest_all)
+    p = sub.add_parser("redoc"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.set_defaults(run=cmd_redoc)
     p = sub.add_parser("msrp"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.add_argument("--replace", action="store_true", help="replace an original price already set"); p.set_defaults(run=cmd_msrp)
     p = sub.add_parser("recopy"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.set_defaults(run=cmd_recopy)
     p = sub.add_parser("item"); p.add_argument("id", type=int); p.set_defaults(run=cmd_item)

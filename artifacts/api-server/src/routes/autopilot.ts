@@ -15,7 +15,7 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { db, itemsTable, marketplaceDraftsTable, type ItemPhotoRecord } from "@workspace/db";
+import { db, itemsTable, marketplaceDraftsTable, userProfilesTable, type ItemPhotoRecord } from "@workspace/db";
 import { getAuthenticatedUser } from "../lib/auth";
 import { IMAGE_DATA_URL, MAX_INLINE_IMAGE_CHARS } from "../lib/photo-read";
 import { classifyPhotos } from "../lib/photo-role";
@@ -71,6 +71,10 @@ router.post("/autopilot/items", async (request, response): Promise<void> => {
   for (const key of ["subcategory", "department", "secondaryColor", "material", "pattern", "style"] as const) if (facts[key]) marketplaceDetails[key] = facts[key];
   if (facts.flaws?.length) marketplaceDetails.flaws = facts.flaws.join("; ");
   marketplaceDetails.autopilot = { source: "hermes", folder, createdAt };
+  // Origin ZIP from Settings > Default shipping origin.
+  const [profile] = await db.select({ settings: userProfilesTable.settings }).from(userProfilesTable).where(eq(userProfilesTable.id, userId));
+  const zip = /\b\d{5}\b/.exec(String((profile?.settings as { defaultShippingOrigin?: string } | undefined)?.defaultShippingOrigin ?? ""))?.[0];
+  if (zip) marketplaceDetails.mercariOriginPostal = zip;
   // The seller's title and description (from her batch doc) are facts: the drafts' copy generator
   // writes each marketplace's version in that site's style from them, with sizes kept out of titles.
   const weight = estimateWeight({ title, model: facts.model, category: facts.category, subcategory: facts.subcategory });

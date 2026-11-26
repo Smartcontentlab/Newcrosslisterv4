@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiFetch } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth-context';
 
 const CATEGORIES = ['Clothing', 'Sneakers', 'Electronics', 'Accessories', 'Home & Garden', 'Collectibles', 'Books', 'Games', 'Toys', 'Sports', 'Beauty', 'Other'];
 const CONDITIONS = [
@@ -143,6 +144,12 @@ export default function ListingStudio() {
   const [backgroundStyle, setBackgroundStyle] = useState<'white' | 'textured_slate'>('white');
   const [ship, setShip] = useState<ShipAssumptions>(initialShip);
   const [marketplaceDetails, setMarketplaceDetails] = useState<MarketplaceDetails>(initialMarketplaceDetails);
+  // Origin ZIP comes from Settings > Default shipping origin, so it never has to be typed per item.
+  const { profile } = useAuth();
+  const defaultZip = /\b\d{5}\b/.exec(String((profile?.settings as { defaultShippingOrigin?: string } | undefined)?.defaultShippingOrigin ?? ''))?.[0] ?? '';
+  useEffect(() => {
+    if (defaultZip && !marketplaceDetails.mercariOriginPostal) setMarketplaceDetails((current) => (current.mercariOriginPostal ? current : { ...current, mercariOriginPostal: defaultZip }));
+  }, [defaultZip, marketplaceDetails.mercariOriginPostal]);
   const [itemId, setItemId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<MarketplaceDraft[]>([]);
   const [isDragging, setIsDragging] = useState(false);
