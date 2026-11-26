@@ -19,7 +19,8 @@ Commands (all print JSON, so Hermes can read the result):
     ingest FOLDER                read photos, create the item, write the P/D/M drafts
     ingest-all                   send every new folder (drafts only; nothing is approved or posted)
     redoc ID… | all              re-read the doc for sent items: price, lowest price, original price, condition
-    msrp ID… | all               fill missing original prices with an AI estimate of the brand's retail price
+    needs-msrp                   items still missing a real original price (for Hermes to look up)
+    msrp ID… | all               fill missing original prices with an AI estimate (fallback only)
     recopy ID… | all             rewrite each site's title + description with the generator (retries timeouts)
     item ID                      one item with its drafts (no photos)
     update ID [--price ...]      save research (price, original price, sizes, notes)
@@ -434,8 +435,8 @@ def info_key(label: str) -> str | None:
         return "lowest"
     if words & {"original", "msrp", "retail", "rrp", "new"} and words & {"price", "msrp", "retail", "rrp", "cost"} | {"msrp", "retail", "rrp"}:
         return "originalprice"
-    if words & {"list", "listing", "asking", "sell", "selling", "suggested"} or raw in ("price", "listat", "listfor", "priceit"):
-        return "price"
+    if words & {"list", "listing", "asking", "sell", "selling", "suggested", "price", "prices"} or raw in ("price", "listat", "listfor", "priceit"):
+        return "price"  # "SUGGESTED PRICE", "Suggeted price", "Price to list"…
     if raw in ("cost", "paid", "ipaid", "costofgoods", "cog"):
         return "cost"
     return None
@@ -453,8 +454,8 @@ def info_from_text(text: str) -> dict:
             label, value = match.group(1), match.group(2).strip()
         elif (bare := re.match(r"^[-*•]?\s*([A-Za-z][A-Za-z /()#&]{1,40}?)\s+(\$\s*\d+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)$", line)) and info_key(bare.group(1)) in ("price", "lowest", "originalprice", "cost"):
             label, value = bare.group(1), bare.group(2)  # "Suggested listing price $45"
-        elif re.fullmatch(r"[A-Za-z][A-Za-z /()#&]{1,40}", line or "") and index + 1 < len(lines) and re.fullmatch(r"\$?\s*\d+(?:\.\d{1,2})?|[A-Za-z][A-Za-z /-]{1,25}", lines[index + 1] or ""):
-            label, value = line, lines[index + 1]
+        elif re.fullmatch(r"[A-Za-z][A-Za-z /()#&]{1,40}\s*[:·]?", line or "") and index + 1 < len(lines) and re.fullmatch(r"\$?\s*\d+(?:\.\d{1,2})?|[A-Za-z][A-Za-z /-]{1,25}", lines[index + 1] or ""):
+            label, value = line.rstrip(" :·"), lines[index + 1]
         else:
             continue
         key = info_key(label)
@@ -559,7 +560,12 @@ def cmd_ingest(args) -> None:
     elif extra:
         patch_item(item_id, {}, extra)
 
-    msrp = {"originalPrice": int(number(extra["originalPrice"])), "source": "your doc"} if extra.get("originalPrice") else estimate_msrp(item_id)
+    if extra.get("originalPrice"):
+        msrp = {"originalPrice": int(number(extra["originalPrice"])), "source": "your doc"}
+    elif args.estimate_msrp:
+        msrp = estimate_msrp(item_id)
+    else:
+        msrp = {"originalPrice": None, "source": "not in the doc: Hermes looks it up (cl needs-msrp)"}
     drafts = [] if args.no_drafts else generate_drafts(item_id)[0]
     (folder / MARKER).write_text(json.dumps({"itemId": item_id, "sentAt": datetime.now(timezone.utc).isoformat()}))
     print(json.dumps({
@@ -677,6 +683,7 @@ def cmd_update(args) -> None:
         fields["weight"] = args.weight
     if args.original_price is not None:
         details["originalPrice"] = str(int(round(args.original_price)))
+        details["originalPriceSource"] = {"by": "looked up", "note": (args.research or "")[:300], "at": datetime.now(timezone.utc).isoformat()}
     if args.size:
         details["sizeCheck"] = {"written": args.size, "status": "confirmed by Shay"}
     if args.lowest is not None:
@@ -799,6 +806,23 @@ def estimate_msrp(item_id: int, replace: bool = False) -> dict:
     return {"originalPrice": None, "source": f"not estimated: {result.get('reason', 'no brand')}. Add it yourself: cl update {item_id} --original-price N"}
 
 
+def cmd_needs_msrp(_args) -> None:
+    """Items sent from the folders that still have no original price, with what Hermes needs to look it up."""
+    out = []
+    for folder in item_folders():
+        if not (folder / MARKER).exists():
+            continue
+        item_id = json.loads((folder / MARKER).read_text())["itemId"]
+        item = api("GET", f"/workflow/items/{item_id}")["item"]
+        details = item.get("marketplaceDetails") or {}
+        source = details.get("originalPriceSource")
+        if not details.get("originalPrice") or (isinstance(source, dict) and source.get("by") == "AI estimate"):
+            out.append({"itemId": item_id, "title": item["title"], "brand": item.get("brand"), "style": item.get("model"), "material": details.get("material"),
+                        "current": details.get("originalPrice"), "currentIs": "AI estimate" if isinstance(source, dict) else None,
+                        "save": f'cl update {item_id} --original-price N --research "MSRP $N from <site/link>"'})
+    print(json.dumps({"count": len(out), "items": out}, indent=2))
+
+
 def cmd_msrp(args) -> None:
     ids = args.ids
     if ids == ["all"]:
@@ -899,9 +923,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="CrossLinkOS helper for Hermes")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("scan").set_defaults(run=cmd_scan)
-    p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.set_defaults(run=cmd_ingest)
+    p = sub.add_parser("ingest"); p.add_argument("folder"); p.add_argument("--force", action="store_true"); p.add_argument("--no-drafts", action="store_true"); p.add_argument("--keep-order", action="store_true", help="use the folder's photo order; skip cover picking"); p.add_argument("--estimate-msrp", action="store_true", help="fill a missing original price with an AI estimate"); p.set_defaults(run=cmd_ingest)
     sub.add_parser("ingest-all").set_defaults(run=cmd_ingest_all)
     p = sub.add_parser("redoc"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.set_defaults(run=cmd_redoc)
+    sub.add_parser("needs-msrp").set_defaults(run=cmd_needs_msrp)
     p = sub.add_parser("msrp"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.add_argument("--replace", action="store_true", help="replace an original price already set"); p.set_defaults(run=cmd_msrp)
     p = sub.add_parser("recopy"); p.add_argument("ids", nargs="+", help="item ids, or: all"); p.set_defaults(run=cmd_recopy)
     p = sub.add_parser("item"); p.add_argument("id", type=int); p.set_defaults(run=cmd_item)

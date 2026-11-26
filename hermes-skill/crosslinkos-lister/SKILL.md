@@ -143,11 +143,15 @@ size: 6
 notes: tiny pill on inner thigh
 ```
 
-## Original price (MSRP)
+## Original price (MSRP): your job
 
-`ingest` fills a missing original price with an AI estimate of the brand's retail price (saved as an
-estimate). `cl msrp all` does the same for items already sent. When you can, confirm it on the brand's
-site and save the real one with `cl update <id> --original-price N`. Tell Shay which prices are estimates.
+Shay wants the real original retail price looked up, not guessed. Run `cl needs-msrp`: it lists every
+item with no original price (or only an AI estimate). For each one, search the web for that exact item
+(brand + style name + item type): the brand's own site first, then big retailers (Nordstrom, REI, the
+brand's archive pages), then resale listings that quote the retail price. Save it with
+`cl update <id> --original-price N --research "MSRP $N from <site or link>"`. If you truly can't find
+it, say so in the summary rather than guessing. (`cl msrp <id>` gives an AI estimate only as a last
+resort, and only if Shay says that's OK.)
 
 ## Descriptions
 
