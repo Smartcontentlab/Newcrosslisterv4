@@ -154,7 +154,7 @@ export async function tick({ manual = false } = {}) {
       await log(n ? `Shared ${n} listing${n === 1 ? '' : 's'} to followers.` : 'Nothing to share right now (all shared in the last 3 hours).');
       if (result.stop && result.stop !== 'stopped') { await stopFor(result.stop, result.message); return; }
     } else if (task === 'followBack') {
-      const tabId = await toolTab(`https://poshmark.com/closet/${p.me}/followers`);
+      const tabId = await toolTab(`https://poshmark.com/user/${p.me}/followers`);
       const result = await ask(tabId, { type: 'POSH_TASK', task: 'follow', max: session(p.day.cap.followBack - p.day.followBack), ...pace });
       const n = result.followed ?? 0;
       // Nobody new to follow back: stop spending today's follow-back budget on it.
@@ -183,7 +183,7 @@ export async function tick({ manual = false } = {}) {
         closets = { ...closets, ownerFollowed: true };
       }
       if (!stop) {
-        const tabId = await toolTab(`https://poshmark.com/closet/${closets.current}/followers`);
+        const tabId = await toolTab(`https://poshmark.com/user/${closets.current}/followers`);
         const result = await ask(tabId, { type: 'POSH_TASK', task: 'follow', max: session(p.day.cap.follow - p.day.follow - followed), ...pace });
         followed += result.followed ?? 0; stop = result.stop; exhausted = Boolean(result.exhausted);
       }

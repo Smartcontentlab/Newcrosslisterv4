@@ -58,6 +58,11 @@
   /** The signed-in seller's Poshmark username, from whatever the page offers. */
   function myUsername() {
     const handle = (h) => (h && /^[A-Za-z0-9_.-]{2,40}$/.test(h) ? h : null);
+    // 0. The header's own "@username" link to the seller's closet (what Poshmark shows in Nov 2026).
+    const at = [...document.querySelectorAll("header a[href^='/closet/'], nav a[href^='/closet/'], a[href^='/closet/']")]
+      .find((a) => /^@/.test((a.textContent || '').trim()));
+    const fromAt = handle(at?.getAttribute('href')?.split('/closet/')[1]?.split(/[/?#]/)[0]);
+    if (fromAt) return fromAt;
     // 1. Poshmark's "ui" cookie holds the signed-in user's display handle (dh).
     try {
       const raw = document.cookie.split('; ').find((c) => c.startsWith('ui='));
@@ -80,15 +85,25 @@
     const href = tile.querySelector("a[href*='/listing/']")?.getAttribute('href') ?? '';
     return href.split('?')[0].split('-').pop() || null;
   };
-  const listingTiles = () => [...document.querySelectorAll("[data-et-name='listing'], .card, .tile, [class*='tile' i]")]
-    .filter((el) => el.querySelector("a[href*='/listing/']") && !el.parentElement?.closest("[data-et-name='listing'], .card, .tile"));
+  // One tile per listing: built from each listing's own Share button, so page wrappers that hold
+  // many listings never count as a tile.
+  const listingTiles = () => {
+    const tiles = new Set();
+    for (const share of document.querySelectorAll("[data-et-name='share']")) {
+      let tile = share.closest(".tile-grid-redesign, [class*='tiles_container__tile'], .card, .tile");
+      if (!tile) { tile = share; while (tile && !tile.querySelector("a[href*='/listing/']")) tile = tile.parentElement; }
+      if (tile && tile !== document.body && tile.querySelector("a[href*='/listing/']")) tiles.add(tile);
+    }
+    return [...tiles];
+  };
 
   function shareButtonIn(tile) {
-    return tile.querySelector("[data-et-name='share'], [aria-label*='share' i], [class*='share' i] button, button[class*='share' i], i[class*='share' i]")
+    return tile.querySelector("[data-et-name='share']") || tile.querySelector("[aria-label*='share' i], [class*='share' i] button, button[class*='share' i], i[class*='share' i]")
       || [...tile.querySelectorAll('button, a, i, span')].find((el) => text(el) === 'share');
   }
-  const toFollowersOption = () => [...document.querySelectorAll("[role='dialog'] *, .modal *, [class*='modal' i] *, [class*='share' i] *")]
-    .find((el) => visible(el) && /^(share )?to my followers$/.test(text(el)) && (el.closest('a, button, li, [role="button"]') || el));
+  const toFollowersOption = () => [...document.querySelectorAll("[data-et-name='share_to_followers']")].find(visible)
+    || [...document.querySelectorAll("[role='dialog'] *, .modal *, [class*='modal' i] *, [class*='share' i] *, .dropdown__link")]
+      .find((el) => visible(el) && /^(share )?to (my )?followers$/.test(text(el)));
 
   async function shareSession({ max, skip, minPause, maxPause }) {
     const shared = [];
@@ -119,8 +134,11 @@
 
   // ------------------------------------------------------------------ follow
 
-  const followButtons = () => [...document.querySelectorAll("button, [role='button'], a.btn, a[class*='follow' i]")]
-    .filter((el) => visible(el) && text(el) === 'follow');
+  const followButtons = () => {
+    const own = [...document.querySelectorAll("button[data-et-name='follow_user']")].filter((el) => visible(el) && text(el) === 'follow');
+    if (own.length) return own;
+    return [...document.querySelectorAll("button, [role='button'], a.btn, a[class*='follow' i]")].filter((el) => visible(el) && text(el) === 'follow');
+  };
 
   async function followSession({ max, minPause, maxPause }) {
     let followed = 0;
@@ -152,11 +170,23 @@
     return { followed, stop: null, exhausted: followed < max };
   }
 
-  /** Closets that show up in the feed: the people to follow, and whose followers to follow next. */
+  /** Sellers of the listings in the feed: the people to follow, and whose followers to follow next.
+   *  Feed tiles don't show the seller, so each listing page is read (a normal page load, paced). */
   async function feedClosets({ me }) {
-    await scrollToLoad(120, () => document.querySelectorAll("a[href^='/closet/']").length, 8);
-    const names = [...document.querySelectorAll("a[href^='/closet/']")].map((a) => a.getAttribute('href').split('/')[2]?.split('?')[0]).filter(Boolean);
-    return { closets: [...new Set(names)].filter((n) => n !== me).slice(0, 60), stop: blocker() };
+    await scrollToLoad(60, () => document.querySelectorAll("a[href*='/listing/']").length, 4);
+    const listings = [...new Set([...document.querySelectorAll("a[href*='/listing/']")].map((a) => a.getAttribute('href').split('?')[0]))].slice(0, 24);
+    const sellers = new Set();
+    for (const href of listings) {
+      if (stopRequested || sellers.size >= 15) break;
+      const block = blocker(); if (block) return { closets: [...sellers], stop: block };
+      try {
+        const html = await fetch(href, { credentials: 'include' }).then((r) => (r.ok ? r.text() : ''));
+        const seller = [...html.matchAll(/href="\/closet\/([A-Za-z0-9_.-]+)/g)].map((m) => m[1]).find((n) => n.toLowerCase() !== String(me).toLowerCase());
+        if (seller) sellers.add(seller);
+      } catch { /* skip that listing */ }
+      await sleep(between(1200, 2600));
+    }
+    return { closets: [...sellers], stop: blocker() };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
