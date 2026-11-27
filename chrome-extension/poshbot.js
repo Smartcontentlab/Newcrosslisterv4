@@ -105,7 +105,7 @@ async function stopFor(reason, detail) {
   const words = {
     captcha: 'Poshmark is showing a CAPTCHA / security check. Solve it in the Poshmark window, then press Resume.',
     limit: 'Poshmark said to slow down (a limit or "try again later"). Closet Tools paused; wait an hour or two, then press Resume.',
-    signed_out: 'You are signed out of Poshmark in Chrome. Sign in, then press Resume.',
+    signed_out: 'Could not find your Poshmark username. Type it in "Your Poshmark username" above (or sign in to poshmark.com in Chrome), then press Resume.',
     error: `Something went wrong on Poshmark${detail ? `: ${detail}` : ''}. Paused to be safe; press Resume to try again.`,
   };
   const message = words[reason] ?? words.error;
@@ -213,6 +213,7 @@ export async function setPoshSettings(patch) {
     ...(patch.features ? { features: { ...p.features, ...patch.features } } : {}),
     ...(patch.hours ? { hours: { ...p.hours, ...patch.hours } } : {}),
     ...(patch.caps ? { caps: { ...p.caps, ...patch.caps }, day: { ...p.day, date: '' } } : {}),
+    ...(typeof patch.me === 'string' ? { me: patch.me.trim().replace(/^@/, '').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 40) || null } : {}),
   });
   return next;
 }

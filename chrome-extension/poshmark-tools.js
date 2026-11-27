@@ -55,12 +55,23 @@
     window.scrollTo(0, 0);
   }
 
+  /** The signed-in seller's Poshmark username, from whatever the page offers. */
   function myUsername() {
-    const link = [...document.querySelectorAll("a[href^='/closet/']")].find((a) => /my closet/.test(text(a)));
-    const fromLink = link?.getAttribute('href')?.split('/')[2];
+    const handle = (h) => (h && /^[A-Za-z0-9_.-]{2,40}$/.test(h) ? h : null);
+    // 1. Poshmark's "ui" cookie holds the signed-in user's display handle (dh).
+    try {
+      const raw = document.cookie.split('; ').find((c) => c.startsWith('ui='));
+      if (raw) { const ui = JSON.parse(decodeURIComponent(raw.slice(3))); const h = handle(ui?.dh); if (h) return h; }
+    } catch { /* not there or not JSON */ }
+    // 2. The account menu's "My Closet" link (textContent also reads the hidden dropdown).
+    const closetLinks = [...document.querySelectorAll("a[href^='/closet/'], a[href*='poshmark.com/closet/']")];
+    const mine = closetLinks.find((a) => /my closet/i.test(a.textContent || a.getAttribute('aria-label') || a.getAttribute('title') || ''))
+      || document.querySelector("a[href*='/closet/'][data-et-name='closet' i], a[href*='/closet/'][data-et-name='my_closet' i], header a[href*='/closet/'] img[class*='avatar' i]")?.closest('a');
+    const fromLink = handle(mine?.getAttribute('href')?.split('/closet/')[1]?.split(/[/?#]/)[0]);
     if (fromLink) return fromLink;
-    const meta = document.querySelector("a[href*='/closet/'][data-et-name='closet' i], a[href*='/closet/'][data-et-name='my_closet' i]");
-    return meta?.getAttribute('href')?.split('/')[2] ?? null;
+    // 3. The header avatar link usually points at the seller's own closet.
+    const avatar = [...document.querySelectorAll("header a[href*='/closet/'], nav a[href*='/closet/']")].find((a) => a.querySelector('img'));
+    return handle(avatar?.getAttribute('href')?.split('/closet/')[1]?.split(/[/?#]/)[0]);
   }
 
   // ------------------------------------------------------------------ share

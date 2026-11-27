@@ -138,6 +138,7 @@ const poshStatus = poshEl('posh-status');
 
 function renderPosh(p) {
   if (!p) return;
+  if (document.activeElement !== poshEl('posh-me')) poshEl('posh-me').value = p.me || '';
   poshEl('posh-share').checked = p.features.share;
   poshEl('posh-follow').checked = p.features.follow;
   poshEl('posh-followback').checked = p.features.followBack;
@@ -160,6 +161,7 @@ async function savePoshSettings() {
     hours: { start: Math.min(23, numberOf('posh-start', 8)), end: Math.min(24, Math.max(1, numberOf('posh-end', 23))) },
   } });
 }
+poshEl('posh-me').addEventListener('change', () => { void poshSend({ type: 'POSH_SETTINGS', patch: { me: poshEl('posh-me').value } }); });
 for (const id of ['posh-share', 'posh-follow', 'posh-followback', 'posh-cap-share', 'posh-cap-follow', 'posh-cap-followback', 'posh-start', 'posh-end']) poshEl(id).addEventListener('change', () => { void savePoshSettings(); });
 poshToggle.addEventListener('click', async () => {
   const { posh } = await chrome.runtime.sendMessage({ type: 'POSH_GET' });
