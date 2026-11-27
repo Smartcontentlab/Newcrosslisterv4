@@ -25,7 +25,7 @@ import {
 import { getAuthenticatedUser } from "../lib/auth";
 import { enqueueDelistingTasksForSale } from "../lib/marketplace-workflow";
 import { DEFAULT_SHIPPING_STEPS } from "./orders";
-import { estimateFees, listingKey, titleMatch } from "../lib/offer-match";
+import { estimateFees, listingKey, titleFromSlug, titleMatch } from "../lib/offer-match";
 
 const router: IRouter = Router();
 
@@ -148,25 +148,37 @@ router.post("/offers/sync", async (request, response): Promise<void> => {
     if (gone.length) await db.update(marketplaceOffersTable).set({ status: "gone" }).where(inArray(marketplaceOffersTable.id, gone));
   }
 
-  for (const entry of sales) {
-    const externalKey = entryKey(entry);
+  const RECENT_ON_FIRST_READ = 5; // newest sales on a first read stay visible to tie to an item
+  for (const [index, raw] of sales.entries()) {
+    // Depop's sold list often shows only a photo and price: read the title from the link's slug.
+    const entry = { ...raw, listingTitle: raw.listingTitle || titleFromSlug(raw.listingUrl) || undefined };
+    const externalKey = entryKey(raw);
     const before = existingByKey.get(`sale:${externalKey}`);
-    if (before) { await db.update(marketplaceOffersTable).set({ lastSeenAt: now }).where(eq(marketplaceOffersTable.id, before.id)); continue; }
-    const itemId = match(entry);
-    // First read of a site: unmatched sales are old history (sold before CrossLinkOS). A sale that
-    // matches an item CrossLinkOS still shows as unsold is real and gets recorded either way.
-    let status = itemId ? "recorded" : firstSalesRead ? "history" : "unmatched";
+    const itemId = before?.itemId ?? match(entry);
+    if (before && !(before.status === "history" && !before.orderId && (itemId || index < RECENT_ON_FIRST_READ))) {
+      await db.update(marketplaceOffersTable).set({ lastSeenAt: now, listingTitle: before.listingTitle ?? entry.listingTitle ?? null }).where(eq(marketplaceOffersTable.id, before.id));
+      continue;
+    }
+    // Unmatched sales: on a site's first read only the newest few are shown (older ones are history
+    // from before CrossLinkOS). A sale matching an item CrossLinkOS still shows unsold is always recorded.
+    let status = itemId ? "recorded" : (firstSalesRead || before) && index >= RECENT_ON_FIRST_READ ? "history" : "unmatched";
     let orderId: number | null = null;
     if (status === "recorded" && itemId) {
       const [item] = await db.select({ status: itemsTable.status }).from(itemsTable).where(and(eq(itemsTable.id, itemId), eq(itemsTable.userId, userId)));
       if (item?.status === "sold") status = "history"; // already recorded (by hand or earlier)
       else orderId = (await recordSale(userId, itemId, marketplace, entry.amount, entry.buyer ?? null))?.id ?? null;
     }
-    await db.insert(marketplaceOffersTable).values({
-      userId, marketplace, kind: "sale", externalKey, itemId, listingUrl: entry.listingUrl ?? null,
-      listingTitle: entry.listingTitle ?? null, amount: entry.amount, buyer: entry.buyer ?? null, detail: entry.detail ?? null,
-      status, orderId, firstSeenAt: now, lastSeenAt: now,
-    }).onConflictDoNothing();
+    if (before) {
+      if (status === "history") { await db.update(marketplaceOffersTable).set({ lastSeenAt: now }).where(eq(marketplaceOffersTable.id, before.id)); continue; }
+      await db.update(marketplaceOffersTable).set({ itemId, status, orderId, lastSeenAt: now, firstSeenAt: now, listingTitle: entry.listingTitle ?? before.listingTitle })
+        .where(eq(marketplaceOffersTable.id, before.id));
+    } else {
+      await db.insert(marketplaceOffersTable).values({
+        userId, marketplace, kind: "sale", externalKey, itemId, listingUrl: entry.listingUrl ?? null,
+        listingTitle: entry.listingTitle ?? null, amount: entry.amount, buyer: entry.buyer ?? null, detail: entry.detail ?? null,
+        status, orderId, firstSeenAt: now, lastSeenAt: now,
+      }).onConflictDoNothing();
+    }
     if (status !== "history") newSales.push({ title: entry.listingTitle ?? "an item", amount: entry.amount, recorded: status === "recorded" });
   }
 

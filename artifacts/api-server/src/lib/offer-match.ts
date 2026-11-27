@@ -26,3 +26,13 @@ export function estimateFees(marketplace: string, amount: number): number {
   if (marketplace === "depop") return Math.round((amount * 0.033 + 0.45) * 100) / 100;
   return Math.round(amount * 0.1 * 100) / 100;
 }
+
+/** Words of a Depop product slug ("vibehuntingsf-aritzia-cream-cardigan-1a2b") as a rough title. */
+export function titleFromSlug(url: string | null | undefined): string | null {
+  const slug = /\/products\/([^/?#]+)/i.exec(url ?? "")?.[1];
+  if (!slug) return null;
+  const parts = decodeURIComponent(slug).split("-").filter((w) => w && !/^[0-9a-f]{4,}$/i.test(w));
+  if (parts.length > 2) parts.shift(); // first part is the shop name
+  const title = parts.join(" ").trim();
+  return title ? title.replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+}

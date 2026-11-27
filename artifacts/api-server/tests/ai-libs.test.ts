@@ -240,5 +240,7 @@ console.log(`\n${passed} tests passed`);
   assert.equal(estimateFees("poshmark", 10), 2.95);
   assert.equal(estimateFees("poshmark", 50), 10);
   assert.equal(estimateFees("depop", 40), 1.77);
-  console.log("ok  - offers inbox matching (8 checks)");
+  const { titleFromSlug } = await import("../src/lib/offer-match");
+  assert.equal(titleFromSlug("https://www.depop.com/products/vibehuntingsf-aritzia-cream-cardigan-1a2b/"), "Aritzia Cream Cardigan");
+  console.log("ok  - offers inbox matching (9 checks)");
 }
