@@ -188,3 +188,31 @@ watchEl('watch-now').addEventListener('click', async () => { await chrome.runtim
 watchEl('watch-open').addEventListener('click', () => { void chrome.tabs.create({ url: 'https://crosslinkos.vercel.app/offers' }); });
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.watch) renderWatch(changes.watch.newValue); });
 void chrome.runtime.sendMessage({ type: 'WATCH_GET' }).then((r) => renderWatch(r?.watch));
+
+// ---------------------------------------------------------- Sold -> delist now
+const siteName = (m) => ({ poshmark: 'Poshmark', depop: 'Depop', mercari: 'Mercari' }[m] ?? m ?? '');
+function renderDelists(d) {
+  const tasks = d?.tasks ?? [];
+  const box = document.querySelector('#delists');
+  box.hidden = tasks.length === 0;
+  document.querySelector('#delist-list').innerHTML = tasks.map((t) => `<div class="delist"><div><strong>${escapeHtml(t.itemTitle)}</strong></div><p class="meta">Sold on ${escapeHtml(siteName(t.soldOn) || 'another site')}${t.soldFor ? ` for $${Number(t.soldFor).toFixed(2)}` : ''} · still listed on <strong>${escapeHtml(siteName(t.marketplace))}</strong></p><div class="row">${t.listingUrl ? `<button class="primary" data-open="${escapeHtml(t.listingUrl)}">Open ${escapeHtml(siteName(t.marketplace))} listing</button>` : `<button data-open="https://crosslinkos.vercel.app/orders">Open Orders</button>`}<button class="accent" data-done="${t.id}">I delisted it</button></div></div>`).join('');
+}
+document.querySelector('#delist-list').addEventListener('click', async (event) => {
+  const open = event.target.closest('[data-open]'); const done = event.target.closest('[data-done]');
+  if (open) { void chrome.tabs.create({ url: open.dataset.open }); return; }
+  if (done) {
+    done.disabled = true;
+    const r = await chrome.runtime.sendMessage({ type: 'DELIST_DONE', id: done.dataset.done });
+    document.querySelector('#delist-status').textContent = r?.ok ? 'Marked delisted.' : (r?.message || 'Could not save.');
+    if (r?.ok) renderDelists(r.delists); else done.disabled = false;
+  }
+});
+document.querySelector('#delist-verify').addEventListener('click', async () => {
+  const status = document.querySelector('#delist-status'); status.textContent = 'Checking each listing (a small window opens, then closes)…';
+  const r = await chrome.runtime.sendMessage({ type: 'DELIST_VERIFY' });
+  status.textContent = r?.ok ? `Checked ${r.checked}; ${r.closed} confirmed gone.${r.checked > r.closed ? ' The rest still look live.' : ''}` : (r?.message || 'Check failed.');
+  if (r?.ok) renderDelists(r.delists);
+});
+document.querySelector('#delist-refresh').addEventListener('click', async () => { const r = await chrome.runtime.sendMessage({ type: 'DELIST_REFRESH' }); renderDelists(r?.delists); });
+chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.delists) renderDelists(changes.delists.newValue); });
+void chrome.runtime.sendMessage({ type: 'DELIST_REFRESH' }).then((r) => renderDelists(r?.delists)).catch(() => undefined);

@@ -345,12 +345,20 @@ router.post("/workflow/items/:id/mark-sold", async (request, response): Promise<
 });
 router.get("/workflow/delisting-tasks", async (_request, response): Promise<void> => {
   const userId = getAuthenticatedUser(response).id;
-  const [tasks, items] = await Promise.all([
+  const [tasks, items, drafts, orders] = await Promise.all([
     db.select().from(delistingTasksTable).where(eq(delistingTasksTable.userId, userId)).orderBy(desc(delistingTasksTable.createdAt)),
     db.select({ id: itemsTable.id, title: itemsTable.title }).from(itemsTable).where(eq(itemsTable.userId, userId)),
+    db.select({ id: marketplaceDraftsTable.id, itemId: marketplaceDraftsTable.itemId, marketplace: marketplaceDraftsTable.marketplace, externalUrl: marketplaceDraftsTable.externalUrl }).from(marketplaceDraftsTable).where(eq(marketplaceDraftsTable.userId, userId)),
+    db.select({ id: ordersTable.id, marketplace: ordersTable.marketplace, salePrice: ordersTable.salePrice }).from(ordersTable).where(eq(ordersTable.userId, userId)),
   ]);
   const itemMap = new Map(items.map((item) => [item.id, item.title]));
-  response.json(tasks.map((task) => ({ ...task, itemTitle: itemMap.get(task.itemId) ?? "Unknown item" })));
+  const orderMap = new Map(orders.map((order) => [order.id, order]));
+  // listingUrl: where to delist it (the live listing on that site), so the seller gets there in one click.
+  response.json(tasks.map((task) => {
+    const draft = drafts.find((d) => d.id === task.marketplaceDraftId) ?? drafts.find((d) => d.itemId === task.itemId && d.marketplace === task.marketplace);
+    const order = task.orderId ? orderMap.get(task.orderId) : undefined;
+    return { ...task, itemTitle: itemMap.get(task.itemId) ?? "Unknown item", listingUrl: draft?.externalUrl ?? null, soldOn: order?.marketplace ?? null, soldFor: order?.salePrice ?? null };
+  }));
 });
 router.patch("/workflow/delisting-tasks/:id", async (request, response): Promise<void> => {
   const parsed = z.object({ status: z.enum(["pending", "in_progress", "completed", "failed"]), note: z.string().optional() }).safeParse(request.body);

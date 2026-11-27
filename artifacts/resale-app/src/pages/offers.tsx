@@ -9,6 +9,7 @@ import { ago, groupOffers, siteLabel, type OfferItem, type OfferRow } from '@/li
 
 type InboxData = { offers: OfferRow[]; items: OfferItem[]; lastRead: Record<string, string> };
 type PickItem = { id: number; title: string; status: string };
+type DelistTask = { id: number; itemTitle: string; marketplace: string; status: string; listingUrl: string | null; soldOn: string | null; soldFor: number | null; createdAt: string };
 
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value || 0));
 const OFFER_PAGES: Record<string, string> = { poshmark: 'https://poshmark.com/offers/my_offers', depop: 'https://www.depop.com/sellinghub/offers/' };
@@ -39,6 +40,18 @@ export default function Offers() {
   const recordedSales = rows.filter((r) => r.kind === 'sale' && r.status === 'recorded');
   const groups = useMemo(() => groupOffers(rows, query.data?.items ?? []), [rows, query.data?.items]);
   const liveCount = groups.reduce((n, g) => n + g.offers.filter((o) => !o.stale).length, 0);
+
+  const delistQuery = useQuery({
+    queryKey: ['offers', 'delists'],
+    queryFn: async () => {
+      const response = await apiFetch('/api/workflow/delisting-tasks');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load delist tasks');
+      return (data as DelistTask[]).filter((t) => ['pending', 'in_progress', 'failed'].includes(t.status));
+    },
+    refetchInterval: 5 * 60 * 1000,
+  });
+  const delists = delistQuery.data ?? [];
 
   const itemsQuery = useQuery({
     queryKey: ['offers', 'pick-items'],
@@ -73,11 +86,22 @@ export default function Offers() {
     <PageHeader
       label="Sales / offers"
       title="Offers & sales"
-      badge={liveCount ? `${liveCount} open` : undefined}
+      badge={delists.length ? `${delists.length} to delist` : liveCount ? `${liveCount} open` : undefined}
       description="Offers from Poshmark and Depop side by side, ranked by what you'd actually keep after fees. Accept or counter on the marketplace; this page never answers for you."
       actions={<button type="button" onClick={() => void refresh()} className="inline-flex h-[42px] items-center justify-center gap-2 border-2 border-foreground bg-card px-[18px] text-xs font-extrabold uppercase tracking-[0.05em] text-foreground transition-[background-color,transform] duration-150 hover:bg-muted active:scale-95"><RefreshCw size={16} />Refresh</button>}
     />
     <p className="text-xs text-muted-foreground">{readLine}. The Chrome extension checks every few hours; press <span className="font-semibold text-foreground">Check now</span> in its side panel for a fresh read.</p>
+
+    {delists.length > 0 && <section className="cx-panel rounded-none border-destructive">
+      <div className="border-b border-border bg-destructive/10 p-5 sm:p-6"><p className="cx-eyebrow text-destructive">Delist now</p><h2 className="mt-2 text-lg font-semibold">{delists.length} sold item{delists.length === 1 ? ' is' : 's are'} still listed somewhere else</h2><p className="mt-2 text-sm text-muted-foreground">Open each listing, delete it or mark it Not For Sale, then confirm here. The Chrome extension also checks these listings and confirms them for you once they're gone.</p></div>
+      <div className="divide-y divide-border">{delists.map((task) => <div key={task.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2">{task.soldOn && <span className={`${chip} border-border bg-success-tint text-foreground`}>Sold on {siteLabel(task.soldOn)}{task.soldFor ? ` · ${money(task.soldFor)}` : ''}</span>}<span className={`${chip} border-destructive bg-destructive/10 text-destructive`}>Still on {siteLabel(task.marketplace)}</span></div><p className="mt-2 font-semibold text-foreground">{task.itemTitle}</p><p className="mt-1 text-sm text-muted-foreground">Sale recorded {ago(task.createdAt)}.</p></div>
+        <div className="flex flex-wrap gap-2">
+          <a href={task.listingUrl || (task.marketplace === 'poshmark' ? 'https://poshmark.com/closet' : 'https://www.depop.com/')} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1 border-2 border-foreground bg-card px-3 text-xs font-extrabold uppercase tracking-[0.05em] text-foreground hover:bg-muted">Open {siteLabel(task.marketplace)} listing <ArrowUpRight size={14} /></a>
+          <button type="button" disabled={busy} onClick={() => void act(`/api/workflow/delisting-tasks/${task.id}`, { status: 'completed', note: 'Confirmed on Offers & sales page.' }, 'Marked delisted')} className="h-9 border-2 border-foreground bg-primary px-3 text-xs font-extrabold uppercase tracking-[0.05em] text-primary-foreground hover:bg-accent-hover disabled:opacity-50">I delisted it</button>
+        </div>
+      </div>)}</div>
+    </section>}
 
     {(unmatchedSales.length > 0 || recordedSales.length > 0) && <section className="cx-panel rounded-none">
       <div className="border-b border-border p-5 sm:p-6"><p className="cx-eyebrow">New sales</p><h2 className="mt-2 text-lg font-semibold">Sold in the last 7 days</h2><p className="mt-2 text-sm text-muted-foreground">Each sale is recorded in Orders with a delist task for the other site. Delist there as soon as you can so it can't sell twice.</p></div>

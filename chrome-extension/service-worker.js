@@ -1,5 +1,5 @@
 import { getAuto, registerAutopost, runOnce, scheduleNext, setEnabled } from './autopost.js';
-import { getWatch, registerOffersWatch, runWatch, setWatchOn } from './offers-watch.js';
+import { getDelists, getWatch, markDelisted, refreshDelists, registerDelistAlerts, registerOffersWatch, runWatch, setWatchOn, verifyDelists } from './offers-watch.js';
 import { getPosh, registerPoshbot, resumePosh, setPoshSettings, startPosh, stopPosh, tick as poshTick } from './poshbot.js';
 
 // The live app, plus the older address in case that deployment is repaired.
@@ -126,9 +126,14 @@ chrome.runtime.onInstalled.addListener(async () => {
 registerAutopost();
 registerPoshbot();
 registerOffersWatch();
+registerDelistAlerts();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
+    if (message?.type === 'DELIST_GET') { sendResponse({ ok: true, delists: await getDelists() }); return; }
+    if (message?.type === 'DELIST_REFRESH') { try { sendResponse({ ok: true, delists: await refreshDelists() }); } catch (error) { sendResponse({ ok: false, message: error instanceof Error ? error.message : 'Could not load' }); } return; }
+    if (message?.type === 'DELIST_DONE') { try { sendResponse({ ok: true, delists: await markDelisted(Number(message.id)) }); } catch (error) { sendResponse({ ok: false, message: error instanceof Error ? error.message : 'Could not save' }); } return; }
+    if (message?.type === 'DELIST_VERIFY') { try { const r = await verifyDelists(); sendResponse({ ok: true, ...r, delists: await getDelists() }); } catch (error) { sendResponse({ ok: false, message: error instanceof Error ? error.message : 'Check failed' }); } return; }
     if (message?.type === 'WATCH_GET') { sendResponse({ ok: true, watch: await getWatch() }); return; }
     if (message?.type === 'WATCH_SET') { sendResponse({ ok: true, watch: await setWatchOn(Boolean(message.on)) }); return; }
     if (message?.type === 'WATCH_RUN_NOW') { void runWatch({ manual: true }); sendResponse({ ok: true }); return; }

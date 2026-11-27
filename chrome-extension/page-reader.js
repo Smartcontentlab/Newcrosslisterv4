@@ -76,7 +76,18 @@
     };
   }
 
+  /** Is this listing still live? Used to confirm a delist actually happened. */
+  function listingGone() {
+    const stop = blocked();
+    if (stop === 'not_found') return { ok: true, gone: true, why: 'listing page not found' };
+    if (stop) return { ok: false, stop };
+    const head = norm(document.querySelector('main')?.innerText || document.body?.innerText).toLowerCase().slice(0, 3000);
+    if (/not for sale|no longer available|this (item|listing) (has been|was) (removed|deleted)|listing (has been )?removed/.test(head)) return { ok: true, gone: true, why: "listing shows not for sale / removed" };
+    return { ok: true, gone: false };
+  }
+
   async function readPage(mode) {
+    if (mode === 'listing') { await sleep(1500); return listingGone(); }
     const stop = blocked(); if (stop) return { ok: false, stop };
     await sleep(1500);
     await scrollSome(mode === 'sales' ? 4 : 6);

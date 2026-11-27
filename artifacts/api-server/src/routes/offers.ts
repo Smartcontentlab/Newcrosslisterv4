@@ -100,6 +100,8 @@ async function recordSale(userId: string, itemId: number, marketplace: string, a
   await db.insert(shippingTasksTable).values({ userId, orderId: order.id, steps: DEFAULT_SHIPPING_STEPS });
   await db.update(itemsTable).set({ status: "sold", soldPlatform: marketplace, soldAt: new Date() })
     .where(and(eq(itemsTable.id, itemId), eq(itemsTable.userId, userId)));
+  await db.update(marketplaceDraftsTable).set({ status: "sold", soldAt: new Date() })
+    .where(and(eq(marketplaceDraftsTable.itemId, itemId), eq(marketplaceDraftsTable.userId, userId), eq(marketplaceDraftsTable.marketplace, marketplace)));
   await enqueueDelistingTasksForSale({ userId, itemId, orderId: order.id, soldMarketplace: marketplace });
   return order;
 }
@@ -151,7 +153,9 @@ router.post("/offers/sync", async (request, response): Promise<void> => {
     const before = existingByKey.get(`sale:${externalKey}`);
     if (before) { await db.update(marketplaceOffersTable).set({ lastSeenAt: now }).where(eq(marketplaceOffersTable.id, before.id)); continue; }
     const itemId = match(entry);
-    let status = firstSalesRead ? "history" : itemId ? "recorded" : "unmatched";
+    // First read of a site: unmatched sales are old history (sold before CrossLinkOS). A sale that
+    // matches an item CrossLinkOS still shows as unsold is real and gets recorded either way.
+    let status = itemId ? "recorded" : firstSalesRead ? "history" : "unmatched";
     let orderId: number | null = null;
     if (status === "recorded" && itemId) {
       const [item] = await db.select({ status: itemsTable.status }).from(itemsTable).where(and(eq(itemsTable.id, itemId), eq(itemsTable.userId, userId)));
